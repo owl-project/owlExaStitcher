@@ -21,6 +21,48 @@
 
 namespace exa {
 
+  struct OWLRenderer
+  {
+    OWLRenderer();
+
+   ~OWLRenderer();
+
+    void setCamera(const vec3f &org,
+                   const vec3f &dir_00,
+                   const vec3f &dir_du,
+                   const vec3f &dir_dv);
+    void render(const vec2i &fbSize,
+                uint32_t *fbPointer);
+
+    OWLContext owl;
+    OWLModule  module;
+    OWLParams  lp;
+    OWLRayGen  rayGen;
+
+    struct {
+      OWLGeomType geomType;
+      OWLGroup blas;
+      OWLGroup tlas;
+    } stitchGeom;
+
+    struct {
+      std::vector<vec4f> colorMap;
+      OWLBuffer colorMapBuffer { 0 };
+      cudaArray_t colorMapArray { 0 };
+      cudaTextureObject_t colorMapTexture { 0 };
+    } xf;
+
+    OWLBuffer accumBuffer { 0 };
+    int accumID { 0 };
+    vec2i fbSize { 1 };
+    
+    static int   spp;
+    static bool  heatMapEnabled;
+    static float heatMapScale;
+
+    void resetAccum() { accumID = 0; }
+  };
+
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

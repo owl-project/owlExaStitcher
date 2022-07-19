@@ -19,6 +19,7 @@
 #include "OWLRenderer.h"
 
 namespace exa {
+  using qtOWL::SimpleCamera;
 
   struct {
     std::string xfFileName = "";
@@ -46,6 +47,125 @@ namespace exa {
     std::cout << std::endl;
     exit(1);
   }
+
+  struct Viewer : public qtOWL::OWLViewer {
+    typedef qtOWL::OWLViewer inherited;
+
+    Viewer(OWLRenderer *renderer)
+      : inherited("exastitch", cmdline.windowSize)
+      , renderer(renderer)
+    {
+    }
+
+    /*! this function gets called whenever the viewer widget changes
+      camera settings */
+    void cameraChanged() override;
+    void resize(const vec2i &newSize) override;
+    /*! gets called whenever the viewer needs us to re-render out widget */
+    void render() override;
+
+    /*! this gets called when the user presses a key on the keyboard ... */
+    void key(char key, const vec2i &where) override
+    {
+      inherited::key(key,where);
+      renderer->resetAccum();
+      switch (key) {
+      case '!':
+        std::cout << "saving screenshot to 'owlDVR.png'" << std::endl;
+        //renderer->screenShot("waikiki");
+        break;
+      case 'H':
+        //renderer->heatMapEnabled = !renderer->heatMapEnabled;
+        break;
+      case '<':
+        //renderer->heatMapScale /= 1.5f;
+        break;
+      case '>':
+        //renderer->heatMapScale *= 1.5f;
+        break;
+      case ')':
+        //renderer->spp++;
+        //PRINT(renderer->spp);
+        break;
+      case '(':
+        //renderer->spp = max(1,renderer->spp-1);
+        //PRINT(renderer->spp);
+        break;
+      case 'T':
+        if (xfEditor) xfEditor->saveTo("owlDVR.xf");
+        break;
+      }
+    }
+
+    OWLRenderer *const renderer;
+    qtOWL::XFEditor *xfEditor = nullptr;
+  };
+
+  void Viewer::resize(const vec2i &newSize) 
+  {
+    // ... tell parent to resize (also resizes the pbo in the wingdow)
+    inherited::resize(newSize);
+    cameraChanged();
+    renderer->resetAccum();
+  }
+    
+  /*! this function gets called whenever the viewer widget changes
+    camera settings */
+  void Viewer::cameraChanged() 
+  {
+    inherited::cameraChanged();
+    const SimpleCamera &camera = inherited::getCamera();
+    
+    const vec3f screen_du = camera.screen.horizontal / float(inherited::getWindowSize().x);
+    const vec3f screen_dv = camera.screen.vertical   / float(inherited::getWindowSize().y);
+    const vec3f screen_00 = camera.screen.lower_left;
+    renderer->setCamera(camera.lens.center,screen_00,screen_du,screen_dv);
+    renderer->resetAccum();
+  }
+    
+
+  /*! gets called whenever the viewer needs us to re-render out widget */
+  void Viewer::render() 
+  {
+    static double t_last = getCurrentTime();
+    static double t_first = t_last;
+
+    renderer->render(getWindowSize(),inherited::fbPointer);
+      
+    double t_now = getCurrentTime();
+    static double avg_t = t_now-t_last;
+    // if (t_last >= 0)
+    avg_t = 0.8*avg_t + 0.2*(t_now-t_last);
+
+    char title[1000];
+    sprintf(title,"%.2f FPS",(1.f/avg_t));
+    inherited::setTitle(title);
+    // setWindowTitle(title);
+    // glfwSetWindowTitle(this->handle,title);
+
+    t_last = t_now;
+
+
+#ifdef DUMP_FRAMES
+    // just dump the 10th frame, then hard-exit
+    static int g_frameID = 0;
+    if (g_frameID++ >= 10) {
+      const float *fbDepth
+        = (const float *)owlBufferGetPointer(renderer->fbDepth,renderer->gpuID);
+      std::ofstream out(cmdline.outFileName+".rgbaz",std::ios::binary);
+      out.write((char*)&fbSize,sizeof(fbSize));
+      out.write((char*)fbPointer,fbSize.x*fbSize.y*sizeof(*fbPointer));
+      out.write((char*)fbDepth,fbSize.x*fbSize.y*sizeof(*fbDepth));
+      // for (int i=0;i<fbSize.x*fbSize.y;i++) {
+      //   if (fbDepth[i] < 1e10f && fbDepth[i] > 0.f)
+      //     PRINT(fbDepth[i]);
+      // }
+      renderer->screenShot(cmdline.outFileName+".png");
+      exit(0);
+    }
+#endif
+  }
+
   extern "C" int main(int argc, char** argv)
   {
     std::string inFileName = "";
@@ -95,6 +215,38 @@ namespace exa {
     
     if (inFileName == "")
       usage("no filename specified");
+
+    OWLRenderer renderer;
+
+    const box3f modelBounds;// = renderer.modelBounds;
+
+    QApplication app(argc,argv);
+    Viewer viewer(&renderer);
+
+    viewer.enableFlyMode();
+
+    viewer.enableInspectMode(/* valid range of poi*/modelBounds,
+                             /* min distance      */1e-3f,
+                             /* max distance      */1e8f);
+
+    if (cmdline.camera.vu != vec3f(0.f)) {
+      viewer.setCameraOrientation(/*origin   */cmdline.camera.vp,
+                                  /*lookat   */cmdline.camera.vi,
+                                  /*up-vector*/cmdline.camera.vu,
+                                  /*fovy(deg)*/cmdline.camera.fovy);
+    } else {
+      viewer.setCameraOrientation(/*origin   */
+                                  modelBounds.center()
+                                  + vec3f(-.3f, .7f, +1.f) * modelBounds.span(),
+                                  /*lookat   */modelBounds.center(),
+                                  /*up-vector*/vec3f(0.f, 1.f, 0.f),
+                                  /*fovy(deg)*/70.f);
+    }
+    viewer.setWorldScale(1.1f*length(modelBounds.span()));
+
+    viewer.show();
+
+    app.exec();
   }
 } // ::exa
 

@@ -33,6 +33,11 @@ namespace exa {
   struct RayGen {
   };
 
+  struct StitchGeom {
+    int   *indexBuffer;
+    vec3f *vertexBuffer;
+  };
+
   struct LaunchParams {
     uint32_t *fbPointer;
     float    *fbDepth;

@@ -111,6 +111,11 @@ namespace exa {
   // Stitching user geometry
   // ------------------------------------------------------------------
 
+  struct VolumePRD {
+    int primID;
+    float value;
+  };
+
   OPTIX_BOUNDS_PROGRAM(ExaStitchBounds)(const void* geomData,
                                         box3f& result,
                                         int leafID)
@@ -121,6 +126,18 @@ namespace exa {
   {
     int primID = optixGetPrimitiveIndex();
     vec3f pos = optixGetObjectRayOrigin();
+  }
+
+  struct Sample {
+    int primID;
+    float value;
+  };
+
+  inline __device__ Sample sampleVolume(const vec3f pos)
+  {
+    VolumePRD prd{-1,0.f};
+
+    return {prd.primID,prd.value};
   }
 
   // ------------------------------------------------------------------
