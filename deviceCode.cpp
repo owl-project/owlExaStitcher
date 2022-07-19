@@ -159,21 +159,13 @@ namespace exa {
   {
     const StitchGeom &self = *(const StitchGeom *)geomData;
 
-    const vec4f v[8] = {
-      self.vertexBuffer[self.indexBuffer[leafID*8]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+1]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+2]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+3]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+4]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+5]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+6]],
-      self.vertexBuffer[self.indexBuffer[leafID*8+7]]
-    };
-
     result = box3f();
     for (int i=0; i<8; ++i) {
-      result.extend(vec3f(v[i]));
-      // printf("%f,%f,%f\n",v[i].x,v[i].y,v[i].z);
+      int idx = self.indexBuffer[leafID*8+i];
+      if (idx < 0) break;
+      vec3f v(self.vertexBuffer[idx]);
+      result.extend(v);
+      // printf("%i: %f,%f,%f\n",idx,v.x,v.y,v.z);
     }
   }
 
@@ -184,21 +176,23 @@ namespace exa {
     vec3f pos = optixGetObjectRayOrigin();
     float value = 0.f;
 
-    if (intersectHex(value,pos,
-                     self.vertexBuffer[self.indexBuffer[primID*8]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+1]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+2]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+3]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+4]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+5]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+6]],
-                     self.vertexBuffer[self.indexBuffer[primID*8+7]])) {
-      if (optixReportIntersection(0.f,0)) {
-        VolumePRD& prd = owl::getPRD<VolumePRD>();
-        prd.value = 1.f;//value;
-        prd.primID = primID;
+    vec4f v[8];
+    int numVerts = 0;
+    for (int i=0; i<8; ++i) {
+      int idx = self.indexBuffer[primID*8+i];
+      if (idx >= 0) {
+        numVerts++;
+        v[i] = self.vertexBuffer[idx];
       }
+    }
 
+    bool hit=numVerts==4 && intersectTet(value,pos,v[0],v[1],v[2],v[3])
+          || numVerts==8 && intersectHex(value,pos,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7]);
+
+    if (hit && optixReportIntersection(0.f,0)) {
+      VolumePRD& prd = owl::getPRD<VolumePRD>();
+      prd.value = value;
+      prd.primID = primID;
     }
   }
 
@@ -245,15 +239,18 @@ namespace exa {
                          CollisionType &type,     /* scattering,emission,... */
                          float         &Tr,       /* transmission samples [0,1] */
                          vec3f         &Le,       /* emitted radiance */
+                         vec4f         &xf,
                          Random        &random)
   {
+    auto& lp = optixLaunchParams;
+
     float t = 0.f;
     vec3f pos;
     Le = 0.f;
 
     // Delta tracking loop
     while (1) {
-      t -= logf(1.f-random())/majorant;
+      t -= logf(1.f-random())/majorant*10.f;
       pos = ray.origin+ray.direction*t;
 
       if (t >= ray.tmax) {
@@ -263,7 +260,7 @@ namespace exa {
 
       float u = random();
       Sample s = sampleVolume(pos);
-      vec4f xf = vec4f(s.value); // TODO: xf
+      xf = tex1D<float4>(lp.transferFunc.texture,s.value);
       float sigmaT = xf.w;
       float sigmaA = sigmaT/2.f; // TODO: that's arbitrary
       if (u < sigmaA/sigmaT) {
@@ -345,7 +342,8 @@ namespace exa {
           ray.tmax = box_t1;
           float majorant = 1.f; // TODO
 
-          sampleInteraction(ray,majorant,ctype,Tr,Le,random);
+          vec4f xf = 0.f; // albedo and extinction coefficient
+          sampleInteraction(ray,majorant,ctype,Tr,Le,xf,random);
 
           // left the volume?
           if (ctype==Boundary)
@@ -357,8 +355,9 @@ namespace exa {
             break;
           }
 
-          float albedo = .8f; // TODO
+          vec3f albedo(xf);
           throughput *= albedo;
+
           // russian roulette absorption
           float P = reduce_max(throughput);
           if (P < .2f/*lp.rouletteProb*/) {

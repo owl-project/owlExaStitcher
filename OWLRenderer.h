@@ -23,7 +23,7 @@ namespace exa {
 
   struct OWLRenderer
   {
-    OWLRenderer();
+    OWLRenderer(const std::string inFileName);
 
    ~OWLRenderer();
 
@@ -33,6 +33,8 @@ namespace exa {
                    const vec3f &dir_dv);
     void resize(const vec2i &newSize);
     void render(uint32_t *fbPointer);
+
+    void setColorMap(const std::vector<vec4f> &newCM);
 
     OWLContext owl;
     OWLModule  module;

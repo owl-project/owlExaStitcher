@@ -97,6 +97,10 @@ namespace exa {
       }
     }
 
+    void colorMapChanged(qtOWL::XFEditor *xf);
+    void rangeChanged(interval<double> r);
+    void opacityScaleChanged(double scale);
+
     OWLRenderer *const renderer;
     qtOWL::XFEditor *xfEditor = nullptr;
   };
@@ -167,6 +171,12 @@ namespace exa {
 #endif
   }
 
+  void Viewer::colorMapChanged(qtOWL::XFEditor *xfEditor)
+  {
+    renderer->setColorMap(xfEditor->getColorMap());
+    renderer->resetAccum();
+  }
+
   extern "C" int main(int argc, char** argv)
   {
     std::string inFileName = "";
@@ -217,7 +227,7 @@ namespace exa {
     if (inFileName == "")
       usage("no filename specified");
 
-    OWLRenderer renderer;
+    OWLRenderer renderer(inFileName);
 
     const box3f modelBounds = renderer.modelBounds;
 
@@ -245,6 +255,24 @@ namespace exa {
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
 
+    renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
+    renderer.setColorMap(renderer.xf.colorMap);
+    //renderer.setOpacityScale(1.f);
+
+    qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
+    QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
+                     &viewer, &Viewer::colorMapChanged);
+    //QObject::connect(xfEditor,&qtOWL::XFEditor::rangeChanged,
+    //                 viewer, &Viewer::rangeChanged);
+    //QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
+    //                 viewer, &Viewer::opacityScaleChanged);
+
+    if (cmdline.xfFileName != "")
+      xfEditor->loadFrom(cmdline.xfFileName);
+
+    viewer.xfEditor = xfEditor;
+
+    xfEditor->show();
     viewer.show();
 
     app.exec();

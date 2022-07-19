@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include "umesh/UMesh.h"
 #include "OWLRenderer.h"
 
 extern "C" char embedded_deviceCode[];
@@ -64,36 +65,36 @@ namespace exa {
   // Renderer class
   // ==================================================================
 
-  OWLRenderer::OWLRenderer()
+  OWLRenderer::OWLRenderer(const std::string inFileName)
   {
-    vec4f vertices[12] = {
-      {-10.f,0.f,0.f,1.f},
-      {1.f,0.f,0.f,1.f},
-      {1.f,1.f,0.f,1.f},
-      {-10.f,1.f,0.f,1.f},
+    std::cout << "#mm: loading umesh from " << inFileName << std::endl;
+    umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
+    std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
 
-      {-10.f,0.f,1.f,1.f},
-      {1.f,0.f,1.f,1.f},
-      {1.f,1.f,1.f,1.f},
-      {-10.f,1.f,1.f,1.f},
-
-      {2.f,0.f,0.f,1.f},
-      {2.f,1.f,0.f,1.f},
-      {2.f,0.f,1.f,1.f},
-      {2.f,1.f,1.f,1.f},
-    };
-
-    int indices[16] = {
-      0,1,2,3, 4,5,6,7,
-      1,8,9,2, 5,10,11,6
-    };
-
-    unsigned numElems = sizeof(indices)/(sizeof(indices[0])*8);
+    std::vector<vec4f> vertices(mesh->vertices.size());
+    for (size_t i=0; i<mesh->vertices.size(); ++i) {
+      float value = mesh->perVertex->values[i];
+      value -= mesh->perVertex->valueRange.lower;
+      value /= mesh->perVertex->valueRange.upper-mesh->perVertex->valueRange.lower;
+      vertices[i] = vec4f(mesh->vertices[i].x,
+                          mesh->vertices[i].y,
+                          mesh->vertices[i].z,
+                          value);
+    }
 
     modelBounds = box3f();
-    for (int i=0; i<numElems*8; ++i) {
-      modelBounds.extend(vec3f(vertices[indices[i]]));
+    std::vector<int> indices(mesh->size()*8,-1);
+
+    size_t elem = 0;
+    for (size_t i=0; i<mesh->tets.size(); ++i) {
+      for (size_t j=0; j<4; ++j) {
+        indices[elem*8+j] = mesh->tets[i][j];
+        modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+      }
+      elem++;
     }
+
+    unsigned numElems = indices.size()/8;
 
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
@@ -112,12 +113,12 @@ namespace exa {
     owlGeomSetPrimCount(geom, numElems);
 
     OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
-                                                   sizeof(vertices)/sizeof(vertices[0]),
-                                                   vertices);
+                                                   vertices.size(),
+                                                   vertices.data());
 
     OWLBuffer indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
-                                                  sizeof(indices)/sizeof(indices[0]),
-                                                  indices);
+                                                  indices.size(),
+                                                  indices.data());
 
     owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
     owlGeomSetBuffer(geom,"indexBuffer",indexBuffer);
@@ -194,6 +195,63 @@ namespace exa {
     owlLaunch2D(rayGen,fbSize.x,fbSize.y,lp);
   }
 
+  void OWLRenderer::setColorMap(const std::vector<vec4f> &newCM)
+  {
+    xf.colorMap = newCM;
+
+    if (!xf.colorMapBuffer)
+      xf.colorMapBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT4,
+                                                newCM.size(),nullptr);
+
+    owlBufferUpload(xf.colorMapBuffer,newCM.data());
+    
+    if (xf.colorMapTexture != 0) {
+      cudaDestroyTextureObject(xf.colorMapTexture);
+      xf.colorMapTexture = 0;
+    }
+
+    cudaResourceDesc res_desc = {};
+    cudaChannelFormatDesc channel_desc
+      = cudaCreateChannelDesc<float4>();
+
+    // cudaArray_t   voxelArray;
+    if (xf.colorMapArray == 0) {
+      cudaMallocArray(&xf.colorMapArray,
+                      &channel_desc,
+                      newCM.size(),1);
+    }
+    
+    int pitch = newCM.size()*sizeof(newCM[0]);
+    cudaMemcpy2DToArray(xf.colorMapArray,
+                        /* offset */0,0,
+                        newCM.data(),
+                        pitch,pitch,1,
+                        cudaMemcpyHostToDevice);
+
+    res_desc.resType          = cudaResourceTypeArray;
+    res_desc.res.array.array  = xf.colorMapArray;
+    
+    cudaTextureDesc tex_desc     = {};
+    tex_desc.addressMode[0]      = cudaAddressModeBorder;
+    tex_desc.addressMode[1]      = cudaAddressModeBorder;
+    tex_desc.filterMode          = cudaFilterModeLinear;
+    tex_desc.normalizedCoords    = 1;
+    tex_desc.maxAnisotropy       = 1;
+    tex_desc.maxMipmapLevelClamp = 99;
+    tex_desc.minMipmapLevelClamp = 0;
+    tex_desc.mipmapFilterMode    = cudaFilterModePoint;
+    tex_desc.borderColor[0]      = 0.0f;
+    tex_desc.borderColor[1]      = 0.0f;
+    tex_desc.borderColor[2]      = 0.0f;
+    tex_desc.borderColor[3]      = 0.0f;
+    tex_desc.sRGB                = 0;
+    cudaCreateTextureObject(&xf.colorMapTexture, &res_desc, &tex_desc,
+                            nullptr);
+
+    owlParamsSetRaw(lp,"transferFunc.texture",&xf.colorMapTexture);
+
+    accumID = 0;
+  }
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
