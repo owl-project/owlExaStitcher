@@ -29,6 +29,8 @@ namespace exa {
   = {
      { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,indexBuffer)},
      { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,vertexBuffer)},
+     { "bounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(StitchGeom,bounds.lower)},
+     { "bounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(StitchGeom,bounds.upper)},
      { nullptr /* sentinel to mark end of list */ }
   };
 
@@ -39,6 +41,8 @@ namespace exa {
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "world",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,world)},
+     { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
+     { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -114,6 +118,14 @@ namespace exa {
 
     owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
     owlGeomSetBuffer(geom,"indexBuffer",indexBuffer);
+    owlGeomSet3f(geom,"bounds.lower",
+                 modelBounds.lower.x,
+                 modelBounds.lower.y,
+                 modelBounds.lower.z);
+    owlGeomSet3f(geom,"bounds.upper",
+                 modelBounds.upper.x,
+                 modelBounds.upper.y,
+                 modelBounds.upper.z);
 
     owlBuildPrograms(owl);
 
@@ -123,9 +135,17 @@ namespace exa {
     stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
 
-    owlParamsSetGroup(lp, "world", stitchGeom.tlas);
-
     owlGroupBuildAccel(stitchGeom.tlas);
+
+    owlParamsSetGroup(lp, "world", stitchGeom.tlas);
+    owlParamsSet3f(lp,"modelBounds.lower",
+                   modelBounds.lower.x,
+                   modelBounds.lower.y,
+                   modelBounds.lower.z);
+    owlParamsSet3f(lp,"modelBounds.upper",
+                   modelBounds.upper.x,
+                   modelBounds.upper.y,
+                   modelBounds.upper.z);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);

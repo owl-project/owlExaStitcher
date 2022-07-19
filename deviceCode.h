@@ -36,6 +36,7 @@ namespace exa {
   struct StitchGeom {
     int   *indexBuffer;
     vec3f *vertexBuffer;
+    box3f bounds;
   };
 
   struct LaunchParams {
@@ -44,6 +45,7 @@ namespace exa {
     float4   *accumBuffer;
     int       accumID;
     OptixTraversableHandle world;
+    box3f     modelBounds;
     struct {
       cudaTextureObject_t texture;
       range1f             domain;

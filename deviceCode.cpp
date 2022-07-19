@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <float.h>
 #include "deviceCode.h"
 
 using owl::vec2f;
@@ -55,6 +56,34 @@ namespace exa {
     return c;
   }
 
+  inline __device__
+  bool intersect(const Ray &ray,
+                 const box3f &box,
+                 float &t0,
+                 float &t1)
+  {
+    vec3f lo = (box.lower - ray.origin) / ray.direction;
+    vec3f hi = (box.upper - ray.origin) / ray.direction;
+    
+    vec3f nr = min(lo,hi);
+    vec3f fr = max(lo,hi);
+
+    t0 = max(ray.tmin,reduce_max(nr));
+    t1 = min(ray.tmax,reduce_min(fr));
+
+    return t0 < t1;
+  }
+
+  inline __device__ vec3f randomColor(unsigned idx)
+  {
+    unsigned int r = (unsigned int)(idx*13*17 + 0x234235);
+    unsigned int g = (unsigned int)(idx*7*3*5 + 0x773477);
+    unsigned int b = (unsigned int)(idx*11*19 + 0x223766);
+    return vec3f((r&255)/255.f,
+                 (g&255)/255.f,
+                 (b&255)/255.f);
+  }
+
   inline  __device__ Ray generateRay(const vec2f screen)
   {
     auto &lp = optixLaunchParams;
@@ -70,6 +99,13 @@ namespace exa {
     return Ray(org,dir,0.f,1e10f);
   }
  
+  inline __device__ void make_orthonormal_basis(vec3f &u, vec3f &v, const vec3f &w)
+  {
+    v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3f(-w.z,0.f,w.x))
+                                : normalize(vec3f(0.f,w.z,-w.y));
+    u = cross(v, w);
+  }
+
   inline  __device__ vec4f over(const vec4f &A, const vec4f &B)
   {
     return A + (1.f-A.w)*B;
@@ -159,12 +195,95 @@ namespace exa {
   {
     VolumePRD prd{-1,0.f};
 
-    return {prd.primID,prd.value};
+    return {prd.primID,.8f};//prd.value};
+  }
+
+  inline __device__ vec3f getLe(const int primID)
+  {
+    if (primID == 1) {
+      return {120.f,60.f,45.f};
+    }
+    return 0.f;
   }
 
   // ------------------------------------------------------------------
   // Woodcock path tracer
   // ------------------------------------------------------------------
+
+  enum CollisionType {
+    Boundary, Scattering, Emission,
+  };
+
+  inline __device__
+  void sampleInteraction(Ray           &ray,
+                         const float    majorant,
+                         CollisionType &type,     /* scattering,emission,... */
+                         float         &Tr,       /* transmission samples [0,1] */
+                         vec3f         &Le,       /* emitted radiance */
+                         Random        &random)
+  {
+    float t = 0.f;
+    vec3f pos;
+    Le = 0.f;
+
+    // Delta tracking loop
+    while (1) {
+      t -= logf(1.f-random())/majorant;
+      pos = ray.origin+ray.direction*t;
+
+      if (t >= ray.tmax) {
+        type = Boundary;
+        break;
+      }
+
+      float u = random();
+      Sample s = sampleVolume(pos);
+      vec4f xf = vec4f(s.value); // TODO: xf
+      float sigmaT = xf.w;
+      float sigmaA = sigmaT/2.f; // TODO: that's arbitrary
+      if (u < sigmaA/sigmaT) {
+        Le = getLe(s.primID);
+        type = Emission;
+        break;
+      } else {
+        type = Scattering;
+        break;
+      }
+    }
+
+    Tr = type==Boundary?1.f:0.f;
+    ray.origin = pos;
+  }
+
+  __device__ inline
+  float henyeyGreensteinTr(const vec3f &wo, const vec3f &wi, float g)
+  {
+    const float cost = dot(wo, wi);
+    const float denom = 1.f + g*g + 2.f*g*cost;
+    return (1.f/(4.f*M_PI)) * (1.f-g*g) / (denom*sqrtf(denom));
+  }
+
+  __device__ inline
+  float henyeyGreensteinSample(const vec3f &wo, vec3f &wi, float &pdf, float g, Random &random)
+  {
+    const bool gIsNotZero = fabsf(g) >= FLT_EPSILON;
+
+    const float u1 = random();
+    const float u2 = random();
+
+    const float a = gIsNotZero ? (1.f-g*g) / (1.f-g + 2.f*g*u1) : 0.f;
+    const float cost = gIsNotZero ? (1.f + g*g - a*a) / (2.f*g) : 1.f - 2.f*u1;
+    const float sint = sqrtf(fmaxf(0.f, 1.f-cost*cost));
+    const float phi = 2.f*M_PI*u2;
+
+    vec3f u, v, w = wo;
+    make_orthonormal_basis(u, v, w);
+
+    wi = sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w;
+    pdf = 1.f;
+
+    return henyeyGreensteinTr(-w, wi, g);
+  }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
   {
@@ -183,8 +302,58 @@ namespace exa {
       vec4f color = 0.f;
 
       Ray ray = generateRay(vec2f(threadIdx)+vec2f(.5f));
+      vec3f throughput = 1.f;
+
+      float box_t0 = 1e30f, box_t1 = -1e30f;
+
+      if (intersect(ray,lp.modelBounds,box_t0,box_t1)) {
+        unsigned bounce = 0;
+        while (1) { // pathtracing loop
+          vec3f Le; // emission
+          float Tr; // transmittance
+          CollisionType ctype;
+          ray.tmax = box_t1;
+          float majorant = 1.f; // TODO
+
+          sampleInteraction(ray,majorant,ctype,Tr,Le,random);
+
+          // left the volume?
+          if (ctype==Boundary)
+            break;
+
+          // max path lenght exceeded?
+          if (bounce++ >= 1024/*lp.maxBounces*/) {
+            throughput = 0.f;
+            break;
+          }
+
+          float albedo = .8f; // TODO
+          throughput *= albedo;
+          // russian roulette absorption
+          float P = reduce_max(throughput);
+          if (P < .2f/*lp.rouletteProb*/) {
+            if (random() > P) {
+              throughput = 0.f;
+              break;
+            }
+            throughput /= P;
+          }
+
+          throughput += Le;
+
+          // Sample phase function
+          vec3f scatterDir;
+          float pdf;
+          float g = 1.f; // isotropic
+          henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
+          ray.direction = scatterDir;
+
+          intersect(ray,lp.modelBounds,box_t0,box_t1);
+        }
+      }
 
       color = over(color,bgColor);
+      color *= vec4f(throughput.x,throughput.y,throughput.z,1.f);
       accumColor += color;
     }
 
