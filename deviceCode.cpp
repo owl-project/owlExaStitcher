@@ -195,7 +195,7 @@ namespace exa {
   {
     VolumePRD prd{-1,0.f};
 
-    return {prd.primID,.8f};//prd.value};
+    return {prd.primID,1.f};//prd.value};
   }
 
   inline __device__ vec3f getLe(const int primID)
@@ -245,7 +245,7 @@ namespace exa {
         Le = getLe(s.primID);
         type = Emission;
         break;
-      } else {
+      } else if (sigmaT >= u * majorant) {
         type = Scattering;
         break;
       }
@@ -301,12 +301,17 @@ namespace exa {
     for (int sampleID=0;sampleID<spp;sampleID++) {
       vec4f color = 0.f;
 
-      Ray ray = generateRay(vec2f(threadIdx)+vec2f(.5f));
+      float rx = random();
+      float ry = random();
+      Ray ray = generateRay(vec2f(pixelIndex)+vec2f(rx,ry));
       vec3f throughput = 1.f;
 
       float box_t0 = 1e30f, box_t1 = -1e30f;
 
       if (intersect(ray,lp.modelBounds,box_t0,box_t1)) {
+        ray.origin += ray.direction * box_t0;
+        box_t1 -= box_t0;
+
         unsigned bounce = 0;
         while (1) { // pathtracing loop
           vec3f Le; // emission
