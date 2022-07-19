@@ -116,16 +116,38 @@ namespace exa {
     float value;
   };
 
-  OPTIX_BOUNDS_PROGRAM(ExaStitchBounds)(const void* geomData,
-                                        box3f& result,
-                                        int leafID)
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBounds)(const void* geomData,
+                                         box3f& result,
+                                         int leafID)
   {
+    const StitchGeom &self = *(const StitchGeom *)geomData;
+
+    const vec3f v[8] = {
+      self.vertexBuffer[self.indexBuffer[leafID*8]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+1]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+2]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+3]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+4]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+5]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+6]],
+      self.vertexBuffer[self.indexBuffer[leafID*8+7]]
+    };
+
+    result = box3f();
+    for (int i=0; i<8; ++i) {
+      result.extend(v[i]);
+      // printf("%f,%f,%f\n",v[i].x,v[i].y,v[i].z);
+    }
   }
 
-  OPTIX_INTERSECT_PROGRAM(ExaStitchIsect)()
+  OPTIX_INTERSECT_PROGRAM(StitchGeomIsect)()
   {
     int primID = optixGetPrimitiveIndex();
     vec3f pos = optixGetObjectRayOrigin();
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(StitchGeomCH)()
+  {
   }
 
   struct Sample {
@@ -151,7 +173,7 @@ namespace exa {
     vec4f bgColor = vec4f(backGroundColor(),1.f);
     const int spp = lp.render.spp;
     const vec2i pixelIndex = owl::getLaunchIndex();
-    int pixelID = threadIdx.x + owl::getLaunchDims().x*threadIdx.y;
+    int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
     Random random(pixelID,lp.accumID);
     uint64_t clock_begin = clock64();
     vec4f accumColor = 0.f;
@@ -162,6 +184,7 @@ namespace exa {
 
       Ray ray = generateRay(vec2f(threadIdx)+vec2f(.5f));
 
+      color = over(color,bgColor);
       accumColor += color;
     }
 

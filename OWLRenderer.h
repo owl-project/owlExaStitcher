@@ -31,8 +31,8 @@ namespace exa {
                    const vec3f &dir_00,
                    const vec3f &dir_du,
                    const vec3f &dir_dv);
-    void render(const vec2i &fbSize,
-                uint32_t *fbPointer);
+    void resize(const vec2i &newSize);
+    void render(uint32_t *fbPointer);
 
     OWLContext owl;
     OWLModule  module;
@@ -56,11 +56,13 @@ namespace exa {
     int accumID { 0 };
     vec2i fbSize { 1 };
     
-    static int   spp;
-    static bool  heatMapEnabled;
-    static float heatMapScale;
+    int   spp = 1;
+    bool  heatMapEnabled = 0;
+    float heatMapScale = 1.f;
 
     void resetAccum() { accumID = 0; }
+
+    box3f modelBounds;
   };
 
 } // ::exa

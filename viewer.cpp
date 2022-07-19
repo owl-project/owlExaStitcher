@@ -106,6 +106,7 @@ namespace exa {
     // ... tell parent to resize (also resizes the pbo in the wingdow)
     inherited::resize(newSize);
     cameraChanged();
+    renderer->resize(newSize);
     renderer->resetAccum();
   }
     
@@ -130,7 +131,7 @@ namespace exa {
     static double t_last = getCurrentTime();
     static double t_first = t_last;
 
-    renderer->render(getWindowSize(),inherited::fbPointer);
+    renderer->render(inherited::fbPointer);
       
     double t_now = getCurrentTime();
     static double avg_t = t_now-t_last;
@@ -218,7 +219,7 @@ namespace exa {
 
     OWLRenderer renderer;
 
-    const box3f modelBounds;// = renderer.modelBounds;
+    const box3f modelBounds = renderer.modelBounds;
 
     QApplication app(argc,argv);
     Viewer viewer(&renderer);

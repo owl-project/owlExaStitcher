@@ -62,6 +62,32 @@ namespace exa {
 
   OWLRenderer::OWLRenderer()
   {
+    unsigned numElems = 2;
+    vec3f vertices[12] = {
+      {0.f,0.f,0.f},
+      {1.f,0.f,0.f},
+      {1.f,1.f,0.f},
+      {0.f,1.f,0.f},
+      {0.f,0.f,-1.f},
+      {1.f,0.f,-1.f},
+      {1.f,1.f,-1.f},
+      {0.f,1.f,-1.f},
+      {2.f,0.f,0.f},
+      {2.f,1.f,0.f},
+      {2.f,0.f,-1.f},
+      {2.f,1.f,-1.f}
+    };
+
+    int indices[16] = {
+      0,1,2,3, 4,5,6,7,
+      1,8,9,2, 5,10,11,6
+    };
+
+    modelBounds = box3f();
+    for (int i=0; i<16; ++i) {
+      modelBounds.extend(vertices[indices[i]]);
+    }
+
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
@@ -71,6 +97,38 @@ namespace exa {
                                             OWL_GEOM_USER,
                                             sizeof(StitchGeom),
                                             stitchGeomVars, -1);
+    owlGeomTypeSetBoundsProg(stitchGeom.geomType, module, "StitchGeomBounds");
+    owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
+    owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
+
+    OWLGeom geom = owlGeomCreate(owl, stitchGeom.geomType);
+    owlGeomSetPrimCount(geom, numElems);
+
+    OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT3,
+                                                   sizeof(vertices)/sizeof(vertices[0]),
+                                                   vertices);
+
+    OWLBuffer indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
+                                                  sizeof(indices)/sizeof(indices[0]),
+                                                  indices);
+
+    owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
+    owlGeomSetBuffer(geom,"indexBuffer",indexBuffer);
+
+    owlBuildPrograms(owl);
+
+    stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &geom);
+    owlGroupBuildAccel(stitchGeom.blas);
+
+    stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
+    owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
+
+    owlParamsSetGroup(lp, "world", stitchGeom.tlas);
+
+    owlGroupBuildAccel(stitchGeom.tlas);
+
+    owlBuildPipeline(owl);
+    owlBuildSBT(owl);
   }
 
   OWLRenderer::~OWLRenderer()
@@ -88,9 +146,29 @@ namespace exa {
     owlParamsSet3f(lp,"camera.dir_dv",dir_dv.x,dir_dv.y,dir_dv.z);
   }
 
-  void OWLRenderer::render(const vec2i &fbSize,
-                           uint32_t *fbPointer)
+  void OWLRenderer::resize(const vec2i &newSize)
   {
+    if (newSize != this->fbSize) {
+      if (!accumBuffer)
+        accumBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT4,1,nullptr);
+      owlBufferResize(accumBuffer,newSize.x*newSize.y);
+      owlParamsSetBuffer(lp,"accumBuffer",accumBuffer);
+      this->fbSize = newSize;
+    }
+  }
+
+  void OWLRenderer::render(uint32_t *fbPointer)
+  {
+    owlParamsSetPointer(lp,"fbPointer",fbPointer);
+
+    owlParamsSet1i(lp,"accumID",accumID);
+    accumID++;
+    owlParamsSet1f(lp,"render.dt",2.f);
+    owlParamsSet1i(lp,"render.spp",max(spp,1));
+    owlParamsSet1i(lp,"render.heatMapEnabled",heatMapEnabled);
+    owlParamsSet1f(lp,"render.heatMapScale",heatMapScale);
+
+    owlLaunch2D(rayGen,fbSize.x,fbSize.y,lp);
   }
 
 } // ::exa
