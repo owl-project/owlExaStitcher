@@ -1,0 +1,6 @@
+[submodule "submodules/owl"]
+	path = submodules/owl
+	url = https://github.com/owl-project/owl
+[submodule "submodules/fakeOwl"]
+	path = submodules/fakeOwl
+	url = https://github.com/szellmann/fakeOwl
