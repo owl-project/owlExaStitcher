@@ -4,3 +4,6 @@
 [submodule "submodules/fakeOwl"]
 	path = submodules/fakeOwl
 	url = https://github.com/szellmann/fakeOwl
+[submodule "submodules/umesh"]
+	path = submodules/umesh
+	url = https://gitlab.com/ingowald/umesh

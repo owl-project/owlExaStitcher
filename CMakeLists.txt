@@ -48,6 +48,13 @@ find_package(OpenGL REQUIRED)
 set(CMAKE_AUTOMOC ON)
 
 # ------------------------------------------------------------------
+# umesh
+# ------------------------------------------------------------------
+
+add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
+
+
+# ------------------------------------------------------------------
 # exastitch
 # ------------------------------------------------------------------
 
@@ -66,6 +73,7 @@ endif()
 target_link_libraries(exaStitchViewer
       owl::owl
       qtOWL
+      umesh
       ${OPENGL_LIBRARIES})
 qt5_use_modules(exaStitchViewer Widgets)
 set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
