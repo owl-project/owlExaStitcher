@@ -35,7 +35,7 @@ namespace exa {
 
   struct StitchGeom {
     int   *indexBuffer;
-    vec3f *vertexBuffer;
+    vec4f *vertexBuffer;
     box3f bounds;
   };
 

@@ -66,20 +66,21 @@ namespace exa {
 
   OWLRenderer::OWLRenderer()
   {
-    unsigned numElems = 2;
-    vec3f vertices[12] = {
-      {0.f,0.f,0.f},
-      {1.f,0.f,0.f},
-      {1.f,1.f,0.f},
-      {0.f,1.f,0.f},
-      {0.f,0.f,-1.f},
-      {1.f,0.f,-1.f},
-      {1.f,1.f,-1.f},
-      {0.f,1.f,-1.f},
-      {2.f,0.f,0.f},
-      {2.f,1.f,0.f},
-      {2.f,0.f,-1.f},
-      {2.f,1.f,-1.f}
+    vec4f vertices[12] = {
+      {-10.f,0.f,0.f,1.f},
+      {1.f,0.f,0.f,1.f},
+      {1.f,1.f,0.f,1.f},
+      {-10.f,1.f,0.f,1.f},
+
+      {-10.f,0.f,1.f,1.f},
+      {1.f,0.f,1.f,1.f},
+      {1.f,1.f,1.f,1.f},
+      {-10.f,1.f,1.f,1.f},
+
+      {2.f,0.f,0.f,1.f},
+      {2.f,1.f,0.f,1.f},
+      {2.f,0.f,1.f,1.f},
+      {2.f,1.f,1.f,1.f},
     };
 
     int indices[16] = {
@@ -87,9 +88,11 @@ namespace exa {
       1,8,9,2, 5,10,11,6
     };
 
+    unsigned numElems = sizeof(indices)/(sizeof(indices[0])*8);
+
     modelBounds = box3f();
-    for (int i=0; i<16; ++i) {
-      modelBounds.extend(vertices[indices[i]]);
+    for (int i=0; i<numElems*8; ++i) {
+      modelBounds.extend(vec3f(vertices[indices[i]]));
     }
 
     owl = owlContextCreate(nullptr,1);
@@ -108,7 +111,7 @@ namespace exa {
     OWLGeom geom = owlGeomCreate(owl, stitchGeom.geomType);
     owlGeomSetPrimCount(geom, numElems);
 
-    OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT3,
+    OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
                                                    sizeof(vertices)/sizeof(vertices[0]),
                                                    vertices);
 

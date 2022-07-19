@@ -16,6 +16,7 @@
 
 #include <float.h>
 #include "deviceCode.h"
+#include "Plane.h"
 
 using owl::vec2f;
 using owl::vec2i;
@@ -158,7 +159,7 @@ namespace exa {
   {
     const StitchGeom &self = *(const StitchGeom *)geomData;
 
-    const vec3f v[8] = {
+    const vec4f v[8] = {
       self.vertexBuffer[self.indexBuffer[leafID*8]],
       self.vertexBuffer[self.indexBuffer[leafID*8+1]],
       self.vertexBuffer[self.indexBuffer[leafID*8+2]],
@@ -171,15 +172,34 @@ namespace exa {
 
     result = box3f();
     for (int i=0; i<8; ++i) {
-      result.extend(v[i]);
+      result.extend(vec3f(v[i]));
       // printf("%f,%f,%f\n",v[i].x,v[i].y,v[i].z);
     }
   }
 
   OPTIX_INTERSECT_PROGRAM(StitchGeomIsect)()
   {
+    const StitchGeom &self = owl::getProgramData<StitchGeom>();
     int primID = optixGetPrimitiveIndex();
     vec3f pos = optixGetObjectRayOrigin();
+    float value = 0.f;
+
+    if (intersectHex(value,pos,
+                     self.vertexBuffer[self.indexBuffer[primID*8]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+1]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+2]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+3]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+4]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+5]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+6]],
+                     self.vertexBuffer[self.indexBuffer[primID*8+7]])) {
+      if (optixReportIntersection(0.f,0)) {
+        VolumePRD& prd = owl::getPRD<VolumePRD>();
+        prd.value = 1.f;//value;
+        prd.primID = primID;
+      }
+
+    }
   }
 
   OPTIX_CLOSEST_HIT_PROGRAM(StitchGeomCH)()
@@ -193,15 +213,20 @@ namespace exa {
 
   inline __device__ Sample sampleVolume(const vec3f pos)
   {
-    VolumePRD prd{-1,0.f};
+    auto& lp = optixLaunchParams;
 
-    return {prd.primID,1.f};//prd.value};
+    VolumePRD prd{-1,0.f};
+    owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
+    owl::traceRay(lp.world,ray,prd,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+    return {prd.primID,prd.value};
   }
 
   inline __device__ vec3f getLe(const int primID)
   {
     if (primID == 1) {
-      return {120.f,60.f,45.f};
+      return {12.f,6.f,4.5f};
     }
     return 0.f;
   }
