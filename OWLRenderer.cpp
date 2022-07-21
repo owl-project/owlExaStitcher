@@ -85,13 +85,25 @@ namespace exa {
     std::vector<int> indices(mesh->size()*8,-1);
 
     size_t elem = 0;
-    for (size_t i=0; i<mesh->tets.size(); ++i) {
-      for (size_t j=0; j<4; ++j) {
-        indices[elem*8+j] = mesh->tets[i][j];
-        modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+
+    auto buildIndices = [&](const auto &elems) {
+      if (elems.empty())
+        return;
+
+      unsigned numVertices = elems[0].numVertices;
+      for (size_t i=0; i<elems.size(); ++i) {
+        for (size_t j=0; j<numVertices; ++j) {
+          indices[elem*8+j] = elems[i][j];
+          modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+        }
+        elem++;
       }
-      elem++;
-    }
+    };
+
+    buildIndices(mesh->tets);
+    buildIndices(mesh->pyrs);
+    buildIndices(mesh->wedges);
+    buildIndices(mesh->hexes);
 
     unsigned numElems = indices.size()/8;
 

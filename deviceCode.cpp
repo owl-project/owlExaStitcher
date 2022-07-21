@@ -187,6 +187,8 @@ namespace exa {
     }
 
     bool hit=numVerts==4 && intersectTet(value,pos,v[0],v[1],v[2],v[3])
+          || numVerts==5 && intersectPyr(value,pos,v[0],v[1],v[2],v[3],v[4])
+          || numVerts==6 && intersectWedge(value,pos,v[0],v[1],v[2],v[3],v[4],v[5])
           || numVerts==8 && intersectHex(value,pos,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7]);
 
     if (hit && optixReportIntersection(0.f,0)) {
