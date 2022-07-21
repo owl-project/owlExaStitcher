@@ -217,11 +217,13 @@ namespace exa {
     return {prd.primID,prd.value};
   }
 
-  inline __device__ vec3f getLe(const int primID)
+  inline __device__ vec3f getLe(const Sample s)
   {
-    if (primID == 1) {
-      return {12.f,6.f,4.5f};
-    }
+    auto& lp = optixLaunchParams;
+    vec4f xf = tex1D<float4>(lp.transferFunc.texture,s.value);
+    //if (xf.w > .999f)
+    if (s.value < .2f)
+      return {120.f,60.f,45.f};
     return 0.f;
   }
 
@@ -260,14 +262,16 @@ namespace exa {
 
       float u = random();
       Sample s = sampleVolume(pos);
+      s.value -= lp.valueRange.lower;
+      s.value /= lp.valueRange.upper-lp.valueRange.lower;
       xf = tex1D<float4>(lp.transferFunc.texture,s.value);
       float sigmaT = xf.w;
-      float sigmaA = sigmaT/2.f; // TODO: that's arbitrary
-      if (u < sigmaA/sigmaT) {
-        Le = getLe(s.primID);
+      float sigmaA = sigmaT/2.f;
+      /*if (u < sigmaA/sigmaT) {
+        Le = getLe(s);
         type = Emission;
         break;
-      } else if (sigmaT >= u * majorant) {
+      } else*/ if (sigmaT >= u * majorant) {
         type = Scattering;
         break;
       }
@@ -381,7 +385,7 @@ namespace exa {
         }
       }
 
-      color = over(color,bgColor);
+      color = 1.f;//over(color,bgColor);
       color *= vec4f(throughput.x,throughput.y,throughput.z,1.f);
       accumColor += color;
     }

@@ -44,6 +44,7 @@ namespace exa {
      { "world",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,world)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
+     { "valueRange",  OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,valueRange)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -74,8 +75,6 @@ namespace exa {
     std::vector<vec4f> vertices(mesh->vertices.size());
     for (size_t i=0; i<mesh->vertices.size(); ++i) {
       float value = mesh->perVertex->values[i];
-      value -= mesh->perVertex->valueRange.lower;
-      value /= mesh->perVertex->valueRange.upper-mesh->perVertex->valueRange.lower;
       vertices[i] = vec4f(mesh->vertices[i].x,
                           mesh->vertices[i].y,
                           mesh->vertices[i].z,
@@ -150,6 +149,9 @@ namespace exa {
                    modelBounds.upper.x,
                    modelBounds.upper.y,
                    modelBounds.upper.z);
+    owlParamsSet2f(lp,"valueRange",
+                   mesh->perVertex->valueRange.lower,
+                   mesh->perVertex->valueRange.upper);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);

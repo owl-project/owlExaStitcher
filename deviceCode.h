@@ -46,6 +46,7 @@ namespace exa {
     int       accumID;
     OptixTraversableHandle world;
     box3f     modelBounds;
+    range1f   valueRange;
     struct {
       cudaTextureObject_t texture;
       range1f             domain;
