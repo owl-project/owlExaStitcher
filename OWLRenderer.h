@@ -23,7 +23,8 @@ namespace exa {
 
   struct OWLRenderer
   {
-    OWLRenderer(const std::string inFileName);
+    OWLRenderer(const std::string inFileName,
+                const std::string scalarFileName = "");
 
    ~OWLRenderer();
 

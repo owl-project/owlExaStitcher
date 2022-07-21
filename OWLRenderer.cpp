@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <fstream>
 #include "umesh/UMesh.h"
 #include "OWLRenderer.h"
 
@@ -66,15 +67,34 @@ namespace exa {
   // Renderer class
   // ==================================================================
 
-  OWLRenderer::OWLRenderer(const std::string inFileName)
+  OWLRenderer::OWLRenderer(const std::string inFileName,
+                           const std::string scalarFileName)
   {
     std::cout << "#mm: loading umesh from " << inFileName << std::endl;
     umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
     std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
 
+    std::vector<float> scalars;
+
+    std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
+    if (scalarFile.good()) {
+      size_t numBytes = scalarFile.tellg();
+      scalarFile.close();
+      scalarFile.open(scalarFileName, std::ios::binary);
+      if (scalarFile.good()) {
+        scalars.resize(numBytes/sizeof(float));
+        scalarFile.read((char *)scalars.data(),scalars.size()*sizeof(float));
+      }
+    }
+
     std::vector<vec4f> vertices(mesh->vertices.size());
     for (size_t i=0; i<mesh->vertices.size(); ++i) {
-      float value = mesh->perVertex->values[i];
+      float value = 0.f;
+      if (!scalars.empty() && !mesh->vertexTag.empty())
+        value = scalars[mesh->vertexTag[i]];
+      else if (!mesh->perVertex->values.empty())
+        value = mesh->perVertex->values[i];
+
       vertices[i] = vec4f(mesh->vertices[i].x,
                           mesh->vertices[i].y,
                           mesh->vertices[i].z,
@@ -86,6 +106,8 @@ namespace exa {
 
     size_t elem = 0;
 
+    range1f valueRange(1e30f,-1e30f);
+
     auto buildIndices = [&](const auto &elems) {
       if (elems.empty())
         return;
@@ -95,6 +117,8 @@ namespace exa {
         for (size_t j=0; j<numVertices; ++j) {
           indices[elem*8+j] = elems[i][j];
           modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+          valueRange.lower = std::min(valueRange.lower,vertices[indices[elem*8+j]].w);
+          valueRange.upper = std::max(valueRange.upper,vertices[indices[elem*8+j]].w);
         }
         elem++;
       }
@@ -106,6 +130,9 @@ namespace exa {
     buildIndices(mesh->hexes);
 
     unsigned numElems = indices.size()/8;
+
+    std::cout << "Got " << numElems
+              << " elements. Value range is: " << valueRange << '\n';
 
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
@@ -162,8 +189,8 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
     owlParamsSet2f(lp,"valueRange",
-                   mesh->perVertex->valueRange.lower,
-                   mesh->perVertex->valueRange.upper);
+                   valueRange.lower,
+                   valueRange.upper);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);

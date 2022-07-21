@@ -22,6 +22,7 @@ namespace exa {
   using qtOWL::SimpleCamera;
 
   struct {
+    std::string scalarFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
     struct {
@@ -186,6 +187,9 @@ namespace exa {
       if (arg[0] != '-') {
         inFileName = arg;
       }
+      else if (arg == "-scalar" || arg == "-scalars") {
+        cmdline.scalarFileName = argv[++i];
+      }
       else if (arg == "-xf") {
         cmdline.xfFileName = argv[++i];
       }
@@ -227,7 +231,7 @@ namespace exa {
     if (inFileName == "")
       usage("no filename specified");
 
-    OWLRenderer renderer(inFileName);
+    OWLRenderer renderer(inFileName,cmdline.scalarFileName);
 
     const box3f modelBounds = renderer.modelBounds;
 
