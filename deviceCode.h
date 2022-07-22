@@ -33,6 +33,17 @@ namespace exa {
   struct RayGen {
   };
 
+  struct Gridlet {
+    vec3i  lower;
+    int    level;
+    vec3i  dims;
+    float *scalars;
+  };
+
+  struct GridletGeom {
+    Gridlet *gridletBuffer;
+  };
+
   struct StitchGeom {
     int   *indexBuffer;
     vec4f *vertexBuffer;
@@ -44,7 +55,8 @@ namespace exa {
     float    *fbDepth;
     float4   *accumBuffer;
     int       accumID;
-    OptixTraversableHandle world;
+    OptixTraversableHandle gridlets;
+    OptixTraversableHandle boundaryCells;
     box3f     modelBounds;
     range1f   valueRange;
     struct {

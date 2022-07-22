@@ -23,6 +23,7 @@ namespace exa {
 
   struct {
     std::string scalarFileName = "";
+    std::string gridsFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
     struct {
@@ -190,6 +191,9 @@ namespace exa {
       else if (arg == "-scalar" || arg == "-scalars") {
         cmdline.scalarFileName = argv[++i];
       }
+      else if (arg == "-grids" || arg == "-gridlets") {
+        cmdline.gridsFileName = argv[++i];
+      }
       else if (arg == "-xf") {
         cmdline.xfFileName = argv[++i];
       }
@@ -231,7 +235,7 @@ namespace exa {
     if (inFileName == "")
       usage("no filename specified");
 
-    OWLRenderer renderer(inFileName,cmdline.scalarFileName);
+    OWLRenderer renderer(inFileName,cmdline.gridsFileName,cmdline.scalarFileName);
 
     const box3f modelBounds = renderer.modelBounds;
 

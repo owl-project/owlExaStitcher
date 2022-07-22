@@ -144,14 +144,110 @@ namespace exa {
   }
 
 
-  // ------------------------------------------------------------------
-  // Stitching user geometry
-  // ------------------------------------------------------------------
-
   struct VolumePRD {
     int primID;
     float value;
   };
+
+
+  // ------------------------------------------------------------------
+  // Gridlet user geometry
+  // ------------------------------------------------------------------
+
+  OPTIX_BOUNDS_PROGRAM(GridletGeomBounds)(const void* geomData,
+                                          box3f& result,
+                                          int leafID)
+  {
+    const GridletGeom &self = *(const GridletGeom *)geomData;
+
+    const Gridlet &gridlet = self.gridletBuffer[leafID];
+    vec3i lower = gridlet.lower * (1<<gridlet.level);
+    vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
+
+    vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
+
+    result = box3f(vec3f(lower)+halfCell,vec3f(upper)+halfCell);
+  }
+
+  OPTIX_INTERSECT_PROGRAM(GridletGeomIsect)()
+  {
+    const GridletGeom &self = owl::getProgramData<GridletGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+
+    const Gridlet &gridlet = self.gridletBuffer[primID];
+    vec3f lower(gridlet.lower * (1<<gridlet.level));
+    vec3f upper = lower + vec3f(gridlet.dims * (1<<gridlet.level));
+
+    vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
+    lower += halfCell;
+    upper += halfCell;
+
+    //box3f bounds((vec3f)lower,(vec3f)upper);
+    pos -= lower;
+    box3f bounds(vec3f(0.f),(vec3f)(upper-lower));
+
+    if (bounds.contains(pos)) {
+      vec3i numScalars = gridlet.dims+1;
+      vec3f posInLevelCoords = pos / (1<<gridlet.level);
+      vec3i imin(posInLevelCoords);
+      vec3i imax = min(imin+1,numScalars-1);
+
+      auto linearIndex = [numScalars](const int x, const int y, const int z) {
+        return z*numScalars.y*numScalars.x + y*numScalars.x + x;
+      };
+
+      float f1 = gridlet.scalars[linearIndex(imin.x,imin.y,imin.z)];
+      float f2 = gridlet.scalars[linearIndex(imax.x,imin.y,imin.z)];
+      float f3 = gridlet.scalars[linearIndex(imin.x,imax.y,imin.z)];
+      float f4 = gridlet.scalars[linearIndex(imax.x,imax.y,imin.z)];
+
+      float f5 = gridlet.scalars[linearIndex(imin.x,imin.y,imax.z)];
+      float f6 = gridlet.scalars[linearIndex(imax.x,imin.y,imax.z)];
+      float f7 = gridlet.scalars[linearIndex(imin.x,imax.y,imax.z)];
+      float f8 = gridlet.scalars[linearIndex(imax.x,imax.y,imax.z)];
+
+      if (!isnan(f1) && !isnan(f2) && !isnan(f3) && !isnan(f4) &&
+          !isnan(f5) && !isnan(f6) && !isnan(f7) && !isnan(f8)) {
+        auto lerp = [](const float val1, const float val2, const float x) {
+          return (1.f-x)*val1+x*val2;
+        };
+
+        vec3f frac = posInLevelCoords-vec3f(vec3i(posInLevelCoords));
+
+        // if (debug()) printf("%f,%f,%f -- %f,%f,%f -- %f,%f,%f\n",
+        //                     pos.x,pos.y,pos.z,
+        //                     posInLevelCoords.x,
+        //                     posInLevelCoords.y,
+        //                     posInLevelCoords.z,
+        //                     frac.x,frac.y,frac.z);
+
+        float f12 = lerp(f1,f2,frac.x);
+        float f56 = lerp(f5,f6,frac.x);
+        float f34 = lerp(f3,f4,frac.x);
+        float f78 = lerp(f7,f8,frac.x);
+
+        float f1234 = lerp(f12,f34,frac.y);
+        float f5678 = lerp(f56,f78,frac.y);
+
+        float value = lerp(f1234,f5678,frac.z);
+
+        if (optixReportIntersection(0.f,0)) {
+          VolumePRD& prd = owl::getPRD<VolumePRD>();
+          prd.value = value;
+          prd.primID = primID;
+        }
+      }
+    }
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(GridletGeomCH)()
+  {
+  }
+
+  // ------------------------------------------------------------------
+  // Stitching user geometry
+  // ------------------------------------------------------------------
 
   OPTIX_BOUNDS_PROGRAM(StitchGeomBounds)(const void* geomData,
                                          box3f& result,
@@ -213,8 +309,14 @@ namespace exa {
 
     VolumePRD prd{-1,0.f};
     owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
-    owl::traceRay(lp.world,ray,prd,
+
+    owl::traceRay(lp.gridlets,ray,prd,
                   OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+    if (prd.primID == -1) {
+      owl::traceRay(lp.boundaryCells,ray,prd,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+    }
 
     return {prd.primID,prd.value};
   }

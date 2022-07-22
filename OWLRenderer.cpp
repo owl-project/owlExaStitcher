@@ -27,6 +27,12 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
+  OWLVarDecl gridletGeomVars[]
+  = {
+     { "gridletBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletBuffer)},
+     { nullptr /* sentinel to mark end of list */ }
+  };
+
   OWLVarDecl stitchGeomVars[]
   = {
      { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,indexBuffer)},
@@ -42,7 +48,8 @@ namespace exa {
      { "fbDepth",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,fbDepth) },
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
-     { "world",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,world)},
+     { "gridlets",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridlets)},
+     { "boundaryCells",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCells)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
      { "valueRange",  OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,valueRange)},
@@ -68,6 +75,7 @@ namespace exa {
   // ==================================================================
 
   OWLRenderer::OWLRenderer(const std::string inFileName,
+                           const std::string gridsFileName,
                            const std::string scalarFileName)
   {
     std::cout << "#mm: loading umesh from " << inFileName << std::endl;
@@ -134,10 +142,105 @@ namespace exa {
     std::cout << "Got " << numElems
               << " elements. Value range is: " << valueRange << '\n';
 
+    size_t numScalarsInGrids = 0;
+    std::vector<Gridlet> gridlets;
+    if (!gridsFileName.empty()) {
+      std::ifstream in(gridsFileName);
+      while (!in.eof()) {
+        Gridlet gridlet;
+        in.read((char *)&gridlet.lower,sizeof(gridlet.lower));
+        in.read((char *)&gridlet.level,sizeof(gridlet.level));
+        in.read((char *)&gridlet.dims,sizeof(gridlet.dims));
+
+        size_t numScalars = (gridlet.dims.x+1)
+                    * (size_t(gridlet.dims.y)+1)
+                          * (gridlet.dims.z+1);
+        std::vector<int> scalarIDs(numScalars);
+        in.read((char *)scalarIDs.data(),scalarIDs.size()*sizeof(scalarIDs[0]));
+
+        std::vector<float> gridScalars(scalarIDs.size());
+
+        size_t numEmpty = 0;
+        for (size_t i=0; i<scalarIDs.size(); ++i) {
+          int scalarID = scalarIDs[i];
+
+          float value = 0.f;
+          if ((unsigned)scalarID < scalars.size())
+            value = scalars[scalarID];
+          else {
+            value = NAN;
+            numEmpty++;
+          }
+          gridScalars[i] = value;
+
+          valueRange.lower = std::min(valueRange.lower,value);
+          valueRange.upper = std::max(valueRange.upper,value);
+        }
+
+        // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
+
+
+        cudaMalloc(&gridlet.scalars,gridScalars.size()*sizeof(gridScalars[0]));
+        cudaMemcpy(gridlet.scalars,gridScalars.data(),
+                   gridScalars.size()*sizeof(gridScalars[0]),
+                   cudaMemcpyHostToDevice);
+
+        numScalarsInGrids += scalarIDs.size();
+        gridlets.push_back(gridlet);
+
+        vec3i lower = gridlet.lower * (1<<gridlet.level);
+        vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
+
+        modelBounds.extend(vec3f(lower));
+        modelBounds.extend(vec3f(upper));
+      }
+    }
+
+    std::cout << "Got " << gridlets.size()
+              << " gridlets with " << numScalarsInGrids
+              << " scalars total. Value range is: " << valueRange << '\n';
+
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
+
+    // ----------------------------------------------------
+    // gridlet geom
+    // ----------------------------------------------------
+
+    gridletGeom.geomType = owlGeomTypeCreate(owl,
+                                             OWL_GEOM_USER,
+                                             sizeof(GridletGeom),
+                                             gridletGeomVars, -1);
+    owlGeomTypeSetBoundsProg(gridletGeom.geomType, module, "GridletGeomBounds");
+    owlGeomTypeSetIntersectProg(gridletGeom.geomType, 0, module, "GridletGeomIsect");
+    owlGeomTypeSetClosestHit(gridletGeom.geomType, 0, module, "GridletGeomCH");
+
+    OWLGeom ggeom = owlGeomCreate(owl, gridletGeom.geomType);
+    owlGeomSetPrimCount(ggeom, gridlets.size());
+
+    OWLBuffer gridletBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(Gridlet),
+                                                    gridlets.size(),
+                                                    gridlets.data());
+
+    owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
+
+    owlBuildPrograms(owl);
+
+    gridletGeom.blas = owlUserGeomGroupCreate(owl, 1, &ggeom);
+    owlGroupBuildAccel(gridletGeom.blas);
+
+    gridletGeom.tlas = owlInstanceGroupCreate(owl, 1);
+    owlInstanceGroupSetChild(gridletGeom.tlas, 0, gridletGeom.blas);
+
+    owlGroupBuildAccel(gridletGeom.tlas);
+
+    owlParamsSetGroup(lp, "gridlets", gridletGeom.tlas);
+
+    // ----------------------------------------------------
+    // stitching geom
+    // ----------------------------------------------------
 
     stitchGeom.geomType = owlGeomTypeCreate(owl,
                                             OWL_GEOM_USER,
@@ -147,8 +250,8 @@ namespace exa {
     owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
     owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
 
-    OWLGeom geom = owlGeomCreate(owl, stitchGeom.geomType);
-    owlGeomSetPrimCount(geom, numElems);
+    OWLGeom sgeom = owlGeomCreate(owl, stitchGeom.geomType);
+    owlGeomSetPrimCount(sgeom, numElems);
 
     OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
                                                    vertices.size(),
@@ -158,20 +261,20 @@ namespace exa {
                                                   indices.size(),
                                                   indices.data());
 
-    owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
-    owlGeomSetBuffer(geom,"indexBuffer",indexBuffer);
-    owlGeomSet3f(geom,"bounds.lower",
+    owlGeomSetBuffer(sgeom,"vertexBuffer",vertexBuffer);
+    owlGeomSetBuffer(sgeom,"indexBuffer",indexBuffer);
+    owlGeomSet3f(sgeom,"bounds.lower",
                  modelBounds.lower.x,
                  modelBounds.lower.y,
                  modelBounds.lower.z);
-    owlGeomSet3f(geom,"bounds.upper",
+    owlGeomSet3f(sgeom,"bounds.upper",
                  modelBounds.upper.x,
                  modelBounds.upper.y,
                  modelBounds.upper.z);
 
     owlBuildPrograms(owl);
 
-    stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &geom);
+    stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &sgeom);
     owlGroupBuildAccel(stitchGeom.blas);
 
     stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
@@ -179,7 +282,7 @@ namespace exa {
 
     owlGroupBuildAccel(stitchGeom.tlas);
 
-    owlParamsSetGroup(lp, "world", stitchGeom.tlas);
+    owlParamsSetGroup(lp, "boundaryCells", stitchGeom.tlas);
     owlParamsSet3f(lp,"modelBounds.lower",
                    modelBounds.lower.x,
                    modelBounds.lower.y,

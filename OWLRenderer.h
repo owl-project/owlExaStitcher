@@ -24,6 +24,7 @@ namespace exa {
   struct OWLRenderer
   {
     OWLRenderer(const std::string inFileName,
+                const std::string gridsFileName = "",
                 const std::string scalarFileName = "");
 
    ~OWLRenderer();
@@ -41,6 +42,12 @@ namespace exa {
     OWLModule  module;
     OWLParams  lp;
     OWLRayGen  rayGen;
+
+    struct {
+      OWLGeomType geomType;
+      OWLGroup blas;
+      OWLGroup tlas;
+    } gridletGeom;
 
     struct {
       OWLGeomType geomType;
