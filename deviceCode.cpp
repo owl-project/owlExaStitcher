@@ -386,11 +386,15 @@ namespace exa {
         break;
       }
 
-      float u = random();
       Sample s = sampleVolume(pos);
+      if (s.primID < 0)
+        continue;
+
+      float u = random();
       s.value -= lp.valueRange.lower;
       s.value /= lp.valueRange.upper-lp.valueRange.lower;
       xf = tex1D<float4>(lp.transferFunc.texture,s.value);
+      //if (debug()) printf("%f: %f,%f,%f,%f\n",s.value,xf.x,xf.y,xf.z,xf.w);
       float sigmaT = xf.w;
       float sigmaA = sigmaT/2.f;
       /*if (u < sigmaA/sigmaT) {
