@@ -299,8 +299,9 @@ namespace exa {
   }
 
   struct Sample {
-    int primID;
+    int   primID;
     float value;
+    vec3f gradient;
   };
 
   inline __device__ Sample sampleVolume(const vec3f pos)
@@ -318,7 +319,28 @@ namespace exa {
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
     }
 
-    return {prd.primID,prd.value};
+    return {prd.primID,prd.value,{0.f,0.f,0.f}};
+  }
+
+  inline __device__ Sample sampleVolume(float x, float y, float z)
+  {
+    return sampleVolume({x,y,z});
+  }
+
+  inline __device__ Sample sampleVolumeWithGradient(const vec3f pos)
+  {
+    Sample s = sampleVolume(pos);
+
+    const vec3f delta = 1.f;
+
+    s.gradient = vec3f(+sampleVolume(pos.x+delta.x,pos.y,pos.z).value
+                       -sampleVolume(pos.x-delta.x,pos.y,pos.z).value,
+                       +sampleVolume(pos.x,pos.y+delta.y,pos.z).value
+                       -sampleVolume(pos.x,pos.y-delta.y,pos.z).value,
+                       +sampleVolume(pos.x,pos.y,pos.z+delta.z).value
+                       -sampleVolume(pos.x,pos.y,pos.z-delta.z).value);
+
+    return s;
   }
 
   inline __device__ vec3f getLe(const Sample s)
