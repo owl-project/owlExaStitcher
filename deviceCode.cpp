@@ -508,7 +508,7 @@ namespace exa {
           // Sample phase function
           vec3f scatterDir;
           float pdf;
-          float g = 1.f; // isotropic
+          float g = 0.f; // isotropic
           henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
           ray.direction = scatterDir;
 
