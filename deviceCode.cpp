@@ -347,8 +347,8 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     vec4f xf = tex1D<float4>(lp.transferFunc.texture,s.value);
-    //if (xf.w > .999f)
-    if (s.value < .2f)
+    if (s.value > .99f)
+    //if (s.value < .2f)
       return {120.f,60.f,45.f};
     return 0.f;
   }
@@ -402,7 +402,7 @@ namespace exa {
         Le = getLe(s);
         type = Emission;
         break;
-      } else*/ if (sigmaT >= u * majorant) {
+      } else */if (sigmaT >= u * majorant) {
         type = Scattering;
         break;
       }
@@ -462,6 +462,7 @@ namespace exa {
       float ry = random();
       Ray ray = generateRay(vec2f(pixelIndex)+vec2f(rx,ry));
       vec3f throughput = 1.f;
+      unsigned bounce = 0;
 
       float box_t0 = 1e30f, box_t1 = -1e30f;
 
@@ -469,7 +470,6 @@ namespace exa {
         ray.origin += ray.direction * box_t0;
         box_t1 -= box_t0;
 
-        unsigned bounce = 0;
         while (1) { // pathtracing loop
           vec3f Le; // emission
           float Tr; // transmittance
@@ -518,6 +518,7 @@ namespace exa {
 
       color = 1.f;//over(color,bgColor);
       color *= vec4f(throughput.x,throughput.y,throughput.z,1.f);
+      color = bounce ? color : bgColor;
       accumColor += color;
     }
 
