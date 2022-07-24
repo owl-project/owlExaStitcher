@@ -25,6 +25,7 @@ namespace exa {
   {
     OWLRenderer(const std::string inFileName,
                 const std::string gridsFileName = "",
+                const std::string amrCellFileName = "",
                 const std::string scalarFileName = "");
 
    ~OWLRenderer();
@@ -57,6 +58,12 @@ namespace exa {
       OWLGroup blas;
       OWLGroup tlas;
     } stitchGeom;
+
+    struct {
+      OWLGeomType geomType;
+      OWLGroup blas;
+      OWLGroup tlas;
+    } amrCellGeom;
 
     struct {
       std::vector<vec4f> colorMap;

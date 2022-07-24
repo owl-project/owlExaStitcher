@@ -308,6 +308,71 @@ namespace exa {
   {
   }
 
+
+  // ------------------------------------------------------------------
+  // AMR cells user geometry (for eval only!)
+  // ------------------------------------------------------------------
+
+  struct BasisPRD {
+    float sumWeights;
+    float sumWeightedValues;
+  };
+
+  OPTIX_BOUNDS_PROGRAM(AMRCellGeomBounds)(const void* geomData,
+                                          box3f& result,
+                                          int leafID)
+  {
+    const AMRCellGeom &self = *(const AMRCellGeom *)geomData;
+
+    result = box3f();
+    const AMRCell &cell = self.amrCellBuffer[leafID];
+
+    vec3f halfCell = vec3f(1<<cell.level)*.5f;
+
+    box3f bounds(vec3f(cell.pos)-halfCell,
+                 vec3f(cell.pos+vec3i(1<<cell.level))+halfCell);
+    result.extend(bounds);
+  }
+
+  OPTIX_INTERSECT_PROGRAM(AMRCellGeomIsect)()
+  {
+    const AMRCellGeom &self = owl::getProgramData<AMRCellGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+
+    const AMRCell &cell = self.amrCellBuffer[primID];
+
+    vec3f halfCell = vec3f(1<<cell.level)*.5f;
+
+    box3f bounds(vec3f(cell.pos)-halfCell,
+                 vec3f(cell.pos+vec3i(1<<cell.level))+halfCell);
+
+    if (bounds.contains(pos)) {
+      BasisPRD& prd = owl::getPRD<BasisPRD>();
+      const vec3f center = bounds.center();
+
+      const float weight =  (1.f-fabsf(pos.x-center.x)/(bounds.size().x*.5f))
+                          * (1.f-fabsf(pos.y-center.y)/(bounds.size().y*.5f))
+                          * (1.f-fabsf(pos.z-center.z)/(bounds.size().z*.5f));
+      const float scalar = self.scalarBuffer[primID];
+
+      if (debug()) {
+        printf("pos: (%f,%f,%f), center: (%f,%f,%f), scalar: %f, weight: %f\n",
+               pos.x, pos.y, pos.z,
+               center.x, center.y, center.z,
+               scalar, weight);
+      }
+
+      prd.sumWeights += weight;
+      prd.sumWeightedValues += scalar*weight;
+    }
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(AMRCellGeomCH)()
+  {
+  }
+
+  
   struct Sample {
     int   primID;
     float value;
@@ -318,18 +383,34 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
+#if 1
+    BasisPRD prd{0.f,0.f};
+    owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
+
+    owl::traceRay(lp.amrCellBVH,ray,prd,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+    int primID = -1;
+    float value = 0.f;
+    if (prd.sumWeights > 0.f) {
+      primID = 0; // non-negative dummy value
+      value = prd.sumWeightedValues/prd.sumWeights;
+    }
+    return {primID,value,{0.f,0.f,0.f}};
+#else
     VolumePRD prd{-1,0.f};
     owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
 
-    owl::traceRay(lp.gridlets,ray,prd,
+    owl::traceRay(lp.gridletBVH,ray,prd,
                   OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
     if (prd.primID == -1) {
-      owl::traceRay(lp.boundaryCells,ray,prd,
+      owl::traceRay(lp.boundaryCellBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
     }
 
     return {prd.primID,prd.value,{0.f,0.f,0.f}};
+#endif
   }
 
   inline __device__ Sample sampleVolume(float x, float y, float z)

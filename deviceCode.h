@@ -40,6 +40,11 @@ namespace exa {
     float *scalars;
   };
 
+  struct AMRCell {
+    vec3i pos;
+    int   level;
+  };
+
   struct GridletGeom {
     Gridlet *gridletBuffer;
   };
@@ -50,13 +55,19 @@ namespace exa {
     box3f bounds;
   };
 
+  struct AMRCellGeom {
+    AMRCell *amrCellBuffer;
+    float   *scalarBuffer;
+  };
+
   struct LaunchParams {
     uint32_t *fbPointer;
     float    *fbDepth;
     float4   *accumBuffer;
     int       accumID;
-    OptixTraversableHandle gridlets;
-    OptixTraversableHandle boundaryCells;
+    OptixTraversableHandle gridletBVH;
+    OptixTraversableHandle boundaryCellBVH;
+    OptixTraversableHandle amrCellBVH;
     box3f     modelBounds;
     struct {
       cudaTextureObject_t texture;

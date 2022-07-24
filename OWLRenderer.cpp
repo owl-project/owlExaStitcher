@@ -42,14 +42,22 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
+  OWLVarDecl amrCellGeomVars[]
+  = {
+     { "amrCellBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,amrCellBuffer)},
+     { "scalarBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,scalarBuffer)},
+     { nullptr /* sentinel to mark end of list */ }
+  };
+
   OWLVarDecl launchParamsVars[]
   = {
      { "fbPointer",   OWL_RAW_POINTER, OWL_OFFSETOF(LaunchParams,fbPointer) },
      { "fbDepth",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,fbDepth) },
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
-     { "gridlets",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridlets)},
-     { "boundaryCells",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCells)},
+     { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
+     { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
+     { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
      // xf data
@@ -75,12 +83,10 @@ namespace exa {
 
   OWLRenderer::OWLRenderer(const std::string inFileName,
                            const std::string gridsFileName,
+                           const std::string amrCellFileName,
                            const std::string scalarFileName)
   {
-    std::cout << "#mm: loading umesh from " << inFileName << std::endl;
-    umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
-    std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
-
+    // Load scalars
     std::vector<float> scalars;
 
     std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
@@ -94,7 +100,16 @@ namespace exa {
       }
     }
 
-    std::vector<vec4f> vertices(mesh->vertices.size());
+    unsigned numElems = 0;
+    std::vector<vec4f> vertices;
+    std::vector<int> indices;
+
+    if (!inFileName.empty()) {
+    std::cout << "#mm: loading umesh from " << inFileName << std::endl;
+    umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
+    std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
+
+    vertices.resize(mesh->vertices.size());
     for (size_t i=0; i<mesh->vertices.size(); ++i) {
       float value = 0.f;
       if (!scalars.empty() && !mesh->vertexTag.empty())
@@ -109,12 +124,13 @@ namespace exa {
     }
 
     modelBounds = box3f();
-    std::vector<int> indices(mesh->size()*8,-1);
+    indices.resize(mesh->size()*8,-1);
 
     size_t elem = 0;
 
     valueRange = range1f(1e30f,-1e30f);
 
+    // Unstructured elems
     auto buildIndices = [&](const auto &elems) {
       if (elems.empty())
         return;
@@ -136,11 +152,13 @@ namespace exa {
     buildIndices(mesh->wedges);
     buildIndices(mesh->hexes);
 
-    unsigned numElems = indices.size()/8;
+    numElems = indices.size()/8;
 
     std::cout << "Got " << numElems
               << " elements. Value range is: " << valueRange << '\n';
+    }
 
+    // Gridlets
     size_t numScalarsInGrids = 0;
     std::vector<Gridlet> gridlets;
     if (!gridsFileName.empty()) {
@@ -199,6 +217,22 @@ namespace exa {
               << " gridlets with " << numScalarsInGrids
               << " scalars total. Value range is: " << valueRange << '\n';
 
+    // AMR cells (for basis function comparison)
+    std::vector<AMRCell> amrCells;
+
+    std::ifstream amrCellFile(amrCellFileName, std::ios::binary | std::ios::ate);
+    if (amrCellFile.good()) {
+      size_t numBytes = amrCellFile.tellg();
+      amrCellFile.close();
+      amrCellFile.open(amrCellFileName, std::ios::binary);
+      if (amrCellFile.good()) {
+        amrCells.resize(numBytes/sizeof(AMRCell));
+        amrCellFile.read((char *)amrCells.data(),amrCells.size()*sizeof(AMRCell));
+      }
+    }
+
+
+
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
@@ -235,7 +269,7 @@ namespace exa {
 
     owlGroupBuildAccel(gridletGeom.tlas);
 
-    owlParamsSetGroup(lp, "gridlets", gridletGeom.tlas);
+    owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
 
     // ----------------------------------------------------
     // stitching geom
@@ -281,7 +315,58 @@ namespace exa {
 
     owlGroupBuildAccel(stitchGeom.tlas);
 
-    owlParamsSetGroup(lp, "boundaryCells", stitchGeom.tlas);
+    owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
+
+    // ----------------------------------------------------
+    // AMR cell geom (non-dual, for eval!)
+    // ----------------------------------------------------
+
+    if (!amrCells.empty()) {
+      for (size_t i=0; i<amrCells.size(); ++i) {
+        box3f bounds(vec3f(amrCells[i].pos),
+                     vec3f(amrCells[i].pos+vec3i(1<<amrCells[i].level)));
+        modelBounds.extend(bounds.lower);
+        modelBounds.extend(bounds.upper);
+        if (i < scalars.size())
+          valueRange.extend(scalars[i]);
+      }
+
+      amrCellGeom.geomType = owlGeomTypeCreate(owl,
+                                               OWL_GEOM_USER,
+                                               sizeof(AMRCellGeom),
+                                               amrCellGeomVars, -1);
+      owlGeomTypeSetBoundsProg(amrCellGeom.geomType, module, "AMRCellGeomBounds");
+      owlGeomTypeSetIntersectProg(amrCellGeom.geomType, 0, module, "AMRCellGeomIsect");
+      owlGeomTypeSetClosestHit(amrCellGeom.geomType, 0, module, "AMRCellGeomCH");
+
+      OWLGeom ageom = owlGeomCreate(owl, amrCellGeom.geomType);
+      owlGeomSetPrimCount(ageom, amrCells.size());
+
+      OWLBuffer amrCellBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(AMRCell),
+                                                      amrCells.size(),
+                                                      amrCells.data());
+
+      OWLBuffer scalarBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT,
+                                                     scalars.size(),
+                                                     scalars.data());
+
+      owlGeomSetBuffer(ageom,"amrCellBuffer",amrCellBuffer);
+      owlGeomSetBuffer(ageom,"scalarBuffer",scalarBuffer);
+
+      owlBuildPrograms(owl);
+
+      amrCellGeom.blas = owlUserGeomGroupCreate(owl, 1, &ageom);
+      owlGroupBuildAccel(amrCellGeom.blas);
+
+      amrCellGeom.tlas = owlInstanceGroupCreate(owl, 1);
+      owlInstanceGroupSetChild(amrCellGeom.tlas, 0, amrCellGeom.blas);
+
+      owlGroupBuildAccel(amrCellGeom.tlas);
+
+      owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
+    }
+
+
     owlParamsSet3f(lp,"modelBounds.lower",
                    modelBounds.lower.x,
                    modelBounds.lower.y,
