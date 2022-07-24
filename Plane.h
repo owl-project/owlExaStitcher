@@ -16,7 +16,6 @@
 
 namespace exa {
   
-#ifdef __CUDA_ARCH__
   struct Plane {
     inline __device__ float eval(const vec3f v) const
     { return dot(v,N)-d; }
@@ -364,6 +363,5 @@ namespace exa {
   }
 
   
-#endif  
   
 }

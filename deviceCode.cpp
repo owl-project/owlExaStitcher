@@ -75,6 +75,16 @@ namespace exa {
     return t0 < t1;
   }
 
+  inline __device__
+  float intersect(const Ray &ray, const Plane &plane, bool &backFace)
+  {
+    const float s = dot(plane.N,ray.direction);
+    if (s == 0.f)
+      return FLT_MAX;
+    backFace = s > 0.f;
+    return (plane.d - dot(plane.N,ray.origin)) / s;
+  }
+
   inline __device__ vec3f randomColor(unsigned idx)
   {
     unsigned int r = (unsigned int)(idx*13*17 + 0x234235);
@@ -464,17 +474,28 @@ namespace exa {
       vec3f throughput = 1.f;
       unsigned bounce = 0;
 
-      float box_t0 = 1e30f, box_t1 = -1e30f;
+      float t0 = 1e30f, t1 = -1e30f;
 
-      if (intersect(ray,lp.modelBounds,box_t0,box_t1)) {
-        ray.origin += ray.direction * box_t0;
-        box_t1 -= box_t0;
+      if (intersect(ray,lp.modelBounds,t0,t1)) {
+        const bool clipPlaneEnabled = false;
+        Plane plane{{0.f,0.f,1.f},lp.modelBounds.center().z};
+        bool backFace=false;
+        float plane_t = FLT_MAX;
+
+        if (clipPlaneEnabled) {
+          plane_t = intersect(ray,plane,backFace);
+          if (plane_t > t0 && !backFace) t0 = plane_t;
+          if (plane_t < t1 &&  backFace) t1 = plane_t;
+        }
+
+        ray.origin += ray.direction * t0;
+        t1 -= t0;
 
         while (1) { // pathtracing loop
           vec3f Le; // emission
           float Tr; // transmittance
           CollisionType ctype;
-          ray.tmax = box_t1;
+          ray.tmax = t1;
           float majorant = 1.f; // TODO
 
           vec4f xf = 0.f; // albedo and extinction coefficient
@@ -512,7 +533,12 @@ namespace exa {
           henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
           ray.direction = scatterDir;
 
-          intersect(ray,lp.modelBounds,box_t0,box_t1);
+          if (clipPlaneEnabled) {
+            intersect(ray,lp.modelBounds,t0,t1);
+            plane_t = intersect(ray,plane,backFace);
+            if (plane_t > t0 && !backFace) t0 = plane_t;
+            if (plane_t < t1 &&  backFace) t1 = plane_t;
+          }
         }
       }
 
