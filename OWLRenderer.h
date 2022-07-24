@@ -37,6 +37,9 @@ namespace exa {
     void render(uint32_t *fbPointer);
 
     void setColorMap(const std::vector<vec4f> &newCM);
+    void setRange(interval<float> xfDomain);
+    void setRelDomain(interval<float> relDomain);
+    void setOpacityScale(float scale);
 
     OWLContext owl;
     OWLModule  module;
@@ -57,6 +60,7 @@ namespace exa {
 
     struct {
       std::vector<vec4f> colorMap;
+      range1f relDomain { 0.f, 100.f };
       OWLBuffer colorMapBuffer { 0 };
       cudaArray_t colorMapArray { 0 };
       cudaTextureObject_t colorMapTexture { 0 };
@@ -72,7 +76,8 @@ namespace exa {
 
     void resetAccum() { accumID = 0; }
 
-    box3f modelBounds;
+    box3f   modelBounds;
+    range1f valueRange;
   };
 
 } // ::exa

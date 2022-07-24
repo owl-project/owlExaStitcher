@@ -99,9 +99,12 @@ namespace exa {
       }
     }
 
+  public slots:
     void colorMapChanged(qtOWL::XFEditor *xf);
-    void rangeChanged(interval<double> r);
+    void rangeChanged(range1f r);
     void opacityScaleChanged(double scale);
+
+  public:
 
     OWLRenderer *const renderer;
     qtOWL::XFEditor *xfEditor = nullptr;
@@ -178,6 +181,23 @@ namespace exa {
     renderer->setColorMap(xfEditor->getColorMap());
     renderer->resetAccum();
   }
+
+  // re-map [0,1] range from gui to actual value range
+  void Viewer::rangeChanged(range1f r)
+  {
+    float lo = min(r.lower,r.upper);
+    float hi = max(r.lower,r.upper);
+    renderer->setRange({lo,hi});
+    renderer->setRelDomain(xfEditor->getRelDomain());
+    renderer->resetAccum();
+  }
+
+  void Viewer::opacityScaleChanged(double scale)
+  {
+    renderer->setOpacityScale((float)scale);
+    renderer->resetAccum();
+  }
+
 
   extern "C" int main(int argc, char** argv)
   {
@@ -265,20 +285,22 @@ namespace exa {
 
     renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
     renderer.setColorMap(renderer.xf.colorMap);
-    //renderer.setOpacityScale(1.f);
 
     qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
+    range1f valueRange = renderer.valueRange;
+
     QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
                      &viewer, &Viewer::colorMapChanged);
-    //QObject::connect(xfEditor,&qtOWL::XFEditor::rangeChanged,
-    //                 viewer, &Viewer::rangeChanged);
-    //QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
-    //                 viewer, &Viewer::opacityScaleChanged);
+    QObject::connect(xfEditor,&qtOWL::XFEditor::rangeChanged,
+                     &viewer, &Viewer::rangeChanged);
+    QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
+                     &viewer, &Viewer::opacityScaleChanged);
+
+    viewer.xfEditor = xfEditor;
 
     if (cmdline.xfFileName != "")
       xfEditor->loadFrom(cmdline.xfFileName);
-
-    viewer.xfEditor = xfEditor;
+    xfEditor->setAbsDomain(valueRange);
 
     xfEditor->show();
     viewer.show();

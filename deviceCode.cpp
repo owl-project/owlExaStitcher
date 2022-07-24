@@ -378,7 +378,7 @@ namespace exa {
 
     // Delta tracking loop
     while (1) {
-      t -= logf(1.f-random())/majorant*10.f;
+      t -= logf(1.f-random())/majorant*1.f;
       pos = ray.origin+ray.direction*t;
 
       if (t >= ray.tmax) {
@@ -391,10 +391,11 @@ namespace exa {
         continue;
 
       float u = random();
-      s.value -= lp.valueRange.lower;
-      s.value /= lp.valueRange.upper-lp.valueRange.lower;
-      xf = tex1D<float4>(lp.transferFunc.texture,s.value);
-      //if (debug()) printf("%f: %f,%f,%f,%f\n",s.value,xf.x,xf.y,xf.z,xf.w);
+      const range1f xfDomain = lp.transferFunc.domain;
+      s.value -= xfDomain.lower;
+      s.value /= xfDomain.upper-xfDomain.lower;
+      xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+      // xf.w *= lp.transferFunc.opacityScale;
       float sigmaT = xf.w;
       float sigmaA = sigmaT/2.f;
       /*if (u < sigmaA/sigmaT) {

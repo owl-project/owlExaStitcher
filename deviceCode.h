@@ -58,7 +58,6 @@ namespace exa {
     OptixTraversableHandle gridlets;
     OptixTraversableHandle boundaryCells;
     box3f     modelBounds;
-    range1f   valueRange;
     struct {
       cudaTextureObject_t texture;
       range1f             domain;

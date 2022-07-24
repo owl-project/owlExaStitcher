@@ -52,7 +52,6 @@ namespace exa {
      { "boundaryCells",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCells)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
-     { "valueRange",  OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,valueRange)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -114,7 +113,7 @@ namespace exa {
 
     size_t elem = 0;
 
-    range1f valueRange(1e30f,-1e30f);
+    valueRange = range1f(1e30f,-1e30f);
 
     auto buildIndices = [&](const auto &elems) {
       if (elems.empty())
@@ -291,9 +290,7 @@ namespace exa {
                    modelBounds.upper.x,
                    modelBounds.upper.y,
                    modelBounds.upper.z);
-    owlParamsSet2f(lp,"valueRange",
-                   valueRange.lower,
-                   valueRange.upper);
+    setRange(valueRange);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -395,6 +392,27 @@ namespace exa {
     owlParamsSetRaw(lp,"transferFunc.texture",&xf.colorMapTexture);
 
     accumID = 0;
+  }
+
+  void OWLRenderer::setRange(interval<float> xfDomain)
+  {
+    valueRange = xfDomain;
+    range1f r{
+     valueRange.lower + (xf.relDomain.lower/100.f) * (valueRange.upper-valueRange.lower),
+     valueRange.lower + (xf.relDomain.upper/100.f) * (valueRange.upper-valueRange.lower)
+    };
+    owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
+  }
+
+  void OWLRenderer::setRelDomain(interval<float> relDomain)
+  {
+    xf.relDomain = relDomain;
+    setRange(valueRange);
+  }
+
+  void OWLRenderer::setOpacityScale(float scale)
+  {
+    owlParamsSet1f(lp,"transferFunc.opacityScale",scale);
   }
 } // ::exa
 
