@@ -17,6 +17,7 @@
 #include <float.h>
 #include "deviceCode.h"
 #include "Plane.h"
+#include "UElems.h"
 
 using owl::vec2f;
 using owl::vec2i;
@@ -296,9 +297,9 @@ namespace exa {
     }
 
     bool hit=numVerts==4 && intersectTet(value,pos,v[0],v[1],v[2],v[3])
-          || numVerts==5 && intersectPyr(value,pos,v[0],v[1],v[2],v[3],v[4])
-          || numVerts==6 && intersectWedge(value,pos,v[0],v[1],v[2],v[3],v[4],v[5])
-          || numVerts==8 && intersectHex(value,pos,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7]);
+          || numVerts==5 && intersectPyrEXT(value,pos,v[0],v[1],v[2],v[3],v[4])
+          || numVerts==6 && intersectWedgeEXT(value,pos,v[0],v[1],v[2],v[3],v[4],v[5])
+          || numVerts==8 && intersectHexEXT(value,pos,v[0],v[1],v[2],v[3],v[4],v[5],v[6],v[7]);
 
     if (hit && optixReportIntersection(0.f,0)) {
       VolumePRD& prd = owl::getPRD<VolumePRD>();
