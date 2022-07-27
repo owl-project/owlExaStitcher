@@ -74,8 +74,8 @@ namespace exa {
       renderer->resetAccum();
       switch (key) {
       case '!':
-        std::cout << "saving screenshot to 'owlDVR.png'" << std::endl;
-        //renderer->screenShot("waikiki");
+        std::cout << "saving screenshot to 'Witcher3.png'" << std::endl;
+        screenShot("Witcher3.png");
         break;
       case 'H':
         //renderer->heatMapEnabled = !renderer->heatMapEnabled;
