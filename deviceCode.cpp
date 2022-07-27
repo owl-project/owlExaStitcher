@@ -25,6 +25,9 @@ using owl::vec3i;
 using owl::vec4f;
 using owl::vec4i;
 
+#define ELEM_TAG 0x1
+#define GRID_TAG 0x2
+
 namespace exa {
 
   extern "C" __constant__ LaunchParams optixLaunchParams;
@@ -374,16 +377,17 @@ namespace exa {
 
   
   struct Sample {
-    int   primID;
-    float value;
-    vec3f gradient;
+    int      primID;
+    float    value;
+    vec3f    gradient;
+    unsigned cellTag;
   };
 
   inline __device__ Sample sampleVolume(const vec3f pos)
   {
     auto& lp = optixLaunchParams;
 
-#if 1
+#if 0
     BasisPRD prd{0.f,0.f};
     owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
 
@@ -400,16 +404,21 @@ namespace exa {
 #else
     VolumePRD prd{-1,0.f};
     owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
+    unsigned cellTag = 0;
 
     owl::traceRay(lp.gridletBVH,ray,prd,
                   OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-    if (prd.primID == -1) {
+    if (prd.primID != -1)
+      cellTag = GRID_TAG;
+    else {
       owl::traceRay(lp.boundaryCellBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      if (prd.primID != -1)
+        cellTag = ELEM_TAG;
     }
 
-    return {prd.primID,prd.value,{0.f,0.f,0.f}};
+    return {prd.primID,prd.value,{0.f,0.f,0.f},cellTag};
 #endif
   }
 
@@ -477,7 +486,7 @@ namespace exa {
         break;
       }
 
-      Sample s = sampleVolume(pos);
+      Sample s = sampleVolumeWithGradient(pos);
       if (s.primID < 0)
         continue;
 
@@ -486,7 +495,17 @@ namespace exa {
       s.value -= xfDomain.lower;
       s.value /= xfDomain.upper-xfDomain.lower;
       xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+      // if (s.cellTag == ELEM_TAG) {
+      //   vec3f color = randomColor((unsigned)s.primID);
+      //   xf.x = color.x; xf.y = color.y; xf.z = color.z;
+      // } else if (s.cellTag == GRID_TAG) {
+      //   xf.x = xf.y = xf.z = .8f;
+      // }
       // xf.w *= lp.transferFunc.opacityScale;
+      // vec3f N = normalize(s.gradient);
+      // N += 1.f;
+      // N /= 2.f;
+      // xf.x = N.x; xf.y = N.y; xf.z = N.z;
       float sigmaT = xf.w;
       float sigmaA = sigmaT/2.f;
       /*if (u < sigmaA/sigmaT) {
