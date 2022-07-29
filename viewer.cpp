@@ -18,6 +18,8 @@
 #include "qtOWL/XFEditor.h"
 #include "OWLRenderer.h"
 
+#define DUMP_FRAMES 0
+
 namespace exa {
   using qtOWL::SimpleCamera;
 
@@ -160,18 +162,12 @@ namespace exa {
 #ifdef DUMP_FRAMES
     // just dump the 10th frame, then hard-exit
     static int g_frameID = 0;
-    if (g_frameID++ >= 10) {
-      const float *fbDepth
-        = (const float *)owlBufferGetPointer(renderer->fbDepth,renderer->gpuID);
-      std::ofstream out(cmdline.outFileName+".rgbaz",std::ios::binary);
-      out.write((char*)&fbSize,sizeof(fbSize));
-      out.write((char*)fbPointer,fbSize.x*fbSize.y*sizeof(*fbPointer));
-      out.write((char*)fbDepth,fbSize.x*fbSize.y*sizeof(*fbDepth));
-      // for (int i=0;i<fbSize.x*fbSize.y;i++) {
-      //   if (fbDepth[i] < 1e10f && fbDepth[i] > 0.f)
-      //     PRINT(fbDepth[i]);
-      // }
-      renderer->screenShot(cmdline.outFileName+".png");
+    if (g_frameID % 16 == 0) {
+      std::cout << "g_frameID: " << g_frameID << std::endl;
+    }
+
+    if (g_frameID++ >= 1024) {
+      screenShot(cmdline.outFileName+".png");
       exit(0);
     }
 #endif

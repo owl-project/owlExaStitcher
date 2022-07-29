@@ -661,11 +661,13 @@ namespace exa {
     lp.accumBuffer[pixelID] = accumColor;
     accumColor *= (1.f/(lp.accumID+1));
 
+#if DEBUGGING
     bool crossHairs = (owl::getLaunchIndex().x == owl::getLaunchDims().x/2
             ||
             owl::getLaunchIndex().y == owl::getLaunchDims().y/2
             );
     if (crossHairs) accumColor = vec4f(1.f) - accumColor;
+#endif
 
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
