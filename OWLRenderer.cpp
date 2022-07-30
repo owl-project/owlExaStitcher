@@ -69,6 +69,9 @@ namespace exa {
      { "render.spp",           OWL_INT,   OWL_OFFSETOF(LaunchParams,render.spp) },
      { "render.heatMapEnabled", OWL_INT, OWL_OFFSETOF(LaunchParams,render.heatMapEnabled) },
      { "render.heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,render.heatMapScale) },
+     // grid for DDA/spatially varying majorants
+     { "grid.dims",     OWL_INT3,   OWL_OFFSETOF(LaunchParams,grid.dims) },
+     { "grid.cells",    OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.cells) },
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -321,6 +324,7 @@ namespace exa {
     // AMR cell geom (non-dual, for eval!)
     // ----------------------------------------------------
 
+    OWLBuffer amrCellBuffer = 0, scalarBuffer = 0;
     if (!amrCells.empty()) {
       for (size_t i=0; i<amrCells.size(); ++i) {
         box3f bounds(vec3f(amrCells[i].pos),
@@ -342,13 +346,13 @@ namespace exa {
       OWLGeom ageom = owlGeomCreate(owl, amrCellGeom.geomType);
       owlGeomSetPrimCount(ageom, amrCells.size());
 
-      OWLBuffer amrCellBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(AMRCell),
-                                                      amrCells.size(),
-                                                      amrCells.data());
+      amrCellBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(AMRCell),
+                                            amrCells.size(),
+                                            amrCells.data());
 
-      OWLBuffer scalarBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT,
-                                                     scalars.size(),
-                                                     scalars.data());
+      scalarBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT,
+                                           scalars.size(),
+                                           scalars.data());
 
       owlGeomSetBuffer(ageom,"amrCellBuffer",amrCellBuffer);
       owlGeomSetBuffer(ageom,"scalarBuffer",scalarBuffer);
@@ -376,6 +380,20 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
     setRange(valueRange);
+
+    grid.build(owl,
+               vertexBuffer,
+               indexBuffer,
+               gridletBuffer,
+               amrCellBuffer,
+               scalarBuffer,
+               {16,16,16},
+               modelBounds);
+    owlParamsSet3i(lp,"grid.dims",
+                   grid.dims.x,
+                   grid.dims.y,
+                   grid.dims.z);
+    owlParamsSetBuffer(lp,"grid.cells",grid.cells);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);

@@ -86,6 +86,10 @@ namespace exa {
       float heatMapScale;
       int   spp;
     } render;
+    struct {
+      vec3i  dims;
+      float *cells;
+    } grid;
   };
 
 } // ::exa

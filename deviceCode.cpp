@@ -487,7 +487,7 @@ namespace exa {
         break;
       }
 
-      Sample s = sampleVolumeWithGradient(pos);
+      Sample s = sampleVolume(pos);
       if (s.primID < 0)
         continue;
 

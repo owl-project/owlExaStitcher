@@ -18,6 +18,7 @@
 
 #include "qtOWL/ColorMaps.h"
 #include "deviceCode.h"
+#include "Grid.h"
 
 namespace exa {
 
@@ -72,6 +73,8 @@ namespace exa {
       cudaArray_t colorMapArray { 0 };
       cudaTextureObject_t colorMapTexture { 0 };
     } xf;
+
+    Grid grid;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };
