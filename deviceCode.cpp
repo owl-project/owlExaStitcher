@@ -16,6 +16,7 @@
 
 #include <float.h>
 #include "deviceCode.h"
+#include "Grid.cuh"
 #include "Plane.h"
 #include "UElems.h"
 
@@ -463,9 +464,9 @@ namespace exa {
   };
 
   inline __device__
-  void sampleInteraction(Ray           &ray,
-                         const float    majorant,
+  void sampleInteraction(const Ray     &ray,
                          CollisionType &type,     /* scattering,emission,... */
+                         vec3f         &pos,      /* position of interaction */
                          float         &Tr,       /* transmission samples [0,1] */
                          vec3f         &Le,       /* emitted radiance */
                          vec4f         &xf,
@@ -473,9 +474,13 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
+    float majorant = 1.f; // TODO
+
     float t = 0.f;
-    vec3f pos;
     Le = 0.f;
+
+    pos = ray.origin;
+    vec3i cellID = projectOnGrid(pos,lp.grid.dims,lp.modelBounds);
 
     // Delta tracking loop
     while (1) {
@@ -490,6 +495,8 @@ namespace exa {
       Sample s = sampleVolume(pos);
       if (s.primID < 0)
         continue;
+
+      cellID = projectOnGrid(pos,lp.grid.dims,lp.modelBounds);
 
       float u = random();
       const range1f xfDomain = lp.transferFunc.domain;
@@ -520,7 +527,6 @@ namespace exa {
     }
 
     Tr = type==Boundary?1.f:0.f;
-    ray.origin = pos;
   }
 
   __device__ inline
@@ -597,10 +603,10 @@ namespace exa {
           float Tr; // transmittance
           CollisionType ctype;
           ray.tmax = t1;
-          float majorant = 1.f; // TODO
 
+          vec3f pos;
           vec4f xf = 0.f; // albedo and extinction coefficient
-          sampleInteraction(ray,majorant,ctype,Tr,Le,xf,random);
+          sampleInteraction(ray,ctype,pos,Tr,Le,xf,random);
 
           // left the volume?
           if (ctype==Boundary)
@@ -632,10 +638,13 @@ namespace exa {
           float pdf;
           float g = 0.f; // isotropic
           henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
+
+          ray.origin    = pos;
           ray.direction = scatterDir;
 
+          intersect(ray,lp.modelBounds,t0,t1);
+
           if (clipPlaneEnabled) {
-            intersect(ray,lp.modelBounds,t0,t1);
             plane_t = intersect(ray,plane,backFace);
             if (plane_t > t0 && !backFace) t0 = plane_t;
             if (plane_t < t1 &&  backFace) t1 = plane_t;
