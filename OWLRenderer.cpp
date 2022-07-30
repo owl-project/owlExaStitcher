@@ -71,7 +71,8 @@ namespace exa {
      { "render.heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,render.heatMapScale) },
      // grid for DDA/spatially varying majorants
      { "grid.dims",     OWL_INT3,   OWL_OFFSETOF(LaunchParams,grid.dims) },
-     { "grid.cells",    OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.cells) },
+     { "grid.valueRanges", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.valueRanges) },
+     { "grid.maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.maxOpacities) },
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -379,7 +380,6 @@ namespace exa {
                    modelBounds.upper.x,
                    modelBounds.upper.y,
                    modelBounds.upper.z);
-    setRange(valueRange);
 
     grid.build(owl,
                vertexBuffer,
@@ -389,11 +389,14 @@ namespace exa {
                scalarBuffer,
                {16,16,16},
                modelBounds);
+
+    setRange(valueRange);
+
     owlParamsSet3i(lp,"grid.dims",
                    grid.dims.x,
                    grid.dims.y,
                    grid.dims.z);
-    owlParamsSetBuffer(lp,"grid.cells",grid.cells);
+    owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -448,6 +451,13 @@ namespace exa {
                                                 newCM.size(),nullptr);
 
     owlBufferUpload(xf.colorMapBuffer,newCM.data());
+
+    range1f r{
+     xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+     xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+    };
+    grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
     
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
@@ -499,18 +509,23 @@ namespace exa {
 
   void OWLRenderer::setRange(interval<float> xfDomain)
   {
-    valueRange = xfDomain;
+    xf.absDomain = xfDomain;
     range1f r{
-     valueRange.lower + (xf.relDomain.lower/100.f) * (valueRange.upper-valueRange.lower),
-     valueRange.lower + (xf.relDomain.upper/100.f) * (valueRange.upper-valueRange.lower)
+     xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+     xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
+
+    if (xf.colorMapBuffer) {
+      grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
+    }
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
   {
     xf.relDomain = relDomain;
-    setRange(valueRange);
+    setRange(xf.absDomain);
   }
 
   void OWLRenderer::setOpacityScale(float scale)

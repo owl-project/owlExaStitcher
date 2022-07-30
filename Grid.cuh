@@ -30,7 +30,7 @@ namespace exa {
                       const owl::box3f worldBounds)
   {
     const vec3f V01 = (V-worldBounds.lower)/(worldBounds.upper-worldBounds.lower);
-    return vec3i(V01*vec3f(dims-1));
+    return clamp(vec3i(V01*vec3f(dims)),vec3i(0),dims-vec3i(1));
   }
 
 } // ::exa

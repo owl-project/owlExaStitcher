@@ -34,8 +34,14 @@ namespace exa {
                const owl::vec3i numMCs,
                const owl::box3f bounds);
 
-    // Cells: floats that represent majorants
-    OWLBuffer  cells;
+    //
+    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+
+    // min/max value ranges
+    OWLBuffer  valueRanges;
+
+    // Majorants
+    OWLBuffer  maxOpacities { 0 };
 
     // Number of MCs
     owl::vec3i dims;

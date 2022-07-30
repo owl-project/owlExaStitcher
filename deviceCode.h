@@ -87,8 +87,9 @@ namespace exa {
       int   spp;
     } render;
     struct {
-      vec3i  dims;
-      float *cells;
+      vec3i    dims;
+      range1f *valueRanges;
+      float   *maxOpacities;
     } grid;
   };
 

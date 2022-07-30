@@ -159,7 +159,7 @@ namespace exa {
     t_last = t_now;
 
 
-#ifdef DUMP_FRAMES
+#if DUMP_FRAMES
     // just dump the 10th frame, then hard-exit
     static int g_frameID = 0;
     if (g_frameID % 16 == 0) {

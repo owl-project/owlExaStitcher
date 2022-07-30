@@ -68,6 +68,7 @@ namespace exa {
 
     struct {
       std::vector<vec4f> colorMap;
+      range1f absDomain { 0.f, 1.f };
       range1f relDomain { 0.f, 100.f };
       OWLBuffer colorMapBuffer { 0 };
       cudaArray_t colorMapArray { 0 };

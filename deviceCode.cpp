@@ -80,6 +80,22 @@ namespace exa {
     return t0 < t1;
   }
 
+  // Version that does not clip the reuslt against [tmin,tmax]
+  // Usually called if we know that there is a valid intersection
+  inline __device__
+  void intersect(const vec3f &rayOrigin,
+                 const vec3f &rayDirection,
+                 const box3f &box,
+                 vec3f &near,
+                 vec3f &far)
+  {
+    vec3f lo = (box.lower - rayOrigin) / rayDirection;
+    vec3f hi = (box.upper - rayOrigin) / rayDirection;
+    
+    near = min(lo,hi);
+    far  = max(lo,hi);
+  }
+
   inline __device__
   float intersect(const Ray &ray, const Plane &plane, bool &backFace)
   {
@@ -474,35 +490,83 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
-    float majorant = 1.f; // TODO
+    const vec3f mcSize(lp.modelBounds.size() / vec3f(lp.grid.dims));
 
     float t = 0.f;
     Le = 0.f;
+    vec3f tnear = 1e30f, tfar = -1e30f;
+    intersect(ray.origin,ray.direction,lp.modelBounds,tnear,tfar);
 
     pos = ray.origin;
     vec3i cellID = projectOnGrid(pos,lp.grid.dims,lp.modelBounds);
+    // Bounds of the cell we're in
+    box3f cellBounds(lp.modelBounds.lower+vec3f(cellID)*mcSize,
+                     lp.modelBounds.lower+vec3f(cellID+1)*mcSize);
+
+    // Distance in world space to get from cell to cell
+    const vec3f dist((tfar-tnear)/vec3f(lp.grid.dims));
+
+    // Cell increment
+    vec3i step;
+    step.x = ray.direction.x > 0.f ? 1 : -1;
+    step.y = ray.direction.y > 0.f ? 1 : -1;
+    step.z = ray.direction.z > 0.f ? 1 : -1;
+
+    // Stop when we reach grid borders
+    vec3i stop;
+    stop.x = ray.direction.x > 0.f ? lp.grid.dims.x : -1;
+    stop.y = ray.direction.y > 0.f ? lp.grid.dims.y : -1;
+    stop.z = ray.direction.z > 0.f ? lp.grid.dims.z : -1;
+
+    // Increment in world space
+    vec3f tnext;
+    tnext.x = ray.direction.x > 0.f ? tnear.x + float(cellID.x+1) * dist.x
+                                    : tnear.x + float(lp.grid.dims.x-cellID.x) * dist.x;
+    tnext.y = ray.direction.y > 0.f ? tnear.y + float(cellID.y+1) * dist.y
+                                    : tnear.y + float(lp.grid.dims.y-cellID.y) * dist.y;
+    tnext.z = ray.direction.z > 0.f ? tnear.z + float(cellID.z+1) * dist.z
+                                    : tnear.z + float(lp.grid.dims.z-cellID.z) * dist.z;
+
+
+    float majorant = lp.grid.maxOpacities[linearIndex(cellID,lp.grid.dims)];
+    float t0, t1;
+    intersect(ray,cellBounds,t0,t1);
+    float tacc = 0.f;
 
     // Delta tracking loop
     while (1) {
-      t -= logf(1.f-random())/majorant*1.f;
-      pos = ray.origin+ray.direction*t;
 
-      if (t >= ray.tmax) {
-        type = Boundary;
-        break;
+      t -= logf(1.f-random())/majorant;
+
+      if (majorant < 1e-30f || t >= t1-t0) {
+        int axis = arg_min(tnext);
+        tnext[axis] += dist[axis];
+        cellID[axis] += step[axis];
+        if (cellID[axis]==stop[axis]) {
+          type = Boundary;
+          break;
+        }
+        t = 0.f;
+        tacc = t1;
+        majorant = lp.grid.maxOpacities[linearIndex(cellID,lp.grid.dims)];
+        cellBounds = box3f(lp.modelBounds.lower+vec3f(cellID)*mcSize,
+                           lp.modelBounds.lower+vec3f(cellID+1)*mcSize);
+        intersect(ray,cellBounds,t0,t1);
+        continue;
       }
 
+      pos = ray.origin+ray.direction*(tacc+t);
       Sample s = sampleVolume(pos);
       if (s.primID < 0)
         continue;
-
-      cellID = projectOnGrid(pos,lp.grid.dims,lp.modelBounds);
 
       float u = random();
       const range1f xfDomain = lp.transferFunc.domain;
       s.value -= xfDomain.lower;
       s.value /= xfDomain.upper-xfDomain.lower;
       xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+
+
       // if (s.cellTag == ELEM_TAG) {
       //   vec3f color = randomColor((unsigned)s.primID);
       //   xf.x = color.x; xf.y = color.y; xf.z = color.z;
