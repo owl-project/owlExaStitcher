@@ -68,7 +68,7 @@ if(EXA_STITCH_CPU)
 endif()
 
 target_link_directories(exaStitchViewer PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
-if(NOT EXA_STICH_CPU)
+if(NOT EXA_STITCH_CPU)
   target_link_libraries(exaStitchViewer embedded_deviceCode)
 endif()
 target_link_libraries(exaStitchViewer
@@ -78,8 +78,8 @@ target_link_libraries(exaStitchViewer
       ${OPENGL_LIBRARIES})
 qt5_use_modules(exaStitchViewer Widgets)
 set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
-if(ALOHA_CPU)
-  target_compile_options(exaStitchViewer PUBLIC -DALOHA_CPU=1)
+if(EXA_STITCH_CPU)
+  target_compile_options(exaStitchViewer PUBLIC -DEXA_STITCH_CPU=1)
 endif()
 # QT_OWL_LINK(exaStitchViewer)
 
