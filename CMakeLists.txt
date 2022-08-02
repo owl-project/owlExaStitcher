@@ -10,7 +10,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of static" ON)
 
-option(EXA_STITCH_CPU "Build the project to run on the CPU" ON)
+option(EXA_STITCH_CPU "Build the project to run on the CPU" OFF)
 if(EXA_STITCH_CPU)
   set(owl_dir ${PROJECT_SOURCE_DIR}/submodules/fakeOwl)
   add_subdirectory(${owl_dir} EXCLUDE_FROM_ALL)
