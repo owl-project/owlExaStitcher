@@ -29,6 +29,8 @@ using namespace owl::common;
 
 typedef owl::interval<float> range1f;
 
+#define CLIP_PLANES_MAX 1
+
 namespace exa {
   struct RayGen {
   };
@@ -91,6 +93,11 @@ namespace exa {
       range1f *valueRanges;
       float   *maxOpacities;
     } grid;
+    struct {
+      int   enabled;
+      vec3f N;
+      float d;
+    } clipPlanes[CLIP_PLANES_MAX];
   };
 
 } // ::exa

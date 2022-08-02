@@ -43,6 +43,8 @@ namespace exa {
     void setRelDomain(interval<float> relDomain);
     void setOpacityScale(float scale);
 
+    void setClipPlane(int id, bool enabled, vec3f N, float d);
+
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;

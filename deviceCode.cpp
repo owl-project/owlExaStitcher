@@ -648,15 +648,17 @@ namespace exa {
       float t0 = 1e30f, t1 = -1e30f;
 
       if (intersect(ray,lp.modelBounds,t0,t1)) {
-        const bool clipPlaneEnabled = false;
-        Plane plane{{0.f,0.f,1.f},lp.modelBounds.center().z};
-        bool backFace=false;
-        float plane_t = FLT_MAX;
+        for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+          const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+          Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+          bool backFace=false;
+          float plane_t = FLT_MAX;
 
-        if (clipPlaneEnabled) {
-          plane_t = intersect(ray,plane,backFace);
-          if (plane_t > t0 && !backFace) t0 = plane_t;
-          if (plane_t < t1 &&  backFace) t1 = plane_t;
+          if (clipPlaneEnabled) {
+            plane_t = intersect(ray,plane,backFace);
+            if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+            if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+          }
         }
 
         ray.origin += ray.direction * t0;
@@ -708,10 +710,16 @@ namespace exa {
 
           intersect(ray,lp.modelBounds,t0,t1);
 
-          if (clipPlaneEnabled) {
-            plane_t = intersect(ray,plane,backFace);
-            if (plane_t > t0 && !backFace) t0 = plane_t;
-            if (plane_t < t1 &&  backFace) t1 = plane_t;
+          for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+            const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+            Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+            if (clipPlaneEnabled) {
+              bool backFace=false;
+              float plane_t = FLT_MAX;
+              plane_t = intersect(ray,plane,backFace);
+              if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+              if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+            }
           }
         }
       }

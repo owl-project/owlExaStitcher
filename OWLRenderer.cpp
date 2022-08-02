@@ -73,6 +73,13 @@ namespace exa {
      { "grid.dims",     OWL_INT3,   OWL_OFFSETOF(LaunchParams,grid.dims) },
      { "grid.valueRanges", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.valueRanges) },
      { "grid.maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.maxOpacities) },
+     // clip planes
+     { "clipPlane0.enabled",     OWL_INT,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].enabled) },
+     { "clipPlane0.N",     OWL_FLOAT3,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].N) },
+     { "clipPlane0.d",     OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].d) },
+     { "clipPlane1.enabled",     OWL_INT,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].enabled) },
+     { "clipPlane1.N",     OWL_FLOAT3,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].N) },
+     { "clipPlane1.d",     OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].d) },
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -398,6 +405,10 @@ namespace exa {
                    grid.dims.z);
     owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
 
+    for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+      setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
+    }
+
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
   }
@@ -531,6 +542,23 @@ namespace exa {
   void OWLRenderer::setOpacityScale(float scale)
   {
     owlParamsSet1f(lp,"transferFunc.opacityScale",scale);
+  }
+
+  void OWLRenderer::setClipPlane(int id, bool enabled, vec3f N, float d)
+  {
+    if (id==0) {
+      owlParamsSet1i(lp,"clipPlane0.enabled",(int)enabled);
+      owlParamsSet3f(lp,"clipPlane0.N",N.x,N.y,N.z);
+      owlParamsSet1f(lp,"clipPlane0.d",d);
+      accumID = 0;
+    } else if (id==1) {
+      owlParamsSet1i(lp,"clipPlane1.enabled",(int)enabled);
+      owlParamsSet3f(lp,"clipPlane1.N",N.x,N.y,N.z);
+      owlParamsSet1f(lp,"clipPlane1.d",d);
+      accumID = 0;
+    } else {
+      std::cerr << "Clip plane " << id << " not valid" << std::endl;
+    }
   }
 } // ::exa
 
