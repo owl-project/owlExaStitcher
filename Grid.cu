@@ -22,6 +22,32 @@ using namespace owl;
 
 namespace exa {
 
+  // Lifted from https://github.com/treecode/Bonsai/blob/master/runtime/profiling/derived_atomic_functions.h
+  __device__ __forceinline__ float atomicMin(float *address, float val)
+  {
+      int ret = __float_as_int(*address);
+      while(val < __int_as_float(ret))
+      {
+          int old = ret;
+          if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+              break;
+      }
+      return __int_as_float(ret);
+  }
+  
+  __device__ __forceinline__ float atomicMax(float *address, float val)
+  {
+      int ret = __float_as_int(*address);
+      while(val > __int_as_float(ret))
+      {
+          int old = ret;
+          if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+              break;
+      }
+      return __int_as_float(ret);
+  }
+
+
   inline int __both__ iDivUp(int a, int b)
   {
     return (a + b - 1) / b;
@@ -42,22 +68,46 @@ namespace exa {
   __global__ void buildGrid(range1f       *valueRanges,
                             const vec4f   *vertices,
                             const int     *indices,
-                            const size_t   numIndices,
+                            const size_t   numElems,
                             const vec3i    dims,
                             const box3f    worldBounds)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
-    if (threadID >= numIndices || indices[threadID] < 0)
+    if (threadID >= numElems)
       return;
 
-    const vec4f V = vertices[indices[threadID]];
+    const int *I = &indices[threadID*8];
 
-    const vec3i mc = projectOnGrid(vec3f(V),dims,worldBounds);
+    box3f cellBounds;
+    range1f valueRange{+1e30f,-1e30f};
 
-    if (!isnan(V.w)) {
-      valueRanges[linearIndex(mc,dims)].lower = fminf(valueRanges[linearIndex(mc,dims)].lower,V.w);
-      valueRanges[linearIndex(mc,dims)].upper = fmaxf(valueRanges[linearIndex(mc,dims)].upper,V.w);
+    for (int i=0; i<8; ++i) {
+      if (I[i] < 0)
+        break;
+
+      const vec4f V = vertices[I[i]];
+      if (!isnan(V.w)) {
+        cellBounds.extend(vec3f(V));
+        valueRange.lower = fminf(valueRange.lower,V.w);
+        valueRange.upper = fmaxf(valueRange.upper,V.w);
+      }
+    }
+
+    const vec3i loMC = projectOnGrid(cellBounds.lower,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(cellBounds.upper,dims,worldBounds);
+    //printf("%i,%i,%i -- %i,%i,%i,\n",
+    //       loMC.x,loMC.y,loMC.z,
+    //       upMC.x,upMC.y,upMC.z);
+
+    for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
+      for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
+        for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
+          const vec3i mcID(mcx,mcy,mcz);
+          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
+          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
+        }
+      }
     }
   }
 
@@ -74,22 +124,91 @@ namespace exa {
       return;
 
     const Gridlet &gridlet = gridlets[threadID];
-    const vec3i numScalars = gridlet.dims+1;
+    vec3i lower = gridlet.lower * (1<<gridlet.level);
+    vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
+
     const vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
 
-    for (int z=0; z<numScalars.z; ++z) {
-      for (int y=0; y<numScalars.y; ++y) {
-        for (int x=0; x<numScalars.x; ++x) {
-          const vec3f V = vec3f((gridlet.lower+vec3i(x,y,z)) * (1<<gridlet.level))
-                        + halfCell;
+    const vec3f mcSize(worldBounds.size() / vec3f(dims));
+    const vec3i loMC = projectOnGrid(vec3f(lower)+halfCell,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
 
-          const vec3i mc = projectOnGrid(V,dims,worldBounds);
+    const vec3i numScalars = gridlet.dims+1;
 
-          const float value = gridlet.scalars[linearIndex(vec3i(x,y,z),numScalars)];
+    for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
+      for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
+        for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
+          const vec3i mcID(mcx,mcy,mcz);
+          const box3f mcBounds(worldBounds.lower+vec3f(mcID)*mcSize,
+                               worldBounds.lower+vec3f(mcID+1)*mcSize);
 
-          if (!isnan(value)) {
-            valueRanges[linearIndex(mc,dims)].lower = fminf(valueRanges[linearIndex(mc,dims)].lower,value);
-            valueRanges[linearIndex(mc,dims)].upper = fmaxf(valueRanges[linearIndex(mc,dims)].upper,value);
+          for (int z=0; z<gridlet.dims.z; ++z) {
+            for (int y=0; y<gridlet.dims.y; ++y) {
+              for (int x=0; x<gridlet.dims.x; ++x) {
+                const box3f cellBounds(vec3f((gridlet.lower+vec3i(x,y,z)) * (1<<gridlet.level))+halfCell,
+                                       vec3f((gridlet.lower+vec3i(x+1,y+1,z+1)) * (1<<gridlet.level))+halfCell);
+                if (mcBounds.overlaps(cellBounds)) {
+                  vec3i imin(x,y,z);
+                  vec3i imax(x+1,y+1,z+1);
+
+
+                  float f1 = gridlet.scalars[linearIndex(vec3i(imin.x,imin.y,imin.z),numScalars)];
+                  float f2 = gridlet.scalars[linearIndex(vec3i(imax.x,imin.y,imin.z),numScalars)];
+                  float f3 = gridlet.scalars[linearIndex(vec3i(imin.x,imax.y,imin.z),numScalars)];
+                  float f4 = gridlet.scalars[linearIndex(vec3i(imax.x,imax.y,imin.z),numScalars)];
+
+                  float f5 = gridlet.scalars[linearIndex(vec3i(imin.x,imin.y,imax.z),numScalars)];
+                  float f6 = gridlet.scalars[linearIndex(vec3i(imax.x,imin.y,imax.z),numScalars)];
+                  float f7 = gridlet.scalars[linearIndex(vec3i(imin.x,imax.y,imax.z),numScalars)];
+                  float f8 = gridlet.scalars[linearIndex(vec3i(imax.x,imax.y,imax.z),numScalars)];
+
+                  range1f valueRange{+1e30f,-1e30f};
+
+                  if (!isnan(f1)) {
+                    valueRange.lower = fminf(valueRange.lower,f1);
+                    valueRange.upper = fmaxf(valueRange.upper,f1);
+                  }
+
+                  if (!isnan(f2)) {
+                    valueRange.lower = fminf(valueRange.lower,f2);
+                    valueRange.upper = fmaxf(valueRange.upper,f2);
+                  }
+
+                  if (!isnan(f3))  {
+                    valueRange.lower = fminf(valueRange.lower,f3);
+                    valueRange.upper = fmaxf(valueRange.upper,f3);
+                  }
+
+                  if (!isnan(f4)) {
+                    valueRange.lower = fminf(valueRange.lower,f4);
+                    valueRange.upper = fmaxf(valueRange.upper,f4);
+                  }
+
+                  if (!isnan(f5)) {
+                    valueRange.lower = fminf(valueRange.lower,f5);
+                    valueRange.upper = fmaxf(valueRange.upper,f5);
+                  }
+
+                  if (!isnan(f6)) {
+                    valueRange.lower = fminf(valueRange.lower,f6);
+                    valueRange.upper = fmaxf(valueRange.upper,f6);
+                  }
+
+                  if (!isnan(f7)) {
+                    valueRange.lower = fminf(valueRange.lower,f7);
+                    valueRange.upper = fmaxf(valueRange.upper,f7);
+                  }
+
+                  if (!isnan(f8)) {
+                    valueRange.lower = fminf(valueRange.lower,f8);
+                    valueRange.upper = fmaxf(valueRange.upper,f8);
+                  }
+
+                  atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
+                  atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
+                }
+              }
+            }
           }
         }
       }
@@ -150,13 +269,15 @@ namespace exa {
     // Add contrib from uelems
     if (vertices && indices) {
       size_t numThreads = 1024;
-      size_t numIndices = owlBufferSizeInBytes(indices)/sizeof(int);
-      std::cout << "DDA grid: adding " << numIndices << " uelems\n";
-      buildGrid<<<iDivUp(numIndices, numThreads), numThreads>>>(
+      size_t numElems = owlBufferSizeInBytes(indices)/sizeof(int[8]);
+      std::cout << "DDA grid: adding " << numElems << " uelems\n";
+      buildGrid<<<iDivUp(numElems, numThreads), numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const vec4f *)owlBufferGetPointer(vertices,0),
         (const int *)owlBufferGetPointer(indices,0),
-        numIndices,dims,worldBounds);
+        numElems,dims,worldBounds);
+      cudaDeviceSynchronize();
+      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
 
     // Add contrib from gridlets
@@ -168,6 +289,8 @@ namespace exa {
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const Gridlet *)owlBufferGetPointer(gridlets,0),
         numGridlets,dims,worldBounds);
+      cudaDeviceSynchronize();
+      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
 
     // Add contrib from AMR cells
@@ -180,6 +303,8 @@ namespace exa {
         (const AMRCell *)owlBufferGetPointer(amrCells,0),
         (const float *)owlBufferGetPointer(amrScalars,0),
         numAmrCells,dims,worldBounds);
+      cudaDeviceSynchronize();
+      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
   }
 
