@@ -533,64 +533,71 @@ namespace exa {
     intersect(ray,cellBounds,t0,t1);
     float tacc = 0.f;
 
-    // Delta tracking loop
-    while (1) {
+    while (1) { // DDA loop
+      
+      while (1) { // Delta tracking loop
 
-      t -= logf(1.f-random())/majorant;
+        if (majorant < 1e-30f)
+          break;
+        
+        t -= logf(1.f-random())/majorant;
 
-      if (majorant < 1e-30f || t >= t1-t0) {
-        int axis = arg_min(tnext);
-        tnext[axis] += dist[axis];
-        cellID[axis] += step[axis];
-        if (cellID[axis]==stop[axis]) {
-          type = Boundary;
+        if (t >= t1-t0) {
           break;
         }
-        t = 0.f;
-        tacc = t1;
-        majorant = lp.grid.maxOpacities[linearIndex(cellID,lp.grid.dims)];
-        cellBounds = box3f(lp.modelBounds.lower+vec3f(cellID)*mcSize,
-                           lp.modelBounds.lower+vec3f(cellID+1)*mcSize);
-        intersect(ray,cellBounds,t0,t1);
-        continue;
+
+        pos = ray.origin+ray.direction*(tacc+t);
+        Sample s = sampleVolume(pos);
+        if (s.primID < 0)
+          continue;
+
+        float u = random();
+        const range1f xfDomain = lp.transferFunc.domain;
+        s.value -= xfDomain.lower;
+        s.value /= xfDomain.upper-xfDomain.lower;
+        xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+
+
+        // if (s.cellTag == ELEM_TAG) {
+        //   vec3f color = randomColor((unsigned)s.primID);
+        //   xf.x = color.x; xf.y = color.y; xf.z = color.z;
+        // } else if (s.cellTag == GRID_TAG) {
+        //   xf.x = xf.y = xf.z = .8f;
+        // }
+        // xf.w *= lp.transferFunc.opacityScale;
+        // vec3f N = normalize(s.gradient);
+        // N += 1.f;
+        // N /= 2.f;
+        // xf.x = N.x; xf.y = N.y; xf.z = N.z;
+        float sigmaT = xf.w;
+        float sigmaA = sigmaT/2.f;
+        /*if (u < sigmaA/sigmaT) {
+          Le = getLe(s);
+          Tr = 0.f;
+          type = Emission;
+          return;
+        } else */if (sigmaT >= u * majorant) {
+          Tr = 0.f;
+          type = Scattering;
+          return;
+        }
       }
 
-      pos = ray.origin+ray.direction*(tacc+t);
-      Sample s = sampleVolume(pos);
-      if (s.primID < 0)
-        continue;
-
-      float u = random();
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
-
-
-      // if (s.cellTag == ELEM_TAG) {
-      //   vec3f color = randomColor((unsigned)s.primID);
-      //   xf.x = color.x; xf.y = color.y; xf.z = color.z;
-      // } else if (s.cellTag == GRID_TAG) {
-      //   xf.x = xf.y = xf.z = .8f;
-      // }
-      // xf.w *= lp.transferFunc.opacityScale;
-      // vec3f N = normalize(s.gradient);
-      // N += 1.f;
-      // N /= 2.f;
-      // xf.x = N.x; xf.y = N.y; xf.z = N.z;
-      float sigmaT = xf.w;
-      float sigmaA = sigmaT/2.f;
-      /*if (u < sigmaA/sigmaT) {
-        Le = getLe(s);
-        type = Emission;
-        break;
-      } else */if (sigmaT >= u * majorant) {
-        type = Scattering;
+      int axis = arg_min(tnext);
+      tnext[axis] += dist[axis];
+      cellID[axis] += step[axis];
+      if (cellID[axis]==stop[axis]) {
+        type = Boundary;
+        Tr = 1.f;
         break;
       }
+      t = 0.f;
+      tacc = t1;
+      majorant = lp.grid.maxOpacities[linearIndex(cellID,lp.grid.dims)];
+      cellBounds = box3f(lp.modelBounds.lower+vec3f(cellID)*mcSize,
+                         lp.modelBounds.lower+vec3f(cellID+1)*mcSize);
+      intersect(ray,cellBounds,t0,t1);
     }
-
-    Tr = type==Boundary?1.f:0.f;
   }
 
   __device__ inline
