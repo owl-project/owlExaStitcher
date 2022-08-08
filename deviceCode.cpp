@@ -571,6 +571,7 @@ namespace exa {
         }
       }
 
+#if 1
       int axis = arg_min(tnext);
       tnext[axis] += dist[axis];
       cellID[axis] += step[axis];
@@ -579,6 +580,36 @@ namespace exa {
         Tr = 1.f;
         break;
       }
+#else
+      const float t_closest = reduce_min(tnext);
+      if (tnext.x == t_closest) {
+        tnext.x += dist.x;
+        cellID.x += step.x;
+        if (cellID.x==stop.x) {
+          type = Boundary;
+          Tr = 1.f;
+          break;
+        }
+      }
+      if (tnext.y == t_closest) {
+        tnext.y += dist.y;
+        cellID.y += step.y;
+        if (cellID.y==stop.y) {
+          type = Boundary;
+          Tr = 1.f;
+          break;
+        }
+      }
+      if (tnext.z == t_closest) {
+        tnext.z += dist.z;
+        cellID.z += step.z;
+        if (cellID.z==stop.z) {
+          type = Boundary;
+          Tr = 1.f;
+          break;
+        }
+      }
+#endif
       t0 = t1;
     }
   }
