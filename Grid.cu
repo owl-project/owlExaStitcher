@@ -142,6 +142,8 @@ namespace exa {
           const box3f mcBounds(worldBounds.lower+vec3f(mcID)*mcSize,
                                worldBounds.lower+vec3f(mcID+1)*mcSize);
 
+
+          range1f valueRange{+1e30f,-1e30f};
           for (int z=0; z<gridlet.dims.z; ++z) {
             for (int y=0; y<gridlet.dims.y; ++y) {
               for (int x=0; x<gridlet.dims.x; ++x) {
@@ -161,8 +163,6 @@ namespace exa {
                   float f6 = gridlet.scalars[linearIndex(vec3i(imax.x,imin.y,imax.z),numScalars)];
                   float f7 = gridlet.scalars[linearIndex(vec3i(imin.x,imax.y,imax.z),numScalars)];
                   float f8 = gridlet.scalars[linearIndex(vec3i(imax.x,imax.y,imax.z),numScalars)];
-
-                  range1f valueRange{+1e30f,-1e30f};
 
                   if (!isnan(f1)) {
                     valueRange.lower = fminf(valueRange.lower,f1);
@@ -204,12 +204,12 @@ namespace exa {
                     valueRange.upper = fmaxf(valueRange.upper,f8);
                   }
 
-                  atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
-                  atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
                 }
               }
             }
           }
+          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
+          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
         }
       }
     }
