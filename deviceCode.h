@@ -57,6 +57,11 @@ namespace exa {
     box3f bounds;
   };
 
+  struct MeshGeom {
+    vec3i *indexBuffer;
+    vec3f *vertexBuffer;
+  };
+
   struct AMRCellGeom {
     AMRCell *amrCellBuffer;
     float   *scalarBuffer;
@@ -70,6 +75,7 @@ namespace exa {
     OptixTraversableHandle gridletBVH;
     OptixTraversableHandle boundaryCellBVH;
     OptixTraversableHandle amrCellBVH;
+    OptixTraversableHandle meshBVH;
     box3f     modelBounds;
     struct {
       cudaTextureObject_t texture;

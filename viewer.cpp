@@ -35,6 +35,7 @@ namespace exa {
     std::string scalarFileName = "";
     std::string gridsFileName = "";
     std::string amrCellFileName = "";
+    std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
     struct {
@@ -388,6 +389,9 @@ namespace exa {
       else if (arg == "-cells") {
         cmdline.amrCellFileName = argv[++i];
       }
+      else if (arg == "-mesh") {
+        cmdline.meshFileName = argv[++i];
+      }
       else if (arg == "-xf") {
         cmdline.xfFileName = argv[++i];
       }
@@ -425,7 +429,7 @@ namespace exa {
       else if (arg == "--clip-plane") {
         static int currentPlane = 0;
         int P = currentPlane++;
-        assert(P < CLIP_PLANE_MAX);
+        assert(P < CLIP_PLANES_MAX);
         cmdline.clipPlanes[P].enabled = true;
         cmdline.clipPlanes[P].N.x = std::stof(argv[++i]);
         cmdline.clipPlanes[P].N.y = std::stof(argv[++i]);
@@ -442,6 +446,7 @@ namespace exa {
     OWLRenderer renderer(inFileName,
                          cmdline.gridsFileName,
                          cmdline.amrCellFileName,
+                         cmdline.meshFileName,
                          cmdline.scalarFileName);
 
     const box3f modelBounds = renderer.modelBounds;
@@ -451,9 +456,10 @@ namespace exa {
 
     viewer.enableFlyMode();
 
-    viewer.enableInspectMode(/* valid range of poi*/modelBounds,
-                             /* min distance      */1e-3f,
-                             /* max distance      */1e8f);
+    viewer.enableInspectMode(qtOWL::OWLViewer::Arcball,modelBounds);
+    //viewer.enableInspectMode(/* valid range of poi*/modelBounds,
+    //                         /* min distance      */1e-3f,
+    //                         /* max distance      */1e8f);
 
     if (cmdline.camera.vu != vec3f(0.f)) {
       viewer.setCameraOrientation(/*origin   */cmdline.camera.vp,

@@ -61,6 +61,7 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 add_executable(exaStitchViewer
   Grid.cu
   OWLRenderer.cpp
+  TriangleMesh.cpp
   viewer.cpp
   )
 if(EXA_STITCH_CPU)

@@ -377,6 +377,32 @@ namespace exa {
   {
   }
 
+  // ------------------------------------------------------------------
+  // Triangle meshes
+  // ------------------------------------------------------------------
+
+  struct MeshPRD {
+    int primID;
+    float t_hit;
+    vec3f Ng;
+    vec3f kd;
+  };
+
+  OPTIX_CLOSEST_HIT_PROGRAM(MeshGeomCH)()
+  {
+    const MeshGeom &self = owl::getProgramData<MeshGeom>();
+    MeshPRD &prd = owl::getPRD<MeshPRD>();
+    prd.t_hit    = optixGetRayTmax();
+    prd.primID   = optixGetPrimitiveIndex();
+    vec3i index  = self.indexBuffer[prd.primID];
+    vec3f v1     = self.vertexBuffer[index.x];
+    vec3f v2     = self.vertexBuffer[index.y];
+    vec3f v3     = self.vertexBuffer[index.z];
+    prd.Ng       = normalize(vec3f(optixTransformNormalFromObjectToWorldSpace(cross(v2-v1,v3-v1))));
+    prd.kd       = vec3f(.8f);
+  }
+
+
   
   struct Sample {
     int      primID;
@@ -614,6 +640,35 @@ namespace exa {
     }
   }
 
+  // ------------------------------------------------------------------
+  // Lambertian BRDF
+  // ------------------------------------------------------------------
+
+  __device__ inline
+  vec3f cosine_sample_hemisphere(float u1, float u2)
+  {
+    float r     = sqrtf(u1);
+    float theta = 2.f*M_PI * u2;
+    float x     = r * cosf(theta);
+    float y     = r * sinf(theta);
+    float z     = sqrtf(1.f-u1);
+    return {x,y,z};
+  }
+
+  __device__ inline
+  void lambertianSample(const vec3f &N, const vec3f &wo, vec3f &wi, float &pdf, Random &random)
+  {
+    vec3f u, v, w = N;
+    make_orthonormal_basis(u, v, w);
+    vec3f sp = cosine_sample_hemisphere(random(), random());
+    wi = normalize(vec3f(sp.x*u+sp.y*v+sp.z*w));
+    pdf = dot(N,wi) * (1.f/M_PI);
+  }
+
+  // ------------------------------------------------------------------
+  // HG phase function
+  // ------------------------------------------------------------------
+
   __device__ inline
   float henyeyGreensteinTr(const vec3f &wo, const vec3f &wi, float g)
   {
@@ -691,12 +746,21 @@ namespace exa {
           CollisionType ctype;
           ray.tmax = t1;
 
+          MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
+          if (lp.meshBVH) {
+            owl::traceRay(lp.meshBVH,ray,meshPRD,
+                          OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+            if (meshPRD.primID >= 0) {
+              ray.tmax = min(ray.tmax,meshPRD.t_hit);
+            }
+          }
+
           vec3f pos;
           vec4f xf = 0.f; // albedo and extinction coefficient
           sampleInteraction(ray,ctype,pos,Tr,Le,xf,random);
 
           // left the volume?
-          if (ctype==Boundary)
+          if (ctype==Boundary && meshPRD.primID < 0)
             break;
 
           // max path lenght exceeded?
@@ -705,7 +769,14 @@ namespace exa {
             break;
           }
 
-          vec3f albedo(xf);
+          vec3f albedo;
+          if (ctype==Boundary && meshPRD.primID >= 0) {
+            constexpr float eps = 1.f;// finest cell size
+            pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
+            albedo = meshPRD.kd;
+          } else {
+            albedo = vec3f(xf);
+          }
           throughput *= albedo;
 
           // russian roulette absorption
@@ -720,12 +791,17 @@ namespace exa {
 
           throughput += Le;
 
-          // Sample phase function
+          // Sample BRDF or phase function
           vec3f scatterDir;
           float pdf;
-          float g = 0.f; // isotropic
-          henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
-
+          if (ctype==Boundary && meshPRD.primID >= 0) {
+            lambertianSample(meshPRD.Ng,-ray.direction,scatterDir,pdf,random);
+            throughput *= fmaxf(0.f,dot(scatterDir,meshPRD.Ng));
+            pos += 16.f*normalize(scatterDir);
+          } else {
+            float g = 0.f; // isotropic
+            henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
+          }
           ray.origin    = pos;
           ray.direction = scatterDir;
 

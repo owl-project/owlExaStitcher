@@ -17,6 +17,7 @@
 #include <fstream>
 #include "umesh/UMesh.h"
 #include "OWLRenderer.h"
+#include "TriangleMesh.h"
 
 extern "C" char embedded_deviceCode[];
 
@@ -49,6 +50,13 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
+  OWLVarDecl meshGeomVars[]
+  = {
+     { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(MeshGeom,indexBuffer)},
+     { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(MeshGeom,vertexBuffer)},
+     { nullptr /* sentinel to mark end of list */ }
+  };
+
   OWLVarDecl launchParamsVars[]
   = {
      { "fbPointer",   OWL_RAW_POINTER, OWL_OFFSETOF(LaunchParams,fbPointer) },
@@ -58,6 +66,7 @@ namespace exa {
      { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
      { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
      { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
+     { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
      // xf data
@@ -95,6 +104,7 @@ namespace exa {
   OWLRenderer::OWLRenderer(const std::string inFileName,
                            const std::string gridsFileName,
                            const std::string amrCellFileName,
+                           const std::string meshFileName,
                            const std::string scalarFileName)
   {
     // Load scalars
@@ -242,6 +252,12 @@ namespace exa {
       }
     }
 
+    // Meshes
+    std::vector<TriangleMesh::SP> meshes;
+    if (!meshFileName.empty()) {
+      meshes = TriangleMesh::load(meshFileName);
+    }
+
 
 
     owl = owlContextCreate(nullptr,1);
@@ -376,6 +392,94 @@ namespace exa {
       owlGroupBuildAccel(amrCellGeom.tlas);
 
       owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
+    }
+
+    // ----------------------------------------------------
+    // mesh geom
+    // ----------------------------------------------------
+
+    if (!meshes.empty()) {
+      for (auto &mesh : meshes) {
+
+//const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
+//const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
+
+        const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
+        const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
+
+        for (size_t i=0; i<mesh->vertex.size(); ++i) {
+          vec3f &v = mesh->vertex[i];
+
+          v -= remapFrom.lower;
+          v /= remapFrom.size();
+
+          v *= remapTo.size();
+          v += remapTo.lower;
+        }
+
+        box3f bounds;
+        for (size_t i=0; i<mesh->index.size(); ++i) {
+          const vec3f v1 = mesh->vertex[mesh->index[i].x];
+          const vec3f v2 = mesh->vertex[mesh->index[i].y];
+          const vec3f v3 = mesh->vertex[mesh->index[i].z];
+
+          bounds.extend(v1);
+          bounds.extend(v2);
+          bounds.extend(v3);
+        }
+        std::cout << bounds << '\n';
+        modelBounds.extend(bounds);
+      }
+
+      meshGeom.geomType = owlGeomTypeCreate(owl,
+                                            OWL_TRIANGLES,
+                                            sizeof(MeshGeom),
+                                            meshGeomVars, -1);
+      owlGeomTypeSetClosestHit(meshGeom.geomType, 0, module, "MeshGeomCH");
+
+      owlBuildPrograms(owl);
+
+      meshGeom.tlas = owlInstanceGroupCreate(owl, meshes.size());
+
+      for (int meshID=0;meshID<meshes.size();meshID++) {
+        auto &mesh = meshes[meshID];
+        OWLGroup blas;
+        OWLGeom mgeom;
+        OWLBuffer vertexBuffer;
+        OWLBuffer indexBuffer;
+
+        indexBuffer = owlDeviceBufferCreate(owl,
+                                            OWL_INT3,
+                                            mesh->index.size(),
+                                            mesh->index.data());
+
+        vertexBuffer = owlDeviceBufferCreate(owl,
+                                             OWL_FLOAT3,
+                                             mesh->vertex.size(),
+                                             mesh->vertex.data());
+
+        mgeom = owlGeomCreate(owl, meshGeom.geomType);
+        owlGeomSetBuffer(mgeom, "indexBuffer", indexBuffer);
+        owlGeomSetBuffer(mgeom, "vertexBuffer", vertexBuffer);
+        owlTrianglesSetIndices(mgeom,
+                               indexBuffer,
+                               mesh->index.size(),
+                               sizeof(vec3i),
+                               0);
+        owlTrianglesSetVertices(mgeom,
+                                vertexBuffer,
+                                mesh->vertex.size(),
+                                sizeof(vec3f),
+                                0);
+
+        blas = owlTrianglesGeomGroupCreate(owl, 1, &mgeom);
+        owlGroupBuildAccel(blas);
+        owlInstanceGroupSetChild(meshGeom.tlas, meshID, blas);
+      }
+
+      owlGroupBuildAccel(meshGeom.tlas);
+
+      owlParamsSetGroup(lp, "meshBVH", meshGeom.tlas);
     }
 
 
