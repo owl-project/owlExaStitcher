@@ -394,7 +394,7 @@ namespace exa {
                gridletBuffer,
                amrCellBuffer,
                scalarBuffer,
-               {512,512,512},
+               {1024,1024,256},
                modelBounds);
 
     setRange(valueRange);

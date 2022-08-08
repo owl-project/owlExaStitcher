@@ -112,18 +112,45 @@ namespace exa {
   }
 
   // Gridlet overload
-  __global__ void buildGrid(range1f       *valueRanges,
-                            const Gridlet *gridlets,
-                            const size_t   numGridlets,
-                            const vec3i    dims,
-                            const box3f    worldBounds)
+  __global__ void getMaxGridletSize(const Gridlet *gridlets,
+                                    const size_t   numGridlets,
+                                    vec3i         *maxGridletSize)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
     if (threadID >= numGridlets)
       return;
 
-    const Gridlet &gridlet = gridlets[threadID];
+    ::atomicMax(&maxGridletSize->x,gridlets[threadID].dims.x);
+    ::atomicMax(&maxGridletSize->y,gridlets[threadID].dims.y);
+    ::atomicMax(&maxGridletSize->z,gridlets[threadID].dims.z);
+  }
+
+  __global__ void buildGrid(range1f       *valueRanges,
+                            const Gridlet *gridlets,
+                            const size_t   numGridlets,
+                            const vec3i    maxGridletSize,
+                            const vec3i    dims,
+                            const box3f    worldBounds)
+  {
+    size_t gridletID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+
+    if (gridletID >= numGridlets)
+      return;
+
+    const Gridlet &gridlet = gridlets[gridletID];
+
+    int xyz = blockIdx.y * blockDim.y + threadIdx.y;
+    int x = xyz%maxGridletSize.x;
+    int y = xyz/maxGridletSize.x%maxGridletSize.y;
+    int z = xyz/(maxGridletSize.x*maxGridletSize.y);
+    int dimX = min(maxGridletSize.x,gridlet.dims.x);
+    int dimY = min(maxGridletSize.y,gridlet.dims.y);
+    int dimZ = min(maxGridletSize.z,gridlet.dims.z);
+
+    if (x >= dimX || y >= dimY || z >= dimZ)
+      return;
+
     vec3i lower = gridlet.lower * (1<<gridlet.level);
     vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
 
@@ -144,9 +171,9 @@ namespace exa {
 
 
           range1f valueRange{+1e30f,-1e30f};
-          for (int z=0; z<gridlet.dims.z; ++z) {
-            for (int y=0; y<gridlet.dims.y; ++y) {
-              for (int x=0; x<gridlet.dims.x; ++x) {
+          /*for (int z=0; z<gridlet.dims.z; ++z)*/ {
+            /*for (int y=0; y<gridlet.dims.y; ++y)*/ {
+              /*for (int x=0; x<gridlet.dims.x; ++x)*/ {
                 const box3f cellBounds(vec3f((gridlet.lower+vec3i(x,y,z)) * (1<<gridlet.level))+halfCell,
                                        vec3f((gridlet.lower+vec3i(x+1,y+1,z+1)) * (1<<gridlet.level))+halfCell);
                 if (mcBounds.overlaps(cellBounds)) {
@@ -282,15 +309,38 @@ namespace exa {
 
     // Add contrib from gridlets
     if (gridlets) {
+      double tfirst = getCurrentTime();
       size_t numThreads = 1024;
       size_t numGridlets = owlBufferSizeInBytes(gridlets)/sizeof(Gridlet);
       std::cout << "DDA grid: adding " << numGridlets << " gridlets\n";
-      buildGrid<<<iDivUp(numGridlets, numThreads), numThreads>>>(
+      vec3i *maxGridletSize;
+      cudaMalloc(&maxGridletSize,sizeof(vec3i));
+      vec3i init = 0;
+      cudaMemcpy(maxGridletSize,&init,sizeof(init),cudaMemcpyHostToDevice);
+
+      getMaxGridletSize<<<iDivUp(numGridlets, numThreads), numThreads>>>(
+        (const Gridlet *)owlBufferGetPointer(gridlets,0),
+        numGridlets,maxGridletSize);
+
+      vec3i hMaxGridletSize;
+      cudaMemcpy(&hMaxGridletSize,maxGridletSize,sizeof(hMaxGridletSize),
+                 cudaMemcpyDeviceToHost);
+
+      dim3 gridDims(numGridlets,hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z);
+      dim3 blockDims(64,16);
+      dim3 numBlocks(iDivUp(gridDims.x,blockDims.x),
+                     iDivUp(gridDims.y,blockDims.y));
+
+      buildGrid<<<numBlocks, blockDims>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const Gridlet *)owlBufferGetPointer(gridlets,0),
-        numGridlets,dims,worldBounds);
+        numGridlets,hMaxGridletSize,dims,worldBounds);
+
+      cudaFree(maxGridletSize);
       cudaDeviceSynchronize();
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
+      double tlast = getCurrentTime();
+      std::cout << tlast-tfirst << '\n';
     }
 
     // Add contrib from AMR cells
