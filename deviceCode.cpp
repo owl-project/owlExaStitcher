@@ -364,12 +364,12 @@ namespace exa {
                           * (1.f-fabsf(pos.z-center.z)/(bounds.size().z*.5f));
       const float scalar = self.scalarBuffer[primID];
 
-      if (debug()) {
-        printf("pos: (%f,%f,%f), center: (%f,%f,%f), scalar: %f, weight: %f\n",
-               pos.x, pos.y, pos.z,
-               center.x, center.y, center.z,
-               scalar, weight);
-      }
+      // if (debug()) {
+      //   printf("pos: (%f,%f,%f), center: (%f,%f,%f), scalar: %f, weight: %f\n",
+      //          pos.x, pos.y, pos.z,
+      //          center.x, center.y, center.z,
+      //          scalar, weight);
+      // }
 
       prd.sumWeights += weight;
       prd.sumWeightedValues += scalar*weight;

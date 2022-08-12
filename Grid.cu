@@ -257,15 +257,26 @@ namespace exa {
 
     const AMRCell &cell = amrCells[threadID];
 
-    const vec3f V = vec3f(cell.pos+vec3i(1<<cell.level) - (vec3i(1<<cell.level)/2));
+    vec3i lower = cell.pos;
+    vec3i upper = lower + (1<<cell.level);
 
-    const vec3i mc = projectOnGrid(V,dims,worldBounds);
+    const vec3f halfCell = vec3f(1<<cell.level)*.5f;
+
+    const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
 
     const float value = amrScalars[threadID];
 
     if (!isnan(value)) {
-      valueRanges[linearIndex(mc,dims)].lower = fminf(valueRanges[linearIndex(mc,dims)].lower,value);
-      valueRanges[linearIndex(mc,dims)].upper = fmaxf(valueRanges[linearIndex(mc,dims)].upper,value);
+      for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
+        for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
+          for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
+            const vec3i mcID(mcx,mcy,mcz);
+            atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,value);
+            atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,value);
+          }
+        }
+      }
     }
   }
 
