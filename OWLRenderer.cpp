@@ -126,60 +126,106 @@ namespace exa {
     std::vector<int> indices;
 
     if (!inFileName.empty()) {
-    std::cout << "#mm: loading umesh from " << inFileName << std::endl;
-    umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
-    std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
+      std::cout << "#mm: loading umesh from " << inFileName << std::endl;
+      umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
+      std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
 
-    vertices.resize(mesh->vertices.size());
-    for (size_t i=0; i<mesh->vertices.size(); ++i) {
-      float value = 0.f;
-      if (!scalars.empty() && !mesh->vertexTag.empty())
-        value = scalars[mesh->vertexTag[i]];
-      else if (!mesh->perVertex->values.empty())
-        value = mesh->perVertex->values[i];
+      vertices.resize(mesh->vertices.size());
+      for (size_t i=0; i<mesh->vertices.size(); ++i) {
+        float value = 0.f;
+        if (!scalars.empty() && !mesh->vertexTag.empty())
+          value = scalars[mesh->vertexTag[i]];
+        else if (!mesh->perVertex->values.empty())
+          value = mesh->perVertex->values[i];
 
-      vertices[i] = vec4f(mesh->vertices[i].x,
-                          mesh->vertices[i].y,
-                          mesh->vertices[i].z,
-                          value);
-    }
-
-    modelBounds = box3f();
-    indices.resize(mesh->size()*8,-1);
-
-    size_t elem = 0;
-
-    valueRange = range1f(1e30f,-1e30f);
-
-    // Unstructured elems
-    auto buildIndices = [&](const auto &elems) {
-      if (elems.empty())
-        return;
-
-      unsigned numVertices = elems[0].numVertices;
-      for (size_t i=0; i<elems.size(); ++i) {
-        for (size_t j=0; j<numVertices; ++j) {
-          indices[elem*8+j] = elems[i][j];
-          modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
-          valueRange.lower = std::min(valueRange.lower,vertices[indices[elem*8+j]].w);
-          valueRange.upper = std::max(valueRange.upper,vertices[indices[elem*8+j]].w);
-        }
-        elem++;
+        vertices[i] = vec4f(mesh->vertices[i].x,
+                            mesh->vertices[i].y,
+                            mesh->vertices[i].z,
+                            value);
       }
-    };
 
-    buildIndices(mesh->tets);
-    buildIndices(mesh->pyrs);
-    buildIndices(mesh->wedges);
-    buildIndices(mesh->hexes);
+      modelBounds = box3f();
+      indices.resize(mesh->size()*8,-1);
 
-    numElems = indices.size()/8;
+      size_t elem = 0;
 
-    std::cout << "Got " << numElems
-              << " elements. Value range is: " << valueRange << '\n';
+      valueRange = range1f(1e30f,-1e30f);
+
+      // ==================================================================
+      // Unstructured elems
+      // ==================================================================
+
+      auto buildIndices = [&](const auto &elems) {
+        if (elems.empty())
+          return;
+
+        unsigned numVertices = elems[0].numVertices;
+        for (size_t i=0; i<elems.size(); ++i) {
+          for (size_t j=0; j<numVertices; ++j) {
+            indices[elem*8+j] = elems[i][j];
+            modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+            valueRange.lower = std::min(valueRange.lower,vertices[indices[elem*8+j]].w);
+            valueRange.upper = std::max(valueRange.upper,vertices[indices[elem*8+j]].w);
+          }
+          elem++;
+        }
+      };
+
+      buildIndices(mesh->tets);
+      buildIndices(mesh->pyrs);
+      buildIndices(mesh->wedges);
+      buildIndices(mesh->hexes);
+
+      numElems = indices.size()/8;
+
+      std::cout << "Got " << numElems
+                << " elements. Value range is: " << valueRange << '\n';
     }
 
+    // ==================================================================
+    // Compact unused vertices
+    // ==================================================================
+
+    std::vector<int> uniqueIndices(vertices.size(),-1);
+    std::map<int,int> newIndicesMap;
+
+    for (size_t i=0; i<indices.size(); ++i) {
+      if (indices[i] >= 0) {
+        uniqueIndices[indices[i]] = indices[i];
+      }
+    }
+
+    int newIndex = 0;
+    for (size_t i=0; i<uniqueIndices.size(); ++i) {
+      if (uniqueIndices[i] >= 0) {
+        newIndicesMap.insert({uniqueIndices[i],newIndex++});
+      }
+    }
+
+    std::vector<vec4f> newVertices(newIndicesMap.size());
+    for (size_t i=0; i<uniqueIndices.size(); ++i) {
+      if (uniqueIndices[i] >= 0) {
+        newVertices[newIndicesMap[uniqueIndices[i]]] = vertices[uniqueIndices[i]];
+      }
+    }
+
+    std::vector<int> newIndices(indices.size(),-1);
+    for (size_t i=0; i<indices.size(); ++i) {
+      if (indices[i] >= 0) {
+        newIndices[i] = newIndicesMap[indices[i]];
+      }
+    }
+
+    std::cout << "#verts before compaction: " <<vertices.size() << ' '
+              << "#verts after compaction: " << newVertices.size() << '\n';
+
+    vertices = newVertices;
+    indices = newIndices;
+
+    // ==================================================================
     // Gridlets
+    // ==================================================================
+
     size_t numScalarsInGrids = 0;
     std::vector<Gridlet> gridlets;
     if (!gridsFileName.empty()) {
@@ -238,7 +284,10 @@ namespace exa {
               << " gridlets with " << numScalarsInGrids
               << " scalars total. Value range is: " << valueRange << '\n';
 
+    // ==================================================================
     // AMR cells (for basis function comparison)
+    // ==================================================================
+
     std::vector<AMRCell> amrCells;
 
     std::ifstream amrCellFile(amrCellFileName, std::ios::binary | std::ios::ate);
@@ -252,7 +301,10 @@ namespace exa {
       }
     }
 
+    // ==================================================================
     // Meshes
+    // ==================================================================
+
     std::vector<TriangleMesh::SP> meshes;
     if (!meshFileName.empty()) {
       meshes = TriangleMesh::load(meshFileName);
@@ -265,9 +317,9 @@ namespace exa {
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
-    // ----------------------------------------------------
+    // ==================================================================
     // gridlet geom
-    // ----------------------------------------------------
+    // ==================================================================
 
     gridletGeom.geomType = owlGeomTypeCreate(owl,
                                              OWL_GEOM_USER,
@@ -298,9 +350,9 @@ namespace exa {
 
     owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
 
-    // ----------------------------------------------------
+    // ==================================================================
     // stitching geom
-    // ----------------------------------------------------
+    // ==================================================================
 
     stitchGeom.geomType = owlGeomTypeCreate(owl,
                                             OWL_GEOM_USER,
@@ -344,9 +396,9 @@ namespace exa {
 
     owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
 
-    // ----------------------------------------------------
+    // ==================================================================
     // AMR cell geom (non-dual, for eval!)
-    // ----------------------------------------------------
+    // ==================================================================
 
     OWLBuffer amrCellBuffer = 0, scalarBuffer = 0;
     if (!amrCells.empty()) {
@@ -394,9 +446,9 @@ namespace exa {
       owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
     }
 
-    // ----------------------------------------------------
+    // ==================================================================
     // mesh geom
-    // ----------------------------------------------------
+    // ==================================================================
 
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
