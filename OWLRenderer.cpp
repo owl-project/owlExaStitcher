@@ -188,41 +188,43 @@ namespace exa {
     // Compact unused vertices
     // ==================================================================
 
-    std::vector<int> uniqueIndices(vertices.size(),-1);
-    std::map<int,int> newIndicesMap;
+    if (!gridsFileName.empty()) {
+      std::vector<int> uniqueIndices(vertices.size(),-1);
+      std::map<int,int> newIndicesMap;
 
-    for (size_t i=0; i<indices.size(); ++i) {
-      if (indices[i] >= 0) {
-        uniqueIndices[indices[i]] = indices[i];
+      for (size_t i=0; i<indices.size(); ++i) {
+        if (indices[i] >= 0) {
+          uniqueIndices[indices[i]] = indices[i];
+        }
       }
-    }
 
-    int newIndex = 0;
-    for (size_t i=0; i<uniqueIndices.size(); ++i) {
-      if (uniqueIndices[i] >= 0) {
-        newIndicesMap.insert({uniqueIndices[i],newIndex++});
+      int newIndex = 0;
+      for (size_t i=0; i<uniqueIndices.size(); ++i) {
+        if (uniqueIndices[i] >= 0) {
+          newIndicesMap.insert({uniqueIndices[i],newIndex++});
+        }
       }
-    }
 
-    std::vector<vec4f> newVertices(newIndicesMap.size());
-    for (size_t i=0; i<uniqueIndices.size(); ++i) {
-      if (uniqueIndices[i] >= 0) {
-        newVertices[newIndicesMap[uniqueIndices[i]]] = vertices[uniqueIndices[i]];
+      std::vector<vec4f> newVertices(newIndicesMap.size());
+      for (size_t i=0; i<uniqueIndices.size(); ++i) {
+        if (uniqueIndices[i] >= 0) {
+          newVertices[newIndicesMap[uniqueIndices[i]]] = vertices[uniqueIndices[i]];
+        }
       }
-    }
 
-    std::vector<int> newIndices(indices.size(),-1);
-    for (size_t i=0; i<indices.size(); ++i) {
-      if (indices[i] >= 0) {
-        newIndices[i] = newIndicesMap[indices[i]];
+      std::vector<int> newIndices(indices.size(),-1);
+      for (size_t i=0; i<indices.size(); ++i) {
+        if (indices[i] >= 0) {
+          newIndices[i] = newIndicesMap[indices[i]];
+        }
       }
+
+      std::cout << "#verts before compaction: " <<vertices.size() << ' '
+                << "#verts after compaction: " << newVertices.size() << '\n';
+
+      vertices = newVertices;
+      indices = newIndices;
     }
-
-    std::cout << "#verts before compaction: " <<vertices.size() << ' '
-              << "#verts after compaction: " << newVertices.size() << '\n';
-
-    vertices = newVertices;
-    indices = newIndices;
 
     // ==================================================================
     // Gridlets
