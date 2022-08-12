@@ -45,6 +45,8 @@ namespace exa {
     void setOpacityScale(float scale);
 
     void setClipPlane(int id, bool enabled, vec3f N, float d);
+    void setShadeMode(int sm);
+    std::map<int,std::string> shadeModes();
 
     OWLContext owl;
     OWLModule  module;

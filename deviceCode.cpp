@@ -63,6 +63,12 @@ namespace exa {
   }
 
   inline __device__
+  float lerp(const float val1, const float val2, const float x)
+  {
+    return (1.f-x)*val1+x*val2;
+  };
+
+  inline __device__
   bool intersect(const Ray &ray,
                  const box3f &box,
                  float &t0,
@@ -224,9 +230,6 @@ namespace exa {
 
       if (!isnan(f1) && !isnan(f2) && !isnan(f3) && !isnan(f4) &&
           !isnan(f5) && !isnan(f6) && !isnan(f7) && !isnan(f8)) {
-        auto lerp = [](const float val1, const float val2, const float x) {
-          return (1.f-x)*val1+x*val2;
-        };
 
         vec3f frac = posInLevelCoords-vec3f(vec3i(posInLevelCoords));
 
@@ -489,6 +492,13 @@ namespace exa {
     Boundary, Scattering, Emission,
   };
 
+  enum ShadeMode {
+    Default,  /* ordinary mode assigning colors from the TF */
+    Gridlets, /* show gridlets as checkerboard */
+    Teaser,   /* paper teaser */
+  };
+
+  template <ShadeMode SM>
   inline __device__
   void sampleInteraction(const Ray     &ray,
                          CollisionType &type,     /* scattering,emission,... */
@@ -565,12 +575,77 @@ namespace exa {
         if (s.primID < 0)
           continue;
 
-        float u = random();
-        const range1f xfDomain = lp.transferFunc.domain;
-        s.value -= xfDomain.lower;
-        s.value /= xfDomain.upper-xfDomain.lower;
-        xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+        if constexpr (SM==Default) {
+          const range1f xfDomain = lp.transferFunc.domain;
+          s.value -= xfDomain.lower;
+          s.value /= xfDomain.upper-xfDomain.lower;
+          xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+        } else if constexpr (SM==Gridlets) {
+          const range1f xfDomain = lp.transferFunc.domain;
+          s.value -= xfDomain.lower;
+          s.value /= xfDomain.upper-xfDomain.lower;
+          xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
+          if (s.cellTag == ELEM_TAG) {
+            xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
+          } else if (s.cellTag == GRID_TAG) {
+            const Gridlet &gridlet = lp.gridletBuffer[s.primID];
+            vec3f posInLevelCoords = pos / (1<<gridlet.level);
+            vec3i imin(posInLevelCoords);
+            int col_index = imin.x % 2 == imin.y  % 2;
+            col_index = imin.z % 2 == 0 ? col_index : !col_index;
+            if (col_index==0) {
+              xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
+            } else {
+              xf.x = 0.f; xf.y = 0.f; xf.z = 0.7f;
+            }
+          }
+        } else if constexpr (SM==Teaser) {
+          const range1f xfDomain = lp.transferFunc.domain;
+          s.value -= xfDomain.lower;
+          s.value /= xfDomain.upper-xfDomain.lower;
+          xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
+          const vec3f rgb1(tex2D<float4>(lp.transferFunc.texture,s.value,.5f));
+          vec3f rgb2;
+          if (s.cellTag == ELEM_TAG) {
+            rgb2 = vec3f(1,0,0);
+          } else if (s.cellTag == GRID_TAG) {
+            const Gridlet &gridlet = lp.gridletBuffer[s.primID];
+            vec3f posInLevelCoords = pos / (1<<gridlet.level);
+            vec3i imin(posInLevelCoords);
+            int col_index = imin.x % 2 == imin.y  % 2;
+            col_index = imin.z % 2 == 0 ? col_index : !col_index;
+            if (col_index==0) {
+              rgb2.x = 1.f; rgb2.y = 1.f; rgb2.z = 1.f;
+            } else {
+              rgb2.x = 0.f; rgb2.y = 0.f; rgb2.z = 0.7f;
+            }
+          }
 
+          const vec2f cpOne(.4f,.6f);
+          const vec2f cpTwo(.6f,.4f);
+
+          const vec2i viewportSize = owl::getLaunchDims();
+          const vec2i pixelIndex = owl::getLaunchIndex();
+          const vec2f pixelUV(pixelIndex.x/float(viewportSize.x),
+                              pixelIndex.y/float(viewportSize.y));
+       
+          const float A  = cpTwo.x-cpOne.x;
+          const float B  = cpTwo.y-cpOne.y;
+          const float C1 = A*cpOne.x+B*cpOne.y;
+          const float C2 = A*cpTwo.x+B*cpTwo.y;
+          const float C  = A*pixelUV.x+B*pixelUV.y;
+          if (C <= C1) {
+            xf.x = rgb1.x; xf.y = rgb1.y; xf.z = rgb1.z;
+          } else if (C >= C2) {
+            xf.x = rgb2.x; xf.y = rgb2.y; xf.z = rgb2.z;
+          } else {
+            xf.x = (rgb1.x * (C2-C) + rgb2.x * (C-C1))/(C2-C1);
+            xf.y = (rgb1.y * (C2-C) + rgb2.y * (C-C1))/(C2-C1);
+            xf.z = (rgb1.z * (C2-C) + rgb2.z * (C-C1))/(C2-C1);
+          }
+        }
+
+        float u = random();
 
         // if (s.cellTag == ELEM_TAG) {
         //   vec3f color = randomColor((unsigned)s.primID);
@@ -699,7 +774,8 @@ namespace exa {
     return henyeyGreensteinTr(-w, wi, g);
   }
 
-  OPTIX_RAYGEN_PROGRAM(renderFrame)()
+  template <ShadeMode SM>
+  __device__ inline void renderFrame_Impl()
   {
     auto& lp = optixLaunchParams;
 
@@ -757,7 +833,7 @@ namespace exa {
 
           vec3f pos;
           vec4f xf = 0.f; // albedo and extinction coefficient
-          sampleInteraction(ray,ctype,pos,Tr,Le,xf,random);
+          sampleInteraction<SM>(ray,ctype,pos,Tr,Le,xf,random);
 
           // left the volume?
           if (ctype==Boundary && meshPRD.primID < 0)
@@ -850,6 +926,17 @@ namespace exa {
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
 
+  OPTIX_RAYGEN_PROGRAM(renderFrame)()
+  {
+    auto& lp = optixLaunchParams;
+
+    if (lp.shadeMode==1)
+      renderFrame_Impl<Gridlets>();
+    else if (lp.shadeMode==2)
+      renderFrame_Impl<Teaser>();
+    else
+      renderFrame_Impl<Default>();
+  }
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

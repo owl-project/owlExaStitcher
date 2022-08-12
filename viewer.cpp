@@ -50,6 +50,7 @@ namespace exa {
       vec3f N{0,0,1};
       float d{1000.f};
     } clipPlanes[CLIP_PLANES_MAX];
+    int shadeMode = 0;
     vec2i windowSize  = vec2i(1024,1024);
     float dt = .5f;
     int spp = 1;
@@ -436,6 +437,9 @@ namespace exa {
         cmdline.clipPlanes[P].N.z = std::stof(argv[++i]);
         cmdline.clipPlanes[P].d   = std::stof(argv[++i]);
       }
+      else if (arg == "-sm") {
+        cmdline.shadeMode = std::atoi(argv[++i]);
+      }
       else
         usage("unknown cmdline arg '"+arg+"'");
     }
@@ -486,6 +490,8 @@ namespace exa {
                             cmdline.clipPlanes[i].d);
     }
 
+    renderer.setShadeMode(cmdline.shadeMode);
+
     qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
     range1f valueRange = renderer.valueRange;
 
@@ -507,6 +513,18 @@ namespace exa {
     QVBoxLayout vlayout(centralWidget);
 
     vlayout.addWidget(xfEditor);
+
+    QGroupBox *renderSettingsBox = new QGroupBox("Render Settings");
+    vlayout.addWidget(renderSettingsBox);
+
+    QComboBox *shadeModeSelection = new QComboBox;
+    for (int i=0; i<renderer.shadeModes().size(); ++i) {
+      shadeModeSelection->addItem(renderer.shadeModes()[i].c_str());
+    }
+    shadeModeSelection->setCurrentIndex(cmdline.shadeMode);
+
+    QVBoxLayout settingsvlayout(renderSettingsBox);
+    settingsvlayout.addWidget(shadeModeSelection);
 
     QGroupBox *clipPlaneBox = new QGroupBox("Clip Plane");
     vlayout.addWidget(clipPlaneBox);
@@ -581,6 +599,12 @@ namespace exa {
       float f1 = dot(modelBounds.upper,N);
       return (1.f-d01) * f0 + d01*f1;
     };
+
+    // Shade mode select
+    QObject::connect(shadeModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+      [&](int item) {
+        renderer.setShadeMode(item);
+      });
 
     // Clip plane select
     QObject::connect(clipPlaneSelection, qOverload<int>(&QComboBox::currentIndexChanged),

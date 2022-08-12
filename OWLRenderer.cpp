@@ -63,10 +63,12 @@ namespace exa {
      { "fbDepth",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,fbDepth) },
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
+     { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
      { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
      { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
+     { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
      // xf data
@@ -337,6 +339,7 @@ namespace exa {
                                                     gridlets.data());
 
     owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
+    owlParamsSetBuffer(lp,"gridletBuffer",gridletBuffer);
 
     owlBuildPrograms(owl);
 
@@ -565,6 +568,8 @@ namespace exa {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
+    owlParamsSet1i(lp,"shadeMode",0);
+
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
   }
@@ -715,6 +720,19 @@ namespace exa {
     } else {
       std::cerr << "Clip plane " << id << " not valid" << std::endl;
     }
+  }
+
+  void OWLRenderer::setShadeMode(int sm)
+  {
+    owlParamsSet1i(lp,"shadeMode",sm);
+    accumID = 0;
+  }
+
+  std::map<int,std::string> OWLRenderer::shadeModes()
+  {
+    return {{0,"default"},
+            {1,"gridlets"},
+            {2,"teaser"}};
   }
 } // ::exa
 

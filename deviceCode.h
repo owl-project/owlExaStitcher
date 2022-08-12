@@ -72,10 +72,12 @@ namespace exa {
     float    *fbDepth;
     float4   *accumBuffer;
     int       accumID;
+    int       shadeMode;
     OptixTraversableHandle gridletBVH;
     OptixTraversableHandle boundaryCellBVH;
     OptixTraversableHandle amrCellBVH;
     OptixTraversableHandle meshBVH;
+    Gridlet *gridletBuffer;
     box3f     modelBounds;
     struct {
       cudaTextureObject_t texture;
