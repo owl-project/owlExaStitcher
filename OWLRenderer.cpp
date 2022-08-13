@@ -231,6 +231,7 @@ namespace exa {
     // ==================================================================
 
     size_t numScalarsInGrids = 0;
+    size_t numEmptyTotal = 0;
     std::vector<Gridlet> gridlets;
     if (!gridsFileName.empty()) {
       std::ifstream in(gridsFileName);
@@ -264,6 +265,7 @@ namespace exa {
           valueRange.lower = std::min(valueRange.lower,value);
           valueRange.upper = std::max(valueRange.upper,value);
         }
+        numEmptyTotal += numEmpty;
 
         // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
 
@@ -314,6 +316,39 @@ namespace exa {
       meshes = TriangleMesh::load(meshFileName);
     }
 
+    // ==================================================================
+    // Print emory stats
+    // ==================================================================
+
+    if (1) {
+      size_t elemVertexBytes = vertices.empty()  ? 0 : vertices.size()*sizeof(vertices[0]);
+      size_t elemIndexBytes = indices.empty()    ? 0 : indices.size()*sizeof(indices[0]);
+      size_t scalarsBytes = scalars.empty()      ? 0 : scalars.size()*sizeof(scalars[0]);
+      size_t emptyScalarsBytes = scalars.empty() ? 0 : numEmptyTotal*sizeof(scalars[0]);
+      size_t gridletBytes = gridlets.empty()     ? 0 : gridlets.size()*sizeof(gridlets[0]);
+      size_t amrCellsBytes = amrCells.empty()    ? 0 : amrCells.size()*sizeof(amrCells[0]);
+
+      size_t meshIndexBytes = 0;
+      size_t meshVertexBytes = 0;
+      for (const auto &mesh : meshes) {
+        meshIndexBytes += mesh->index.size()*sizeof(mesh->index[0]);
+        meshVertexBytes += mesh->vertex.size()*sizeof(mesh->vertex[0]);
+      }
+
+      size_t totalBytes = elemVertexBytes+elemIndexBytes+scalarsBytes+emptyScalarsBytes
+                        + gridletBytes+amrCellsBytes+meshIndexBytes+meshVertexBytes;
+
+      std::cout << " ====== Memory Stats (bytes) ======= \n";
+      std::cout << "elem.vertex.........: " << owl::prettyBytes(elemVertexBytes) << '\n';
+      std::cout << "elem.index..........: " << owl::prettyBytes(elemIndexBytes) << '\n';
+      std::cout << "Non-empty scalars...: " << owl::prettyBytes(scalarsBytes-emptyScalarsBytes) << '\n';
+      std::cout << "Empty scalars.......: " << owl::prettyBytes(emptyScalarsBytes) << '\n';
+      std::cout << "Gridlets............: " << owl::prettyBytes(gridletBytes) << '\n';
+      std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellsBytes) << '\n';
+      std::cout << "mesh.vertex.........: " << owl::prettyBytes(meshVertexBytes) << '\n';
+      std::cout << "mesh.index..........: " << owl::prettyBytes(meshIndexBytes) << '\n';
+      std::cout << "TOTAL...............: " << owl::prettyBytes(totalBytes) << '\n';
+    }
 
 
     owl = owlContextCreate(nullptr,1);
