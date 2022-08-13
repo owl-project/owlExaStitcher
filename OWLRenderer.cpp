@@ -232,6 +232,7 @@ namespace exa {
 
     size_t numScalarsInGrids = 0;
     size_t numEmptyTotal = 0;
+    size_t numNonEmptyTotal = 0;
     std::vector<Gridlet> gridlets;
     if (!gridsFileName.empty()) {
       std::ifstream in(gridsFileName);
@@ -250,13 +251,15 @@ namespace exa {
         std::vector<float> gridScalars(scalarIDs.size());
 
         size_t numEmpty = 0;
+        size_t numNonEmpty = 0;
         for (size_t i=0; i<scalarIDs.size(); ++i) {
           int scalarID = scalarIDs[i];
 
           float value = 0.f;
-          if ((unsigned)scalarID < scalars.size())
+          if ((unsigned)scalarID < scalars.size()) {
             value = scalars[scalarID];
-          else {
+            numNonEmpty++;
+          } else {
             value = NAN;
             numEmpty++;
           }
@@ -266,6 +269,7 @@ namespace exa {
           valueRange.upper = std::max(valueRange.upper,value);
         }
         numEmptyTotal += numEmpty;
+        numNonEmptyTotal += numEmpty;
 
         // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
 
@@ -321,12 +325,13 @@ namespace exa {
     // ==================================================================
 
     if (printMemoryStats) {
-      size_t elemVertexBytes = vertices.empty()  ? 0 : vertices.size()*sizeof(vertices[0]);
-      size_t elemIndexBytes = indices.empty()    ? 0 : indices.size()*sizeof(indices[0]);
-      size_t scalarsBytes = scalars.empty()      ? 0 : scalars.size()*sizeof(scalars[0]);
-      size_t emptyScalarsBytes = scalars.empty() ? 0 : numEmptyTotal*sizeof(scalars[0]);
-      size_t gridletBytes = gridlets.empty()     ? 0 : gridlets.size()*sizeof(gridlets[0]);
-      size_t amrCellsBytes = amrCells.empty()    ? 0 : amrCells.size()*sizeof(amrCells[0]);
+      size_t elemVertexBytes = vertices.empty()     ? 0 : vertices.size()*sizeof(vertices[0]);
+      size_t elemIndexBytes = indices.empty()       ? 0 : indices.size()*sizeof(indices[0]);
+      size_t gridletBytes = gridlets.empty()        ? 0 : gridlets.size()*sizeof(gridlets[0]);
+      size_t amrCellsBytes = amrCells.empty()       ? 0 : amrCells.size()*sizeof(amrCells[0]);
+      size_t amrScalarsBytes = amrCells.empty()     ? 0 : scalars.size()*sizeof(scalars[0]);
+      size_t emptyScalarsBytes = scalars.empty()    ? 0 : numEmptyTotal*sizeof(float);
+      size_t nonEmptyScalarsBytes = scalars.empty() ? 0 : numNonEmptyTotal*sizeof(float);
 
       size_t meshIndexBytes = 0;
       size_t meshVertexBytes = 0;
@@ -335,16 +340,17 @@ namespace exa {
         meshVertexBytes += mesh->vertex.size()*sizeof(mesh->vertex[0]);
       }
 
-      size_t totalBytes = elemVertexBytes+elemIndexBytes+scalarsBytes+emptyScalarsBytes
-                        + gridletBytes+amrCellsBytes+meshIndexBytes+meshVertexBytes;
+      size_t totalBytes = elemVertexBytes+elemIndexBytes+emptyScalarsBytes+nonEmptyScalarsBytes
+                        + gridletBytes+amrCellsBytes+amrScalarsBytes+meshIndexBytes+meshVertexBytes;
 
       std::cout << " ====== Memory Stats (bytes) ======= \n";
       std::cout << "elem.vertex.........: " << owl::prettyBytes(elemVertexBytes) << '\n';
       std::cout << "elem.index..........: " << owl::prettyBytes(elemIndexBytes) << '\n';
-      std::cout << "Non-empty scalars...: " << owl::prettyBytes(scalarsBytes-emptyScalarsBytes) << '\n';
+      std::cout << "Non-empty scalars...: " << owl::prettyBytes(nonEmptyScalarsBytes) << '\n';
       std::cout << "Empty scalars.......: " << owl::prettyBytes(emptyScalarsBytes) << '\n';
       std::cout << "Gridlets............: " << owl::prettyBytes(gridletBytes) << '\n';
       std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellsBytes) << '\n';
+      std::cout << "AMR scalars.........: " << owl::prettyBytes(amrScalarsBytes) << '\n';
       std::cout << "mesh.vertex.........: " << owl::prettyBytes(meshVertexBytes) << '\n';
       std::cout << "mesh.index..........: " << owl::prettyBytes(meshIndexBytes) << '\n';
       std::cout << "TOTAL...............: " << owl::prettyBytes(totalBytes) << '\n';
@@ -538,11 +544,11 @@ namespace exa {
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
 
-//const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
-//const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
+const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
+const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
 
-        const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
-        const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
+        //const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
+        //const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
 
         for (size_t i=0; i<mesh->vertex.size(); ++i) {
           vec3f &v = mesh->vertex[i];
@@ -639,7 +645,7 @@ namespace exa {
                gridletBuffer,
                amrCellBuffer,
                scalarBuffer,
-               {1024,1024,256},
+               {512,512,512},
                modelBounds);
 
     if (printMemoryStats) {
