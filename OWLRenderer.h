@@ -99,6 +99,8 @@ namespace exa {
 
     box3f   modelBounds;
     range1f valueRange;
+
+    bool printMemoryStats = true;
   };
 
 } // ::exa

@@ -320,7 +320,7 @@ namespace exa {
     // Print emory stats
     // ==================================================================
 
-    if (1) {
+    if (printMemoryStats) {
       size_t elemVertexBytes = vertices.empty()  ? 0 : vertices.size()*sizeof(vertices[0]);
       size_t elemIndexBytes = indices.empty()    ? 0 : indices.size()*sizeof(indices[0]);
       size_t scalarsBytes = scalars.empty()      ? 0 : scalars.size()*sizeof(scalars[0]);
@@ -351,6 +351,19 @@ namespace exa {
     }
 
 
+    auto gpuMemoryString = []() {
+      size_t free=0, total=0;
+      cudaMemGetInfo(&free, &total);
+      std::stringstream ss;
+      ss << '[' << owl::prettyBytes(free) << '/' << owl::prettyBytes(total) << ']';
+      return ss.str();
+    };
+
+
+    if (printMemoryStats) {
+      std::cout << "GPU memory before creating OWL context: " << gpuMemoryString() << '\n';
+    }
+
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
@@ -375,6 +388,10 @@ namespace exa {
                                                     gridlets.size(),
                                                     gridlets.data());
 
+    if (printMemoryStats) {
+      std::cout << "GPU memory after creating gridletBuffer: " << gpuMemoryString() << '\n';
+    }
+
     owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
     owlParamsSetBuffer(lp,"gridletBuffer",gridletBuffer);
 
@@ -389,6 +406,10 @@ namespace exa {
     owlGroupBuildAccel(gridletGeom.tlas);
 
     owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
+
+    if (printMemoryStats) {
+      std::cout << "GPU memory after building gridlet BVH: " << gpuMemoryString() << '\n';
+    }
 
     // ==================================================================
     // stitching geom
@@ -409,9 +430,17 @@ namespace exa {
                                                    vertices.size(),
                                                    vertices.data());
 
+    if (printMemoryStats) {
+      std::cout << "GPU memory after creating elem.vertexBuffer: " << gpuMemoryString() << '\n';
+    }
+
     OWLBuffer indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
                                                   indices.size(),
                                                   indices.data());
+
+    if (printMemoryStats) {
+      std::cout << "GPU memory after creating elem.indexBuffer: " << gpuMemoryString() << '\n';
+    }
 
     owlGeomSetBuffer(sgeom,"vertexBuffer",vertexBuffer);
     owlGeomSetBuffer(sgeom,"indexBuffer",indexBuffer);
@@ -435,6 +464,10 @@ namespace exa {
     owlGroupBuildAccel(stitchGeom.tlas);
 
     owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
+
+    if (printMemoryStats) {
+      std::cout << "GPU memory after building elem BVH: " << gpuMemoryString() << '\n';
+    }
 
     // ==================================================================
     // AMR cell geom (non-dual, for eval!)
@@ -466,9 +499,17 @@ namespace exa {
                                             amrCells.size(),
                                             amrCells.data());
 
+      if (printMemoryStats) {
+        std::cout << "GPU memory after creating amrCellBuffer: " << gpuMemoryString() << '\n';
+      }
+
       scalarBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT,
                                            scalars.size(),
                                            scalars.data());
+
+      if (printMemoryStats) {
+        std::cout << "GPU memory after creating scalarBuffer: " << gpuMemoryString() << '\n';
+      }
 
       owlGeomSetBuffer(ageom,"amrCellBuffer",amrCellBuffer);
       owlGeomSetBuffer(ageom,"scalarBuffer",scalarBuffer);
@@ -484,6 +525,10 @@ namespace exa {
       owlGroupBuildAccel(amrCellGeom.tlas);
 
       owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
+
+      if (printMemoryStats) {
+        std::cout << "GPU memory after building AMR cell BVH: " << gpuMemoryString() << '\n';
+      }
     }
 
     // ==================================================================
@@ -572,6 +617,10 @@ namespace exa {
       owlGroupBuildAccel(meshGeom.tlas);
 
       owlParamsSetGroup(lp, "meshBVH", meshGeom.tlas);
+
+      if (printMemoryStats) {
+        std::cout << "GPU memory after building mesh BVH: " << gpuMemoryString() << '\n';
+      }
     }
 
 
@@ -592,6 +641,10 @@ namespace exa {
                scalarBuffer,
                {1024,1024,256},
                modelBounds);
+
+    if (printMemoryStats) {
+      std::cout << "GPU memory after building DDA grid: " << gpuMemoryString() << '\n';
+    }
 
     setRange(valueRange);
 
