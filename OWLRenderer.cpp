@@ -269,7 +269,7 @@ namespace exa {
           valueRange.upper = std::max(valueRange.upper,value);
         }
         numEmptyTotal += numEmpty;
-        numNonEmptyTotal += numEmpty;
+        numNonEmptyTotal += numNonEmpty;
 
         // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
 
@@ -330,8 +330,8 @@ namespace exa {
       size_t gridletBytes = gridlets.empty()        ? 0 : gridlets.size()*sizeof(gridlets[0]);
       size_t amrCellsBytes = amrCells.empty()       ? 0 : amrCells.size()*sizeof(amrCells[0]);
       size_t amrScalarsBytes = amrCells.empty()     ? 0 : scalars.size()*sizeof(scalars[0]);
-      size_t emptyScalarsBytes = scalars.empty()    ? 0 : numEmptyTotal*sizeof(float);
-      size_t nonEmptyScalarsBytes = scalars.empty() ? 0 : numNonEmptyTotal*sizeof(float);
+      size_t emptyScalarsBytes = scalars.empty()    ? 0 : numEmptyTotal*sizeof(scalars[0]);
+      size_t nonEmptyScalarsBytes = scalars.empty() ? 0 : numNonEmptyTotal*sizeof(scalars[0]);
 
       size_t meshIndexBytes = 0;
       size_t meshVertexBytes = 0;
