@@ -47,6 +47,7 @@ namespace exa {
     void setClipPlane(int id, bool enabled, vec3f N, float d);
     void setShadeMode(int sm);
     std::map<int,std::string> shadeModes();
+    void setSampler(int sampler);
 
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);

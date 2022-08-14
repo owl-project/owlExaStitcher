@@ -436,6 +436,9 @@ namespace exa {
   }
 
 
+  // ------------------------------------------------------------------
+  // Samplers
+  // ------------------------------------------------------------------
   
   struct Sample {
     int      primID;
@@ -444,65 +447,52 @@ namespace exa {
     unsigned cellTag;
   };
 
-  inline __device__ Sample sampleVolume(const vec3f pos)
-  {
-    auto& lp = optixLaunchParams;
 
-#if 0
-    BasisPRD prd{0.f,0.f};
-    owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
+  struct ExaStitchSampler {
+    inline __device__ Sample sampleVolume(const vec3f pos)
+    {
+      auto& lp = optixLaunchParams;
 
-    owl::traceRay(lp.amrCellBVH,ray,prd,
-                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      VolumePRD prd{-1,0.f};
+      owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
+      unsigned cellTag = 0;
 
-    int primID = -1;
-    float value = 0.f;
-    if (prd.sumWeights > 0.f) {
-      primID = 0; // non-negative dummy value
-      value = prd.sumWeightedValues/prd.sumWeights;
-    }
-    return {primID,value,{0.f,0.f,0.f}};
-#else
-    VolumePRD prd{-1,0.f};
-    owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
-    unsigned cellTag = 0;
-
-    owl::traceRay(lp.gridletBVH,ray,prd,
-                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-
-    if (prd.primID != -1)
-      cellTag = GRID_TAG;
-    else {
-      owl::traceRay(lp.boundaryCellBVH,ray,prd,
+      owl::traceRay(lp.gridletBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
       if (prd.primID != -1)
-        cellTag = ELEM_TAG;
+        cellTag = GRID_TAG;
+      else {
+        owl::traceRay(lp.boundaryCellBVH,ray,prd,
+                      OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+        if (prd.primID != -1)
+          cellTag = ELEM_TAG;
+      }
+
+      return {prd.primID,prd.value,{0.f,0.f,0.f},cellTag};
     }
+  };
 
-    return {prd.primID,prd.value,{0.f,0.f,0.f},cellTag};
-#endif
-  }
+  struct AMRCellSampler {
+    inline __device__ Sample sampleVolume(const vec3f pos)
+    {
+      auto& lp = optixLaunchParams;
 
-  inline __device__ Sample sampleVolume(float x, float y, float z)
-  {
-    return sampleVolume({x,y,z});
-  }
+      BasisPRD prd{0.f,0.f};
+      owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
 
-  inline __device__ Sample sampleVolumeWithGradient(const vec3f pos)
-  {
-    Sample s = sampleVolume(pos);
+      owl::traceRay(lp.amrCellBVH,ray,prd,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-    const vec3f delta = 1.f;
-
-    s.gradient = vec3f(+sampleVolume(pos.x+delta.x,pos.y,pos.z).value
-                       -sampleVolume(pos.x-delta.x,pos.y,pos.z).value,
-                       +sampleVolume(pos.x,pos.y+delta.y,pos.z).value
-                       -sampleVolume(pos.x,pos.y-delta.y,pos.z).value,
-                       +sampleVolume(pos.x,pos.y,pos.z+delta.z).value
-                       -sampleVolume(pos.x,pos.y,pos.z-delta.z).value);
-
-    return s;
-  }
+      int primID = -1;
+      float value = 0.f;
+      if (prd.sumWeights > 0.f) {
+        primID = 0; // non-negative dummy value
+        value = prd.sumWeightedValues/prd.sumWeights;
+      }
+      return {primID,value,{0.f,0.f,0.f}};
+    }
+  };
 
   inline __device__ vec3f getLe(const Sample s)
   {
@@ -528,9 +518,10 @@ namespace exa {
     Teaser,   /* paper teaser */
   };
 
-  template <ShadeMode SM>
+  template <ShadeMode SM, typename Sampler>
   inline __device__
   void sampleInteraction(const Ray     &ray,
+                         Sampler        sampler,
                          CollisionType &type,     /* scattering,emission,... */
                          vec3f         &pos,      /* position of interaction */
                          float         &Tr,       /* transmission samples [0,1] */
@@ -601,7 +592,7 @@ namespace exa {
         }
 
         pos = ray.origin+ray.direction*t;
-        Sample s = sampleVolume(pos);
+        Sample s = sampler.sampleVolume(pos);
         if (s.primID < 0)
           continue;
 
@@ -804,8 +795,8 @@ namespace exa {
     return henyeyGreensteinTr(-w, wi, g);
   }
 
-  template <ShadeMode SM>
-  __device__ inline void renderFrame_Impl()
+  template <ShadeMode SM, typename Sampler>
+  __device__ inline void renderFrame_Impl(Sampler sampler)
   {
     auto& lp = optixLaunchParams;
 
@@ -871,7 +862,7 @@ namespace exa {
 
           vec3f pos;
           vec4f xf = 0.f; // albedo and extinction coefficient
-          sampleInteraction<SM>(ray,ctype,pos,Tr,Le,xf,random);
+          sampleInteraction<SM>(ray,sampler,ctype,pos,Tr,Le,xf,random);
 
           // left the volume?
           if (ctype==Boundary && meshPRD.primID < 0)
@@ -970,12 +961,18 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
-    if (lp.shadeMode==1)
-      renderFrame_Impl<Gridlets>();
-    else if (lp.shadeMode==2)
-      renderFrame_Impl<Teaser>();
-    else
-      renderFrame_Impl<Default>();
+    if (lp.sampler==EXA_STITCH_SAMPLER) {
+      ExaStitchSampler sampler;
+      if (lp.shadeMode==1)
+        renderFrame_Impl<Gridlets>(sampler);
+      else if (lp.shadeMode==2)
+        renderFrame_Impl<Teaser>(sampler);
+      else
+        renderFrame_Impl<Default>(sampler);
+    } else if (lp.sampler==AMR_CELL_SAMPLER) {
+      AMRCellSampler sampler;
+      renderFrame_Impl<Default>(sampler);
+    }
   }
 } // ::exa
 

@@ -38,8 +38,6 @@ namespace exa {
   = {
      { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,indexBuffer)},
      { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,vertexBuffer)},
-     { "bounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(StitchGeom,bounds.lower)},
-     { "bounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(StitchGeom,bounds.upper)},
      { nullptr /* sentinel to mark end of list */ }
   };
 
@@ -64,6 +62,7 @@ namespace exa {
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
+     { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
      { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
      { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
      { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
@@ -386,100 +385,102 @@ namespace exa {
     // gridlet geom
     // ==================================================================
 
-    gridletGeom.geomType = owlGeomTypeCreate(owl,
-                                             OWL_GEOM_USER,
-                                             sizeof(GridletGeom),
-                                             gridletGeomVars, -1);
-    owlGeomTypeSetBoundsProg(gridletGeom.geomType, module, "GridletGeomBounds");
-    owlGeomTypeSetIntersectProg(gridletGeom.geomType, 0, module, "GridletGeomIsect");
-    owlGeomTypeSetClosestHit(gridletGeom.geomType, 0, module, "GridletGeomCH");
+    OWLBuffer gridletBuffer = 0;
+    if (!gridlets.empty()) {
+      gridletGeom.geomType = owlGeomTypeCreate(owl,
+                                               OWL_GEOM_USER,
+                                               sizeof(GridletGeom),
+                                               gridletGeomVars, -1);
+      owlGeomTypeSetBoundsProg(gridletGeom.geomType, module, "GridletGeomBounds");
+      owlGeomTypeSetIntersectProg(gridletGeom.geomType, 0, module, "GridletGeomIsect");
+      owlGeomTypeSetClosestHit(gridletGeom.geomType, 0, module, "GridletGeomCH");
 
-    OWLGeom ggeom = owlGeomCreate(owl, gridletGeom.geomType);
-    owlGeomSetPrimCount(ggeom, gridlets.size());
+      OWLGeom ggeom = owlGeomCreate(owl, gridletGeom.geomType);
+      owlGeomSetPrimCount(ggeom, gridlets.size());
 
-    OWLBuffer gridletBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(Gridlet),
-                                                    gridlets.size(),
-                                                    gridlets.data());
+      gridletBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(Gridlet),
+                                            gridlets.size(),
+                                            gridlets.data());
 
-    if (printMemoryStats) {
-      std::cout << "GPU memory after creating gridletBuffer: " << gpuMemoryString() << '\n';
-    }
+      if (printMemoryStats) {
+        std::cout << "GPU memory after creating gridletBuffer: " << gpuMemoryString() << '\n';
+      }
 
-    owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
-    owlParamsSetBuffer(lp,"gridletBuffer",gridletBuffer);
+      owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
+      owlParamsSetBuffer(lp,"gridletBuffer",gridletBuffer);
 
-    owlBuildPrograms(owl);
+      owlBuildPrograms(owl);
 
-    gridletGeom.blas = owlUserGeomGroupCreate(owl, 1, &ggeom);
-    owlGroupBuildAccel(gridletGeom.blas);
+      gridletGeom.blas = owlUserGeomGroupCreate(owl, 1, &ggeom);
+      owlGroupBuildAccel(gridletGeom.blas);
 
-    gridletGeom.tlas = owlInstanceGroupCreate(owl, 1);
-    owlInstanceGroupSetChild(gridletGeom.tlas, 0, gridletGeom.blas);
+      gridletGeom.tlas = owlInstanceGroupCreate(owl, 1);
+      owlInstanceGroupSetChild(gridletGeom.tlas, 0, gridletGeom.blas);
 
-    owlGroupBuildAccel(gridletGeom.tlas);
+      owlGroupBuildAccel(gridletGeom.tlas);
 
-    owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
+      owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
 
-    if (printMemoryStats) {
-      std::cout << "GPU memory after building gridlet BVH: " << gpuMemoryString() << '\n';
+      setSampler(EXA_STITCH_SAMPLER);
+
+      if (printMemoryStats) {
+        std::cout << "GPU memory after building gridlet BVH: " << gpuMemoryString() << '\n';
+      }
     }
 
     // ==================================================================
     // stitching geom
     // ==================================================================
 
-    stitchGeom.geomType = owlGeomTypeCreate(owl,
-                                            OWL_GEOM_USER,
-                                            sizeof(StitchGeom),
-                                            stitchGeomVars, -1);
-    owlGeomTypeSetBoundsProg(stitchGeom.geomType, module, "StitchGeomBounds");
-    owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
-    owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
+    OWLBuffer vertexBuffer = 0, indexBuffer = 0;
+    if (!vertices.empty() && !indices.empty()) {
+      stitchGeom.geomType = owlGeomTypeCreate(owl,
+                                              OWL_GEOM_USER,
+                                              sizeof(StitchGeom),
+                                              stitchGeomVars, -1);
+      owlGeomTypeSetBoundsProg(stitchGeom.geomType, module, "StitchGeomBounds");
+      owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
+      owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
 
-    OWLGeom sgeom = owlGeomCreate(owl, stitchGeom.geomType);
-    owlGeomSetPrimCount(sgeom, numElems);
+      OWLGeom sgeom = owlGeomCreate(owl, stitchGeom.geomType);
+      owlGeomSetPrimCount(sgeom, numElems);
 
-    OWLBuffer vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
-                                                   vertices.size(),
-                                                   vertices.data());
+      vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
+                                           vertices.size(),
+                                           vertices.data());
 
-    if (printMemoryStats) {
-      std::cout << "GPU memory after creating elem.vertexBuffer: " << gpuMemoryString() << '\n';
-    }
+      if (printMemoryStats) {
+        std::cout << "GPU memory after creating elem.vertexBuffer: " << gpuMemoryString() << '\n';
+      }
 
-    OWLBuffer indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
-                                                  indices.size(),
-                                                  indices.data());
+      indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
+                                          indices.size(),
+                                          indices.data());
 
-    if (printMemoryStats) {
-      std::cout << "GPU memory after creating elem.indexBuffer: " << gpuMemoryString() << '\n';
-    }
+      if (printMemoryStats) {
+        std::cout << "GPU memory after creating elem.indexBuffer: " << gpuMemoryString() << '\n';
+      }
 
-    owlGeomSetBuffer(sgeom,"vertexBuffer",vertexBuffer);
-    owlGeomSetBuffer(sgeom,"indexBuffer",indexBuffer);
-    owlGeomSet3f(sgeom,"bounds.lower",
-                 modelBounds.lower.x,
-                 modelBounds.lower.y,
-                 modelBounds.lower.z);
-    owlGeomSet3f(sgeom,"bounds.upper",
-                 modelBounds.upper.x,
-                 modelBounds.upper.y,
-                 modelBounds.upper.z);
+      owlGeomSetBuffer(sgeom,"vertexBuffer",vertexBuffer);
+      owlGeomSetBuffer(sgeom,"indexBuffer",indexBuffer);
 
-    owlBuildPrograms(owl);
+      owlBuildPrograms(owl);
 
-    stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &sgeom);
-    owlGroupBuildAccel(stitchGeom.blas);
+      stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &sgeom);
+      owlGroupBuildAccel(stitchGeom.blas);
 
-    stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
-    owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
+      stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
+      owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
 
-    owlGroupBuildAccel(stitchGeom.tlas);
+      owlGroupBuildAccel(stitchGeom.tlas);
 
-    owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
+      owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
 
-    if (printMemoryStats) {
-      std::cout << "GPU memory after building elem BVH: " << gpuMemoryString() << '\n';
+      setSampler(EXA_STITCH_SAMPLER);
+
+      if (printMemoryStats) {
+        std::cout << "GPU memory after building elem BVH: " << gpuMemoryString() << '\n';
+      }
     }
 
     // ==================================================================
@@ -538,6 +539,8 @@ namespace exa {
       owlGroupBuildAccel(amrCellGeom.tlas);
 
       owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
+
+      setSampler(AMR_CELL_SAMPLER);
 
       if (printMemoryStats) {
         std::cout << "GPU memory after building AMR cell BVH: " << gpuMemoryString() << '\n';
@@ -843,6 +846,12 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
     return {{0,"default"},
             {1,"gridlets"},
             {2,"teaser"}};
+  }
+
+  void OWLRenderer::setSampler(int sampler)
+  {
+    owlParamsSet1i(lp,"sampler",sampler);
+    accumID = 0;
   }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)

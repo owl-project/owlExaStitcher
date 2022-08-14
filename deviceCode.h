@@ -31,6 +31,9 @@ typedef owl::interval<float> range1f;
 
 #define CLIP_PLANES_MAX 1
 
+#define EXA_STITCH_SAMPLER 0
+#define AMR_CELL_SAMPLER   1
+
 namespace exa {
   struct RayGen {
   };
@@ -54,7 +57,6 @@ namespace exa {
   struct StitchGeom {
     int   *indexBuffer;
     vec4f *vertexBuffer;
-    box3f bounds;
   };
 
   struct MeshGeom {
@@ -73,6 +75,7 @@ namespace exa {
     float4   *accumBuffer;
     int       accumID;
     int       shadeMode;
+    int       sampler;
     OptixTraversableHandle gridletBVH;
     OptixTraversableHandle boundaryCellBVH;
     OptixTraversableHandle amrCellBVH;
