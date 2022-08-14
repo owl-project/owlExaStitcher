@@ -60,6 +60,8 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
 add_executable(exaStitchViewer
   Grid.cu
+  AMRCellModel.cpp
+  ExaStitchModel.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
   viewer.cpp

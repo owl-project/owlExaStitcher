@@ -28,26 +28,6 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
-  OWLVarDecl gridletGeomVars[]
-  = {
-     { "gridletBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletBuffer)},
-     { nullptr /* sentinel to mark end of list */ }
-  };
-
-  OWLVarDecl stitchGeomVars[]
-  = {
-     { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,indexBuffer)},
-     { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,vertexBuffer)},
-     { nullptr /* sentinel to mark end of list */ }
-  };
-
-  OWLVarDecl amrCellGeomVars[]
-  = {
-     { "amrCellBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,amrCellBuffer)},
-     { "scalarBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,scalarBuffer)},
-     { nullptr /* sentinel to mark end of list */ }
-  };
-
   OWLVarDecl meshGeomVars[]
   = {
      { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(MeshGeom,indexBuffer)},
@@ -115,207 +95,17 @@ namespace exa {
                            const std::string meshFileName,
                            const std::string scalarFileName)
   {
-    // Load scalars
-    std::vector<float> scalars;
-
-    std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
-    if (scalarFile.good()) {
-      size_t numBytes = scalarFile.tellg();
-      scalarFile.close();
-      scalarFile.open(scalarFileName, std::ios::binary);
-      if (scalarFile.good()) {
-        scalars.resize(numBytes/sizeof(float));
-        scalarFile.read((char *)scalars.data(),scalars.size()*sizeof(float));
-      }
-    }
-
-    unsigned numElems = 0;
-    std::vector<vec4f> vertices;
-    std::vector<int> indices;
-
-    if (!inFileName.empty()) {
-      std::cout << "#mm: loading umesh from " << inFileName << std::endl;
-      umesh::UMesh::SP mesh = umesh::UMesh::loadFrom(inFileName);
-      std::cout << "#mm: got umesh w/ " << mesh->toString() << std::endl;
-
-      vertices.resize(mesh->vertices.size());
-      for (size_t i=0; i<mesh->vertices.size(); ++i) {
-        float value = 0.f;
-        if (!scalars.empty() && !mesh->vertexTag.empty())
-          value = scalars[mesh->vertexTag[i]];
-        else if (!mesh->perVertex->values.empty())
-          value = mesh->perVertex->values[i];
-
-        vertices[i] = vec4f(mesh->vertices[i].x,
-                            mesh->vertices[i].y,
-                            mesh->vertices[i].z,
-                            value);
-      }
-
-      modelBounds = box3f();
-      indices.resize(mesh->size()*8,-1);
-
-      size_t elem = 0;
-
-      valueRange = range1f(1e30f,-1e30f);
-
-      // ==================================================================
-      // Unstructured elems
-      // ==================================================================
-
-      auto buildIndices = [&](const auto &elems) {
-        if (elems.empty())
-          return;
-
-        unsigned numVertices = elems[0].numVertices;
-        for (size_t i=0; i<elems.size(); ++i) {
-          for (size_t j=0; j<numVertices; ++j) {
-            indices[elem*8+j] = elems[i][j];
-            modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
-            valueRange.lower = std::min(valueRange.lower,vertices[indices[elem*8+j]].w);
-            valueRange.upper = std::max(valueRange.upper,vertices[indices[elem*8+j]].w);
-          }
-          elem++;
-        }
-      };
-
-      buildIndices(mesh->tets);
-      buildIndices(mesh->pyrs);
-      buildIndices(mesh->wedges);
-      buildIndices(mesh->hexes);
-
-      numElems = indices.size()/8;
-
-      std::cout << "Got " << numElems
-                << " elements. Value range is: " << valueRange << '\n';
-    }
-
     // ==================================================================
-    // Compact unused vertices
+    // AMR/UMesh models etc
     // ==================================================================
 
-    if (!gridsFileName.empty()) {
-      std::vector<int> uniqueIndices(vertices.size(),-1);
-      std::map<int,int> newIndicesMap;
+    exaStitchModel = ExaStitchModel::load(inFileName,gridsFileName,scalarFileName);
+    amrCellModel = AMRCellModel::load(amrCellFileName,scalarFileName);
 
-      for (size_t i=0; i<indices.size(); ++i) {
-        if (indices[i] >= 0) {
-          uniqueIndices[indices[i]] = indices[i];
-        }
-      }
-
-      int newIndex = 0;
-      for (size_t i=0; i<uniqueIndices.size(); ++i) {
-        if (uniqueIndices[i] >= 0) {
-          newIndicesMap.insert({uniqueIndices[i],newIndex++});
-        }
-      }
-
-      std::vector<vec4f> newVertices(newIndicesMap.size());
-      for (size_t i=0; i<uniqueIndices.size(); ++i) {
-        if (uniqueIndices[i] >= 0) {
-          newVertices[newIndicesMap[uniqueIndices[i]]] = vertices[uniqueIndices[i]];
-        }
-      }
-
-      std::vector<int> newIndices(indices.size(),-1);
-      for (size_t i=0; i<indices.size(); ++i) {
-        if (indices[i] >= 0) {
-          newIndices[i] = newIndicesMap[indices[i]];
-        }
-      }
-
-      std::cout << "#verts before compaction: " <<vertices.size() << ' '
-                << "#verts after compaction: " << newVertices.size() << '\n';
-
-      vertices = newVertices;
-      indices = newIndices;
-    }
-
-    // ==================================================================
-    // Gridlets
-    // ==================================================================
-
-    size_t numScalarsInGrids = 0;
-    size_t numEmptyTotal = 0;
-    size_t numNonEmptyTotal = 0;
-    std::vector<Gridlet> gridlets;
-    if (!gridsFileName.empty()) {
-      std::ifstream in(gridsFileName);
-      while (!in.eof()) {
-        Gridlet gridlet;
-        in.read((char *)&gridlet.lower,sizeof(gridlet.lower));
-        in.read((char *)&gridlet.level,sizeof(gridlet.level));
-        in.read((char *)&gridlet.dims,sizeof(gridlet.dims));
-
-        size_t numScalars = (gridlet.dims.x+1)
-                    * (size_t(gridlet.dims.y)+1)
-                          * (gridlet.dims.z+1);
-        std::vector<int> scalarIDs(numScalars);
-        in.read((char *)scalarIDs.data(),scalarIDs.size()*sizeof(scalarIDs[0]));
-
-        std::vector<float> gridScalars(scalarIDs.size());
-
-        size_t numEmpty = 0;
-        size_t numNonEmpty = 0;
-        for (size_t i=0; i<scalarIDs.size(); ++i) {
-          int scalarID = scalarIDs[i];
-
-          float value = 0.f;
-          if ((unsigned)scalarID < scalars.size()) {
-            value = scalars[scalarID];
-            numNonEmpty++;
-          } else {
-            value = NAN;
-            numEmpty++;
-          }
-          gridScalars[i] = value;
-
-          valueRange.lower = std::min(valueRange.lower,value);
-          valueRange.upper = std::max(valueRange.upper,value);
-        }
-        numEmptyTotal += numEmpty;
-        numNonEmptyTotal += numNonEmpty;
-
-        // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
-
-
-        cudaMalloc(&gridlet.scalars,gridScalars.size()*sizeof(gridScalars[0]));
-        cudaMemcpy(gridlet.scalars,gridScalars.data(),
-                   gridScalars.size()*sizeof(gridScalars[0]),
-                   cudaMemcpyHostToDevice);
-
-        numScalarsInGrids += scalarIDs.size();
-        gridlets.push_back(gridlet);
-
-        vec3i lower = gridlet.lower * (1<<gridlet.level);
-        vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
-
-        modelBounds.extend(vec3f(lower));
-        modelBounds.extend(vec3f(upper));
-      }
-    }
-
-    std::cout << "Got " << gridlets.size()
-              << " gridlets with " << numScalarsInGrids
-              << " scalars total. Value range is: " << valueRange << '\n';
-
-    // ==================================================================
-    // AMR cells (for basis function comparison)
-    // ==================================================================
-
-    std::vector<AMRCell> amrCells;
-
-    std::ifstream amrCellFile(amrCellFileName, std::ios::binary | std::ios::ate);
-    if (amrCellFile.good()) {
-      size_t numBytes = amrCellFile.tellg();
-      amrCellFile.close();
-      amrCellFile.open(amrCellFileName, std::ios::binary);
-      if (amrCellFile.good()) {
-        amrCells.resize(numBytes/sizeof(AMRCell));
-        amrCellFile.read((char *)amrCells.data(),amrCells.size()*sizeof(AMRCell));
-      }
-    }
+    modelBounds.extend(exaStitchModel->modelBounds);
+    modelBounds.extend(amrCellModel->modelBounds);
+    valueRange.extend(exaStitchModel->valueRange);
+    valueRange.extend(amrCellModel->valueRange);
 
     // ==================================================================
     // Meshes
@@ -327,18 +117,17 @@ namespace exa {
     }
 
     // ==================================================================
-    // Print emory stats
+    // Print memory stats
     // ==================================================================
 
     if (printMemoryStats) {
-      size_t elemVertexBytes = vertices.empty()     ? 0 : vertices.size()*sizeof(vertices[0]);
-      size_t elemIndexBytes = indices.empty()       ? 0 : indices.size()*sizeof(indices[0]);
-      size_t gridletBytes = gridlets.empty()        ? 0 : gridlets.size()*sizeof(gridlets[0]);
-      size_t amrCellsBytes = amrCells.empty()       ? 0 : amrCells.size()*sizeof(amrCells[0]);
-      size_t amrScalarsBytes = amrCells.empty()     ? 0 : scalars.size()*sizeof(scalars[0]);
-      size_t emptyScalarsBytes = scalars.empty()    ? 0 : numEmptyTotal*sizeof(scalars[0]);
-      size_t nonEmptyScalarsBytes = scalars.empty() ? 0 : numNonEmptyTotal*sizeof(scalars[0]);
-
+      size_t elemVertexBytes = 0;
+      size_t elemIndexBytes = 0;
+      size_t gridletBytes = 0;
+      size_t emptyScalarsBytes = 0;
+      size_t nonEmptyScalarsBytes = 0;
+      size_t amrCellBytes = 0;
+      size_t amrScalarBytes = 0;
       size_t meshIndexBytes = 0;
       size_t meshVertexBytes = 0;
       for (const auto &mesh : meshes) {
@@ -346,8 +135,12 @@ namespace exa {
         meshVertexBytes += mesh->vertex.size()*sizeof(mesh->vertex[0]);
       }
 
+      exaStitchModel->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
+                               emptyScalarsBytes,nonEmptyScalarsBytes);
+      amrCellModel->memStats(amrCellBytes,amrScalarBytes);
+
       size_t totalBytes = elemVertexBytes+elemIndexBytes+emptyScalarsBytes+nonEmptyScalarsBytes
-                        + gridletBytes+amrCellsBytes+amrScalarsBytes+meshIndexBytes+meshVertexBytes;
+                        + gridletBytes+amrCellBytes+amrScalarBytes+meshIndexBytes+meshVertexBytes;
 
       std::cout << " ====== Memory Stats (bytes) ======= \n";
       std::cout << "elem.vertex.........: " << owl::prettyBytes(elemVertexBytes) << '\n';
@@ -355,196 +148,32 @@ namespace exa {
       std::cout << "Non-empty scalars...: " << owl::prettyBytes(nonEmptyScalarsBytes) << '\n';
       std::cout << "Empty scalars.......: " << owl::prettyBytes(emptyScalarsBytes) << '\n';
       std::cout << "Gridlets............: " << owl::prettyBytes(gridletBytes) << '\n';
-      std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellsBytes) << '\n';
-      std::cout << "AMR scalars.........: " << owl::prettyBytes(amrScalarsBytes) << '\n';
+      std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellBytes) << '\n';
+      std::cout << "AMR scalars.........: " << owl::prettyBytes(amrScalarBytes) << '\n';
       std::cout << "mesh.vertex.........: " << owl::prettyBytes(meshVertexBytes) << '\n';
       std::cout << "mesh.index..........: " << owl::prettyBytes(meshIndexBytes) << '\n';
       std::cout << "TOTAL...............: " << owl::prettyBytes(totalBytes) << '\n';
     }
 
 
-    auto gpuMemoryString = []() {
-      size_t free=0, total=0;
-      cudaMemGetInfo(&free, &total);
-      std::stringstream ss;
-      ss << '[' << owl::prettyBytes(free) << '/' << owl::prettyBytes(total) << ']';
-      return ss.str();
-    };
-
-
-    if (printMemoryStats) {
-      std::cout << "GPU memory before creating OWL context: " << gpuMemoryString() << '\n';
-    }
-
     owl = owlContextCreate(nullptr,1);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
+
     // ==================================================================
-    // gridlet geom
+    // Upload to GPU
     // ==================================================================
 
-    OWLBuffer gridletBuffer = 0;
-    if (!gridlets.empty()) {
-      gridletGeom.geomType = owlGeomTypeCreate(owl,
-                                               OWL_GEOM_USER,
-                                               sizeof(GridletGeom),
-                                               gridletGeomVars, -1);
-      owlGeomTypeSetBoundsProg(gridletGeom.geomType, module, "GridletGeomBounds");
-      owlGeomTypeSetIntersectProg(gridletGeom.geomType, 0, module, "GridletGeomIsect");
-      owlGeomTypeSetClosestHit(gridletGeom.geomType, 0, module, "GridletGeomCH");
-
-      OWLGeom ggeom = owlGeomCreate(owl, gridletGeom.geomType);
-      owlGeomSetPrimCount(ggeom, gridlets.size());
-
-      gridletBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(Gridlet),
-                                            gridlets.size(),
-                                            gridlets.data());
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after creating gridletBuffer: " << gpuMemoryString() << '\n';
-      }
-
-      owlGeomSetBuffer(ggeom,"gridletBuffer",gridletBuffer);
-      owlParamsSetBuffer(lp,"gridletBuffer",gridletBuffer);
-
-      owlBuildPrograms(owl);
-
-      gridletGeom.blas = owlUserGeomGroupCreate(owl, 1, &ggeom);
-      owlGroupBuildAccel(gridletGeom.blas);
-
-      gridletGeom.tlas = owlInstanceGroupCreate(owl, 1);
-      owlInstanceGroupSetChild(gridletGeom.tlas, 0, gridletGeom.blas);
-
-      owlGroupBuildAccel(gridletGeom.tlas);
-
-      owlParamsSetGroup(lp, "gridletBVH", gridletGeom.tlas);
-
+    if (exaStitchModel->initGPU(owl,module)) {
+      owlParamsSetGroup(lp, "boundaryCellBVH", exaStitchModel->stitchGeom.tlas);
+      owlParamsSetGroup(lp, "gridletBVH", exaStitchModel->gridletGeom.tlas);
+      owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after building gridlet BVH: " << gpuMemoryString() << '\n';
-      }
-    }
-
-    // ==================================================================
-    // stitching geom
-    // ==================================================================
-
-    OWLBuffer vertexBuffer = 0, indexBuffer = 0;
-    if (!vertices.empty() && !indices.empty()) {
-      stitchGeom.geomType = owlGeomTypeCreate(owl,
-                                              OWL_GEOM_USER,
-                                              sizeof(StitchGeom),
-                                              stitchGeomVars, -1);
-      owlGeomTypeSetBoundsProg(stitchGeom.geomType, module, "StitchGeomBounds");
-      owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
-      owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
-
-      OWLGeom sgeom = owlGeomCreate(owl, stitchGeom.geomType);
-      owlGeomSetPrimCount(sgeom, numElems);
-
-      vertexBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT4,
-                                           vertices.size(),
-                                           vertices.data());
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after creating elem.vertexBuffer: " << gpuMemoryString() << '\n';
-      }
-
-      indexBuffer = owlDeviceBufferCreate(owl, OWL_INT,
-                                          indices.size(),
-                                          indices.data());
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after creating elem.indexBuffer: " << gpuMemoryString() << '\n';
-      }
-
-      owlGeomSetBuffer(sgeom,"vertexBuffer",vertexBuffer);
-      owlGeomSetBuffer(sgeom,"indexBuffer",indexBuffer);
-
-      owlBuildPrograms(owl);
-
-      stitchGeom.blas = owlUserGeomGroupCreate(owl, 1, &sgeom);
-      owlGroupBuildAccel(stitchGeom.blas);
-
-      stitchGeom.tlas = owlInstanceGroupCreate(owl, 1);
-      owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
-
-      owlGroupBuildAccel(stitchGeom.tlas);
-
-      owlParamsSetGroup(lp, "boundaryCellBVH", stitchGeom.tlas);
-
-      setSampler(EXA_STITCH_SAMPLER);
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after building elem BVH: " << gpuMemoryString() << '\n';
-      }
-    }
-
-    // ==================================================================
-    // AMR cell geom (non-dual, for eval!)
-    // ==================================================================
-
-    OWLBuffer amrCellBuffer = 0, scalarBuffer = 0;
-    if (!amrCells.empty()) {
-      for (size_t i=0; i<amrCells.size(); ++i) {
-        box3f bounds(vec3f(amrCells[i].pos),
-                     vec3f(amrCells[i].pos+vec3i(1<<amrCells[i].level)));
-        modelBounds.extend(bounds.lower);
-        modelBounds.extend(bounds.upper);
-        if (i < scalars.size())
-          valueRange.extend(scalars[i]);
-      }
-
-      amrCellGeom.geomType = owlGeomTypeCreate(owl,
-                                               OWL_GEOM_USER,
-                                               sizeof(AMRCellGeom),
-                                               amrCellGeomVars, -1);
-      owlGeomTypeSetBoundsProg(amrCellGeom.geomType, module, "AMRCellGeomBounds");
-      owlGeomTypeSetIntersectProg(amrCellGeom.geomType, 0, module, "AMRCellGeomIsect");
-      owlGeomTypeSetClosestHit(amrCellGeom.geomType, 0, module, "AMRCellGeomCH");
-
-      OWLGeom ageom = owlGeomCreate(owl, amrCellGeom.geomType);
-      owlGeomSetPrimCount(ageom, amrCells.size());
-
-      amrCellBuffer = owlDeviceBufferCreate(owl, OWL_USER_TYPE(AMRCell),
-                                            amrCells.size(),
-                                            amrCells.data());
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after creating amrCellBuffer: " << gpuMemoryString() << '\n';
-      }
-
-      scalarBuffer = owlDeviceBufferCreate(owl, OWL_FLOAT,
-                                           scalars.size(),
-                                           scalars.data());
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after creating scalarBuffer: " << gpuMemoryString() << '\n';
-      }
-
-      owlGeomSetBuffer(ageom,"amrCellBuffer",amrCellBuffer);
-      owlGeomSetBuffer(ageom,"scalarBuffer",scalarBuffer);
-
-      owlBuildPrograms(owl);
-
-      amrCellGeom.blas = owlUserGeomGroupCreate(owl, 1, &ageom);
-      owlGroupBuildAccel(amrCellGeom.blas);
-
-      amrCellGeom.tlas = owlInstanceGroupCreate(owl, 1);
-      owlInstanceGroupSetChild(amrCellGeom.tlas, 0, amrCellGeom.blas);
-
-      owlGroupBuildAccel(amrCellGeom.tlas);
-
-      owlParamsSetGroup(lp, "amrCellBVH", amrCellGeom.tlas);
-
+    } else if (amrCellModel->initGPU(owl,module)) {
+      owlParamsSetGroup(lp, "amrCellBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after building AMR cell BVH: " << gpuMemoryString() << '\n';
-      }
     }
 
     // ==================================================================
@@ -554,11 +183,11 @@ namespace exa {
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
 
-const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
-const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
+//const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
+//const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
 
-        //const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
-        //const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
+        const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
+        const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
 
         for (size_t i=0; i<mesh->vertex.size(); ++i) {
           vec3f &v = mesh->vertex[i];
@@ -597,7 +226,7 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
       for (int meshID=0;meshID<meshes.size();meshID++) {
         auto &mesh = meshes[meshID];
         OWLGroup blas;
-        OWLGeom mgeom;
+        OWLGeom geom;
         OWLBuffer vertexBuffer;
         OWLBuffer indexBuffer;
 
@@ -611,21 +240,21 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
                                              mesh->vertex.size(),
                                              mesh->vertex.data());
 
-        mgeom = owlGeomCreate(owl, meshGeom.geomType);
-        owlGeomSetBuffer(mgeom, "indexBuffer", indexBuffer);
-        owlGeomSetBuffer(mgeom, "vertexBuffer", vertexBuffer);
-        owlTrianglesSetIndices(mgeom,
+        geom = owlGeomCreate(owl, meshGeom.geomType);
+        owlGeomSetBuffer(geom, "indexBuffer", indexBuffer);
+        owlGeomSetBuffer(geom, "vertexBuffer", vertexBuffer);
+        owlTrianglesSetIndices(geom,
                                indexBuffer,
                                mesh->index.size(),
                                sizeof(vec3i),
                                0);
-        owlTrianglesSetVertices(mgeom,
+        owlTrianglesSetVertices(geom,
                                 vertexBuffer,
                                 mesh->vertex.size(),
                                 sizeof(vec3f),
                                 0);
 
-        blas = owlTrianglesGeomGroupCreate(owl, 1, &mgeom);
+        blas = owlTrianglesGeomGroupCreate(owl, 1, &geom);
         owlGroupBuildAccel(blas);
         owlInstanceGroupSetChild(meshGeom.tlas, meshID, blas);
       }
@@ -633,10 +262,6 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
       owlGroupBuildAccel(meshGeom.tlas);
 
       owlParamsSetGroup(lp, "meshBVH", meshGeom.tlas);
-
-      if (printMemoryStats) {
-        std::cout << "GPU memory after building mesh BVH: " << gpuMemoryString() << '\n';
-      }
     }
 
 
@@ -650,17 +275,13 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
                    modelBounds.upper.z);
 
     grid.build(owl,
-               vertexBuffer,
-               indexBuffer,
-               gridletBuffer,
-               amrCellBuffer,
-               scalarBuffer,
+               exaStitchModel->vertexBuffer,
+               exaStitchModel->indexBuffer,
+               exaStitchModel->gridletBuffer,
+               amrCellModel->cellBuffer,
+               amrCellModel->scalarBuffer,
                {512,512,512},
                modelBounds);
-
-    if (printMemoryStats) {
-      std::cout << "GPU memory after building DDA grid: " << gpuMemoryString() << '\n';
-    }
 
     setRange(valueRange);
 

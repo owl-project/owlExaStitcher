@@ -17,7 +17,8 @@
 #pragma once
 
 #include "qtOWL/ColorMaps.h"
-#include "deviceCode.h"
+#include "AMRCellModel.h"
+#include "ExaStitchModel.h"
 #include "Grid.h"
 
 namespace exa {
@@ -59,24 +60,6 @@ namespace exa {
 
     struct {
       OWLGeomType geomType;
-      OWLGroup blas;
-      OWLGroup tlas;
-    } gridletGeom;
-
-    struct {
-      OWLGeomType geomType;
-      OWLGroup blas;
-      OWLGroup tlas;
-    } stitchGeom;
-
-    struct {
-      OWLGeomType geomType;
-      OWLGroup blas;
-      OWLGroup tlas;
-    } amrCellGeom;
-
-    struct {
-      OWLGeomType geomType;
       OWLGroup tlas;
     } meshGeom;
 
@@ -89,6 +72,8 @@ namespace exa {
       cudaTextureObject_t colorMapTexture { 0 };
     } xf;
 
+    ExaStitchModel::SP exaStitchModel { 0 };
+    AMRCellModel::SP amrCellModel { 0 };
     Grid grid;
 
     OWLBuffer accumBuffer { 0 };
