@@ -91,6 +91,12 @@ namespace exa {
       vec3f dir_dv;
     } camera;
     struct {
+      box2f value;
+      box2f selection;
+      int   active;
+      int   selecting;
+    } subImage;
+    struct {
       float dt;
       int   heatMapEnabled;
       float heatMapScale;

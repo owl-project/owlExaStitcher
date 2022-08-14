@@ -48,6 +48,9 @@ namespace exa {
     void setShadeMode(int sm);
     std::map<int,std::string> shadeModes();
 
+    void setSubImage(const box2f si, bool active);
+    void setSubImageSelection(const box2f si, bool active);
+
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;

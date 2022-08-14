@@ -120,6 +120,36 @@ namespace exa {
     if (fabs(dir.z) < 1e-5f) dir.z = 1e-5f;
     return Ray(org,dir,0.f,1e10f);
   }
+
+  inline __device__ box2f subImageUV()
+  {
+    return optixLaunchParams.subImage.value;
+  }
+ 
+  inline __device__ box2i subImageWin()
+  {
+    const vec2i lo = clamp(vec2i(optixLaunchParams.subImage.value.lower*vec2f(owl::getLaunchDims())),
+                           vec2i(0),vec2i(owl::getLaunchDims()-1));
+
+    const vec2i hi = clamp(vec2i(optixLaunchParams.subImage.value.upper*vec2f(owl::getLaunchDims())),
+                           vec2i(0),vec2i(owl::getLaunchDims()-1));
+    return {lo,hi};
+  }
+
+  inline __device__ box2f subImageSelectionUV()
+  {
+    return optixLaunchParams.subImage.selection;
+  }
+ 
+  inline __device__ box2i subImageSelectionWin()
+  {
+    const vec2i lo = clamp(vec2i(optixLaunchParams.subImage.selection.lower*vec2f(owl::getLaunchDims())),
+                           vec2i(0),vec2i(owl::getLaunchDims()-1));
+
+    const vec2i hi = clamp(vec2i(optixLaunchParams.subImage.selection.upper*vec2f(owl::getLaunchDims())),
+                           vec2i(0),vec2i(owl::getLaunchDims()-1));
+    return {lo,hi};
+  }
  
   inline __device__ void make_orthonormal_basis(vec3f &u, vec3f &v, const vec3f &w)
   {
@@ -793,7 +823,15 @@ namespace exa {
 
       float rx = random();
       float ry = random();
-      Ray ray = generateRay(vec2f(pixelIndex)+vec2f(rx,ry));
+      vec2f screen = vec2f(pixelIndex)+vec2f(rx,ry);
+      if (lp.subImage.active) {
+        const vec2f size(owl::getLaunchDims());
+        screen /= size;
+        screen = (vec2f(1.f)-screen)*subImageUV().lower
+                            + screen*subImageUV().upper;
+        screen *= size;
+      }
+      Ray ray = generateRay(screen);
       vec3f throughput = 1.f;
       unsigned bounce = 0;
 
@@ -915,13 +953,15 @@ namespace exa {
     lp.accumBuffer[pixelID] = accumColor;
     accumColor *= (1.f/(lp.accumID+1));
 
-#if DEBUGGING
-    bool crossHairs = (owl::getLaunchIndex().x == owl::getLaunchDims().x/2
-            ||
-            owl::getLaunchIndex().y == owl::getLaunchDims().y/2
-            );
-    if (crossHairs) accumColor = vec4f(1.f) - accumColor;
-#endif
+    bool crossHairs = (debug() && (owl::getLaunchIndex().x == owl::getLaunchDims().x/2
+                                || owl::getLaunchIndex().y == owl::getLaunchDims().y/2));
+
+    const box2i si = subImageSelectionWin();
+    bool subImageSel = lp.subImage.selecting
+          && (((pixelIndex.x==si.lower.x || pixelIndex.x==si.upper.x) && (pixelIndex.y >= si.lower.y && pixelIndex.y <= si.upper.y))
+           || ((pixelIndex.y==si.lower.y || pixelIndex.y==si.upper.y) && (pixelIndex.x >= si.lower.x && pixelIndex.x <= si.upper.x)));
+
+    if (crossHairs || subImageSel) accumColor = vec4f(1.f) - accumColor;
 
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }

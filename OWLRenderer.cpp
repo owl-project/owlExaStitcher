@@ -96,6 +96,13 @@ namespace exa {
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
      { "camera.dir_du", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_du) },
      { "camera.dir_dv", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_dv) },
+     // sub-image region selection
+     { "subImage.value.lower", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,subImage.value.lower) },
+     { "subImage.value.upper", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,subImage.value.upper) },
+     { "subImage.selection.lower", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,subImage.selection.lower) },
+     { "subImage.selection.upper", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,subImage.selection.upper) },
+     { "subImage.active", OWL_INT, OWL_OFFSETOF(LaunchParams,subImage.active) },
+     { "subImage.selecting", OWL_INT, OWL_OFFSETOF(LaunchParams,subImage.selecting) },
      { nullptr /* sentinel to mark end of list */ }
   };
   
@@ -664,6 +671,13 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
+    owlParamsSet2f(lp,"subImage.value.lower",0.f,0.f);
+    owlParamsSet2f(lp,"subImage.value.upper",0.f,1.f);
+    owlParamsSet2f(lp,"subImage.selection.lower",0.f,0.f);
+    owlParamsSet2f(lp,"subImage.selection.upper",1.f,1.f);
+    owlParamsSet1i(lp,"subImage.active",0);
+    owlParamsSet1i(lp,"subImage.selecting",0);
+
     owlParamsSet1i(lp,"shadeMode",0);
 
     owlBuildPipeline(owl);
@@ -829,6 +843,22 @@ const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}
     return {{0,"default"},
             {1,"gridlets"},
             {2,"teaser"}};
+  }
+
+  void OWLRenderer::setSubImage(const box2f si, bool active)
+  {
+    owlParamsSet2f(lp,"subImage.value.lower",si.lower.x,si.lower.y);
+    owlParamsSet2f(lp,"subImage.value.upper",si.upper.x,si.upper.y);
+    owlParamsSet1i(lp,"subImage.active",(int)active);
+    accumID = 0;
+  }
+
+  void OWLRenderer::setSubImageSelection(const box2f si, bool active)
+  {
+    owlParamsSet2f(lp,"subImage.selection.lower",si.lower.x,si.lower.y);
+    owlParamsSet2f(lp,"subImage.selection.upper",si.upper.x,si.upper.y);
+    owlParamsSet1i(lp,"subImage.selecting",(int)active);
+    accumID = 0;
   }
 } // ::exa
 

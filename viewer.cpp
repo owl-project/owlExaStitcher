@@ -14,10 +14,13 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <iomanip>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QPushButton>
+#include <QRadioButton>
 #include <QSlider>
 #include "qtOWL/OWLViewer.h"
 #include "qtOWL/XFEditor.h"
@@ -38,6 +41,7 @@ namespace exa {
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
+    box2f subImage = {{1e30f,1e30f},{-1e30f,-1e30f}};
     struct {
       vec3f vp = vec3f(0.f);
       vec3f vu = vec3f(0.f);
@@ -149,6 +153,9 @@ namespace exa {
   struct Viewer : public qtOWL::OWLViewer {
     typedef qtOWL::OWLViewer inherited;
 
+    Q_OBJECT
+
+  public:
     Viewer(OWLRenderer *renderer)
       : inherited("exastitch", cmdline.windowSize)
       , renderer(renderer)
@@ -209,6 +216,68 @@ namespace exa {
       }
     }
 
+    void mouseButtonLeft(const vec2i &where, bool pressed)
+    {
+      if (subImageSelecting) {
+        if (!pressed && downPos-where != vec2i(0)) {
+
+          const vec2i size = getWindowSize();
+          auto flip = [size](const vec2i P) { return vec2i{P.x,size.y-P.y-1}; };
+          box2i subImageWin = {
+            clamp(vec2i(min(flip(downPos),flip(where))),vec2i(0),size),
+            clamp(vec2i(max(flip(downPos),flip(where))),vec2i(0),size)
+          };
+          const box2f subImageUV(vec2f(subImageWin.lower)/vec2f(size),
+                                 vec2f(subImageWin.upper)/vec2f(size));
+          pushSubImage(subImageUV);
+          box2f combinedUV = computeSubImageUV();
+          renderer->setSubImage(combinedUV,true);
+          emit subImageChanged(combinedUV);
+          renderer->setSubImageSelection({},false); // deactivate selection
+        }
+        downPos = where;
+      } else {
+        inherited::mouseButtonLeft(where,pressed);
+      }
+    }
+
+    void mouseDragLeft(const vec2i &where, const vec2i &delta)
+    {
+      if (subImageSelecting) {
+        const vec2i size = getWindowSize();
+        auto flip = [size](const vec2i P) { return vec2i{P.x,size.y-P.y-1}; };
+        vec2i p1 = flip(downPos), p2 = flip(where);
+        if (subImageSelectionContraint != SubImageSelectionContraint::Free) {
+          vec2i boxSize(std::abs(p2.x-p1.x),std::abs(p2.y-p1.y));
+          if (subImageSelectionContraint == SubImageSelectionContraint::KeepAspect) {
+            float aspect = getWindowSize().x/(float)getWindowSize().y;
+            boxSize.y = boxSize.x/aspect;
+          } else if (subImageSelectionContraint == SubImageSelectionContraint::Square) {
+            boxSize.x = std::min(boxSize.x,boxSize.y);
+            boxSize.y = std::min(boxSize.x,boxSize.y);
+          }
+          if (p2.x < p1.x) p2.x = p1.x-boxSize.x;
+          else if (p2.x > p1.x) p2.x = p1.x+boxSize.x;
+          if (p2.y < p1.y) p2.y = p1.y-boxSize.y;
+          else if (p2.y > p1.y) p2.y = p1.y+boxSize.y;
+        }
+        box2i subImageWin = {
+          clamp(vec2i(min(p1,p2)),vec2i(0),size),
+          clamp(vec2i(max(p1,p2)),vec2i(0),size)
+        };
+        const box2f subImageUV(vec2f(subImageWin.lower)/vec2f(size),
+                               vec2f(subImageWin.upper)/vec2f(size));
+        renderer->setSubImageSelection(subImageUV,true);
+        emit subImageSelectionChanged(subImageUV);
+      } else {
+        inherited::mouseDragLeft(where,delta);
+      }
+    }
+
+  signals:
+    void subImageChanged(box2f subImageUV);
+    void subImageSelectionChanged(box2f subImageUV);
+
   public slots:
     void colorMapChanged(qtOWL::XFEditor *xf);
     void rangeChanged(range1f r);
@@ -218,6 +287,42 @@ namespace exa {
 
     OWLRenderer *const renderer;
     qtOWL::XFEditor *xfEditor = nullptr;
+
+    vec2i downPos { 0, 0 };
+    bool subImageSelecting = false;
+    std::vector<box2f> subImageUndoStack;
+    size_t subImageUndoStackTop = 0;
+
+    enum class SubImageSelectionContraint {
+      KeepAspect,Square,Free,
+    };
+    SubImageSelectionContraint subImageSelectionContraint = SubImageSelectionContraint::KeepAspect;
+
+    void pushSubImage(const box2f si)
+    {
+      // Push, but if the stack and stack's top are unconsistent,
+      // make sure we start with a clean slate
+      if (subImageUndoStackTop < subImageUndoStack.size())
+        subImageUndoStack.resize(subImageUndoStackTop);
+
+      subImageUndoStack.push_back(si);
+      subImageUndoStackTop++;
+    }
+
+    box2f computeSubImageUV() const
+    {
+      box2f combinedUV{{0.f,0.f},{1.f,1.f}};
+      if (!cmdline.subImage.empty())
+        combinedUV = cmdline.subImage;
+
+      for (size_t i=0; i<subImageUndoStackTop; ++i) {
+        const box2f &si = subImageUndoStack[i];
+        vec2f currSize = combinedUV.size();
+        combinedUV.lower += si.lower*currSize;
+        combinedUV.upper = combinedUV.lower + (si.upper-si.lower)*currSize;
+      }
+      return combinedUV;
+    }
   };
 
   void Viewer::resize(const vec2i &newSize) 
@@ -396,6 +501,12 @@ namespace exa {
       else if (arg == "-xf") {
         cmdline.xfFileName = argv[++i];
       }
+      else if (arg == "--subimg") {
+        cmdline.subImage.lower.x = std::atof(argv[++i]);
+        cmdline.subImage.lower.y = std::atof(argv[++i]);
+        cmdline.subImage.upper.x = std::atof(argv[++i]);
+        cmdline.subImage.upper.y = std::atof(argv[++i]);
+      }
       else if (arg == "-fovy") {
         cmdline.camera.fovy = std::stof(argv[++i]);
       }
@@ -492,6 +603,9 @@ namespace exa {
 
     renderer.setShadeMode(cmdline.shadeMode);
 
+    if (!cmdline.subImage.empty())
+      renderer.setSubImage(cmdline.subImage,true);
+
     qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
     range1f valueRange = renderer.valueRange;
 
@@ -514,6 +628,10 @@ namespace exa {
 
     vlayout.addWidget(xfEditor);
 
+    // ==================================================================
+    // Rendering settings
+    // ==================================================================
+
     QGroupBox *renderSettingsBox = new QGroupBox("Render Settings");
     vlayout.addWidget(renderSettingsBox);
 
@@ -525,6 +643,52 @@ namespace exa {
 
     QVBoxLayout settingsvlayout(renderSettingsBox);
     settingsvlayout.addWidget(shadeModeSelection);
+
+    // ==================================================================
+    // Sub image
+    // ==================================================================
+
+    QGroupBox *subImageBox = new QGroupBox("Sub-image selection");
+    vlayout.addWidget(subImageBox);
+
+    QCheckBox *subImageSelectionEnabled = new QCheckBox("Viewport selection enabled");
+    subImageSelectionEnabled->setCheckState(Qt::Unchecked);
+
+    QPushButton *undoAllSubImageButton = new QPushButton("undo all");
+    QPushButton *undoSubImageButton = new QPushButton("undo");
+    QPushButton *redoSubImageButton = new QPushButton("redo");
+    QPushButton *redoAllSubImageButton = new QPushButton("redo all");
+
+    QLabel *subImageLabel = new QLabel("");
+    subImageLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    QRadioButton *subImageKeepAspect = new QRadioButton("Keep Aspect");
+    QRadioButton *subImageSquare = new QRadioButton("Square");
+    QRadioButton *subImageFree = new QRadioButton("Free");
+    subImageKeepAspect->setChecked(true);
+
+    QVBoxLayout subimgvlayout(subImageBox);
+    QHBoxLayout subimgcontraintlayout;
+    QHBoxLayout subimgundolayout;
+    QHBoxLayout subimglabellayout;
+    subimgvlayout.addWidget(subImageSelectionEnabled);
+    subimgvlayout.addLayout(&subimgcontraintlayout);
+    subimgvlayout.addLayout(&subimgundolayout);
+    subimgvlayout.addLayout(&subimglabellayout);
+
+    subimgcontraintlayout.addWidget(subImageKeepAspect);
+    subimgcontraintlayout.addWidget(subImageSquare);
+    subimgcontraintlayout.addWidget(subImageFree);
+
+    subimgundolayout.addWidget(undoAllSubImageButton);
+    subimgundolayout.addWidget(undoSubImageButton);
+    subimgundolayout.addWidget(redoSubImageButton);
+    subimgundolayout.addWidget(redoAllSubImageButton);
+    subimglabellayout.addWidget(subImageLabel);
+
+    // ==================================================================
+    // Clip planes
+    // ==================================================================
 
     QGroupBox *clipPlaneBox = new QGroupBox("Clip Plane");
     vlayout.addWidget(clipPlaneBox);
@@ -610,6 +774,89 @@ namespace exa {
     QObject::connect(clipPlaneSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         g_clipPlaneSelected = item;
+      });
+
+    // Sub image enable
+    QObject::connect(subImageSelectionEnabled, qOverload<int>(&QCheckBox::stateChanged),
+      [&](int state) {
+        viewer.subImageSelecting = state;
+      });
+
+    // Sub image keep aspect
+    QObject::connect(subImageKeepAspect, &QRadioButton::toggled,
+      [&](bool checked) {
+        if (checked) viewer.subImageSelectionContraint = Viewer::SubImageSelectionContraint::KeepAspect;
+      });
+
+    // Sub image square
+    QObject::connect(subImageSquare, &QRadioButton::toggled,
+      [&](bool checked) {
+        if (checked) viewer.subImageSelectionContraint = Viewer::SubImageSelectionContraint::Square;
+      });
+
+    // Sub image free
+    QObject::connect(subImageFree, &QRadioButton::toggled,
+      [&](bool checked) {
+        if (checked) viewer.subImageSelectionContraint = Viewer::SubImageSelectionContraint::Free;
+      });
+
+    // Sub image selection undo all
+    QObject::connect(undoAllSubImageButton, &QPushButton::pressed,
+      [&]() {
+        viewer.subImageUndoStackTop = 0;
+        renderer.setSubImage({},false); // not active
+      });
+
+    // Sub image selection undo last
+    QObject::connect(undoSubImageButton, &QPushButton::pressed,
+      [&]() {
+        viewer.subImageUndoStackTop = std::max(size_t(0),viewer.subImageUndoStackTop-1);
+        box2f subImg = viewer.computeSubImageUV();
+        renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
+      });
+
+    // Sub image selection redo last
+    QObject::connect(redoSubImageButton, &QPushButton::pressed,
+      [&]() {
+        viewer.subImageUndoStackTop = std::min(viewer.subImageUndoStackTop+1,
+                                               viewer.subImageUndoStack.size());
+        box2f subImg = viewer.computeSubImageUV();
+        renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
+      });
+
+    // Sub image selection redo all
+    QObject::connect(redoAllSubImageButton, &QPushButton::pressed,
+      [&]() {
+        viewer.subImageUndoStackTop = viewer.subImageUndoStack.size();
+        box2f subImg = viewer.computeSubImageUV();
+        renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
+      });
+
+    // Sub image changed from within the viewer
+    QObject::connect(&viewer, &Viewer::subImageChanged,
+      [&](box2f subImageUV) {
+        std::stringstream ss;
+        ss << std::fixed;
+        ss << std::setprecision(3);
+        ss << "Cmdline: \"--subimg " << subImageUV.lower.x << ' '
+                                     << subImageUV.lower.y << ' '
+                                     << subImageUV.upper.x << ' '
+                                     << subImageUV.upper.y << '\"';
+        std::string str = ss.str();
+        subImageLabel->setText(str.c_str());
+        std::cout << str << '\n';
+      });
+
+    // Sub image selection changed from within the viewer
+    QObject::connect(&viewer, &Viewer::subImageSelectionChanged,
+      [&](box2f subImageUV) {
+        const vec2f ws(viewer.getWindowSize());
+        box2i subImageWin(clamp(vec2i(subImageUV.lower*ws),vec2i(0),viewer.getWindowSize()-1),
+                          clamp(vec2i(subImageUV.upper*ws),vec2i(0),viewer.getWindowSize()-1));
+        std::stringstream ss;
+        ss << "Selection: " << subImageWin << ", selection size: " << subImageWin.size();
+        std::string str = ss.str();
+        subImageLabel->setText(str.c_str());
       });
 
     // Clip plane enable
@@ -700,5 +947,6 @@ namespace exa {
   }
 } // ::exa
 
+#include "viewer.moc"
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
 
