@@ -133,6 +133,7 @@ namespace exa {
 
   __global__ void buildGrid(range1f       *valueRanges,
                             const Gridlet *gridlets,
+                            const float   *scalars,
                             const size_t   numGridlets,
                             const vec3i    maxGridletSize,
                             const vec3i    dims,
@@ -186,15 +187,15 @@ namespace exa {
                   vec3i imax(x+1,y+1,z+1);
 
 
-                  float f1 = gridlet.scalars[linearIndex(vec3i(imin.x,imin.y,imin.z),numScalars)];
-                  float f2 = gridlet.scalars[linearIndex(vec3i(imax.x,imin.y,imin.z),numScalars)];
-                  float f3 = gridlet.scalars[linearIndex(vec3i(imin.x,imax.y,imin.z),numScalars)];
-                  float f4 = gridlet.scalars[linearIndex(vec3i(imax.x,imax.y,imin.z),numScalars)];
+                  float f1 = scalars[gridlet.begin+linearIndex(vec3i(imin.x,imin.y,imin.z),numScalars)];
+                  float f2 = scalars[gridlet.begin+linearIndex(vec3i(imax.x,imin.y,imin.z),numScalars)];
+                  float f3 = scalars[gridlet.begin+linearIndex(vec3i(imin.x,imax.y,imin.z),numScalars)];
+                  float f4 = scalars[gridlet.begin+linearIndex(vec3i(imax.x,imax.y,imin.z),numScalars)];
 
-                  float f5 = gridlet.scalars[linearIndex(vec3i(imin.x,imin.y,imax.z),numScalars)];
-                  float f6 = gridlet.scalars[linearIndex(vec3i(imax.x,imin.y,imax.z),numScalars)];
-                  float f7 = gridlet.scalars[linearIndex(vec3i(imin.x,imax.y,imax.z),numScalars)];
-                  float f8 = gridlet.scalars[linearIndex(vec3i(imax.x,imax.y,imax.z),numScalars)];
+                  float f5 = scalars[gridlet.begin+linearIndex(vec3i(imin.x,imin.y,imax.z),numScalars)];
+                  float f6 = scalars[gridlet.begin+linearIndex(vec3i(imax.x,imin.y,imax.z),numScalars)];
+                  float f7 = scalars[gridlet.begin+linearIndex(vec3i(imin.x,imax.y,imax.z),numScalars)];
+                  float f8 = scalars[gridlet.begin+linearIndex(vec3i(imax.x,imax.y,imax.z),numScalars)];
 
                   if (!isnan(f1)) {
                     valueRange.lower = fminf(valueRange.lower,f1);
@@ -369,6 +370,7 @@ namespace exa {
                    OWLBuffer   vertices,
                    OWLBuffer   indices,
                    OWLBuffer   gridlets,
+                   OWLBuffer   gridletScalars,
                    OWLBuffer   amrCells,
                    OWLBuffer   amrScalars,
                    OWLBuffer   exaBricks,
@@ -432,6 +434,7 @@ namespace exa {
       buildGrid<<<numBlocks, blockDims>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const Gridlet *)owlBufferGetPointer(gridlets,0),
+        (const float *)owlBufferGetPointer(gridletScalars,0),
         numGridlets,hMaxGridletSize,dims,worldBounds);
 
       cudaFree(maxGridletSize);

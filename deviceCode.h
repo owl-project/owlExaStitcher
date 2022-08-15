@@ -43,7 +43,9 @@ namespace exa {
     vec3i  lower;
     int    level;
     vec3i  dims;
-    float *scalars;
+    /*! offset into the scalar data index buffer (in which all gridlets
+        are stored sequentially) */
+    uint32_t begin;
   };
 
   struct AMRCell {
@@ -53,6 +55,7 @@ namespace exa {
 
   struct GridletGeom {
     Gridlet *gridletBuffer;
+    float   *gridletScalarBuffer;
   };
 
   struct StitchGeom {

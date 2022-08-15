@@ -27,11 +27,12 @@ namespace exa {
   {
     ExaStitchModel::SP result = std::make_shared<ExaStitchModel>();
 
-    std::vector<int> &indices      = result->indices;
-    std::vector<vec4f> &vertices   = result->vertices;
-    std::vector<Gridlet> &gridlets = result->gridlets;
-    box3f &modelBounds             = result->modelBounds;
-    range1f &valueRange            = result->valueRange;
+    std::vector<int> &indices          = result->indices;
+    std::vector<vec4f> &vertices       = result->vertices;
+    std::vector<Gridlet> &gridlets     = result->gridlets;
+    std::vector<float> &gridletScalars = result->gridletScalars;
+    box3f &modelBounds                 = result->modelBounds;
+    range1f &valueRange                = result->valueRange;
 
     // Load scalars
     std::vector<float> scalars;
@@ -154,6 +155,7 @@ namespace exa {
 
     size_t numEmptyTotal = 0;
     size_t numNonEmptyTotal = 0;
+    gridletScalars.clear();
     if (!gridsFileName.empty()) {
       std::ifstream in(gridsFileName);
       while (!in.eof()) {
@@ -168,7 +170,7 @@ namespace exa {
         std::vector<int> scalarIDs(numScalars);
         in.read((char *)scalarIDs.data(),scalarIDs.size()*sizeof(scalarIDs[0]));
 
-        std::vector<float> gridScalars(scalarIDs.size());
+        std::vector<float> gscalars(scalarIDs.size());
 
         size_t numEmpty = 0;
         size_t numNonEmpty = 0;
@@ -183,21 +185,23 @@ namespace exa {
             value = NAN;
             numEmpty++;
           }
-          gridScalars[i] = value;
+          gscalars[i] = value;
 
           valueRange.lower = std::min(valueRange.lower,value);
           valueRange.upper = std::max(valueRange.upper,value);
         }
+
+        gridlet.begin = gridletScalars.size();
+
+        gridletScalars.insert(gridletScalars.end(),
+                              gscalars.begin(),
+                              gscalars.end());
+
         numEmptyTotal += numEmpty;
         numNonEmptyTotal += numNonEmpty;
 
         // std::cout << '(' << numEmpty << '/' << scalarIDs.size() << ") empty\n";
 
-
-        cudaMalloc(&gridlet.scalars,gridScalars.size()*sizeof(gridScalars[0]));
-        cudaMemcpy(gridlet.scalars,gridScalars.data(),
-                   gridScalars.size()*sizeof(gridScalars[0]),
-                   cudaMemcpyHostToDevice);
 
         gridlets.push_back(gridlet);
 
@@ -224,6 +228,7 @@ namespace exa {
     OWLVarDecl gridletGeomVars[]
     = {
        { "gridletBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletBuffer)},
+       { "gridletScalarBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletScalarBuffer)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -254,7 +259,12 @@ namespace exa {
                                             gridlets.size(),
                                             gridlets.data());
 
+      gridletScalarBuffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                  gridletScalars.size(),
+                                                  gridletScalars.data());
+
       owlGeomSetBuffer(geom,"gridletBuffer",gridletBuffer);
+      owlGeomSetBuffer(geom,"gridletScalarBuffer",gridletScalarBuffer);
 
       owlBuildPrograms(context);
 

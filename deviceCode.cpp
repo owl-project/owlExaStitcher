@@ -248,15 +248,16 @@ namespace exa {
         return z*numScalars.y*numScalars.x + y*numScalars.x + x;
       };
 
-      float f1 = gridlet.scalars[linearIndex(imin.x,imin.y,imin.z)];
-      float f2 = gridlet.scalars[linearIndex(imax.x,imin.y,imin.z)];
-      float f3 = gridlet.scalars[linearIndex(imin.x,imax.y,imin.z)];
-      float f4 = gridlet.scalars[linearIndex(imax.x,imax.y,imin.z)];
+      const float *scalars = self.gridletScalarBuffer;
+      float f1 = scalars[gridlet.begin + linearIndex(imin.x,imin.y,imin.z)];
+      float f2 = scalars[gridlet.begin + linearIndex(imax.x,imin.y,imin.z)];
+      float f3 = scalars[gridlet.begin + linearIndex(imin.x,imax.y,imin.z)];
+      float f4 = scalars[gridlet.begin + linearIndex(imax.x,imax.y,imin.z)];
 
-      float f5 = gridlet.scalars[linearIndex(imin.x,imin.y,imax.z)];
-      float f6 = gridlet.scalars[linearIndex(imax.x,imin.y,imax.z)];
-      float f7 = gridlet.scalars[linearIndex(imin.x,imax.y,imax.z)];
-      float f8 = gridlet.scalars[linearIndex(imax.x,imax.y,imax.z)];
+      float f5 = scalars[gridlet.begin + linearIndex(imin.x,imin.y,imax.z)];
+      float f6 = scalars[gridlet.begin + linearIndex(imax.x,imin.y,imax.z)];
+      float f7 = scalars[gridlet.begin + linearIndex(imin.x,imax.y,imax.z)];
+      float f8 = scalars[gridlet.begin + linearIndex(imax.x,imax.y,imax.z)];
 
       if (!isnan(f1) && !isnan(f2) && !isnan(f3) && !isnan(f4) &&
           !isnan(f5) && !isnan(f6) && !isnan(f7) && !isnan(f8)) {

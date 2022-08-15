@@ -302,11 +302,12 @@ namespace exa {
                exaStitchModel->vertexBuffer,
                exaStitchModel->indexBuffer,
                exaStitchModel->gridletBuffer,
+               exaStitchModel->gridletScalarBuffer,
                amrCellModel->cellBuffer,
                amrCellModel->scalarBuffer,
                exaBrickModel->brickBuffer,
                exaBrickModel->scalarBuffer,
-               {512,512,512},
+               {16,16,16},
                modelBounds);
 
     setRange(valueRange);

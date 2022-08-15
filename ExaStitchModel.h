@@ -33,6 +33,9 @@ namespace exa {
     std::vector<int>     indices;
     std::vector<vec4f>   vertices;
     std::vector<Gridlet> gridlets;
+    // The scalars referenced by gridlet; umesh scalars
+    // are stored in the respectivep vertices w coordinate
+    std::vector<float>   gridletScalars;
 
     // owl
     struct {
@@ -50,6 +53,7 @@ namespace exa {
     OWLBuffer indexBuffer;
     OWLBuffer vertexBuffer;
     OWLBuffer gridletBuffer;
+    OWLBuffer gridletScalarBuffer;
 
     bool initGPU(OWLContext context, OWLModule module);
 
