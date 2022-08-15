@@ -14,8 +14,6 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include <fstream>
-#include "umesh/UMesh.h"
 #include "OWLRenderer.h"
 #include "TriangleMesh.h"
 
@@ -46,10 +44,16 @@ namespace exa {
      { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
      { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
      { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
+     { "abrBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,abrBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
+     // exa brick buffers (for eval!)
+     { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
+     { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
+     { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
+     { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -89,9 +93,10 @@ namespace exa {
   // Renderer class
   // ==================================================================
 
-  OWLRenderer::OWLRenderer(const std::string inFileName,
+  OWLRenderer::OWLRenderer(const std::string umeshFileName,
                            const std::string gridsFileName,
                            const std::string amrCellFileName,
+                           const std::string exaBrickFileName,
                            const std::string meshFileName,
                            const std::string scalarFileName)
   {
@@ -99,12 +104,15 @@ namespace exa {
     // AMR/UMesh models etc
     // ==================================================================
 
-    exaStitchModel = ExaStitchModel::load(inFileName,gridsFileName,scalarFileName);
+    exaStitchModel = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
+    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName);
     amrCellModel = AMRCellModel::load(amrCellFileName,scalarFileName);
 
     modelBounds.extend(exaStitchModel->modelBounds);
+    modelBounds.extend(exaBrickModel->modelBounds);
     modelBounds.extend(amrCellModel->modelBounds);
     valueRange.extend(exaStitchModel->valueRange);
+    valueRange.extend(exaBrickModel->valueRange);
     valueRange.extend(amrCellModel->valueRange);
 
     // ==================================================================
@@ -126,6 +134,9 @@ namespace exa {
       size_t gridletBytes = 0;
       size_t emptyScalarsBytes = 0;
       size_t nonEmptyScalarsBytes = 0;
+      size_t exaBrickBytes = 0;
+      size_t exaScalarBytes = 0;
+      size_t abrBytes = 0;
       size_t amrCellBytes = 0;
       size_t amrScalarBytes = 0;
       size_t meshIndexBytes = 0;
@@ -137,10 +148,13 @@ namespace exa {
 
       exaStitchModel->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
                                emptyScalarsBytes,nonEmptyScalarsBytes);
+      exaBrickModel->memStats(exaBrickBytes,exaScalarBytes,abrBytes);
       amrCellModel->memStats(amrCellBytes,amrScalarBytes);
 
       size_t totalBytes = elemVertexBytes+elemIndexBytes+emptyScalarsBytes+nonEmptyScalarsBytes
-                        + gridletBytes+amrCellBytes+amrScalarBytes+meshIndexBytes+meshVertexBytes;
+                        + gridletBytes+amrCellBytes+amrScalarBytes
+                        + exaBrickBytes+exaScalarBytes+abrBytes
+                        + meshIndexBytes+meshVertexBytes;
 
       std::cout << " ====== Memory Stats (bytes) ======= \n";
       std::cout << "elem.vertex.........: " << owl::prettyBytes(elemVertexBytes) << '\n';
@@ -149,7 +163,10 @@ namespace exa {
       std::cout << "Empty scalars.......: " << owl::prettyBytes(emptyScalarsBytes) << '\n';
       std::cout << "Gridlets............: " << owl::prettyBytes(gridletBytes) << '\n';
       std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellBytes) << '\n';
-      std::cout << "AMR scalars.........: " << owl::prettyBytes(amrScalarBytes) << '\n';
+      std::cout << "AMR cells...........: " << owl::prettyBytes(amrCellBytes) << '\n';
+      std::cout << "EXA bricks..........: " << owl::prettyBytes(exaBrickBytes) << '\n';
+      std::cout << "EXA scalars.........: " << owl::prettyBytes(exaScalarBytes) << '\n';
+      std::cout << "EXA ABRs............: " << owl::prettyBytes(abrBytes) << '\n';
       std::cout << "mesh.vertex.........: " << owl::prettyBytes(meshVertexBytes) << '\n';
       std::cout << "mesh.index..........: " << owl::prettyBytes(meshIndexBytes) << '\n';
       std::cout << "TOTAL...............: " << owl::prettyBytes(totalBytes) << '\n';
@@ -171,6 +188,13 @@ namespace exa {
       owlParamsSetGroup(lp, "gridletBVH", exaStitchModel->gridletGeom.tlas);
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
+    } else if (exaBrickModel->initGPU(owl,module)) {
+      owlParamsSetGroup(lp, "abrBVH", exaBrickModel->tlas);
+      owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
+      owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
+      owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
+      owlParamsSetBuffer(lp,"abrLeafListBuffer", exaBrickModel->abrLeafListBuffer);
+      setSampler(EXA_BRICK_SAMPLER);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "amrCellBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
@@ -280,6 +304,8 @@ namespace exa {
                exaStitchModel->gridletBuffer,
                amrCellModel->cellBuffer,
                amrCellModel->scalarBuffer,
+               exaBrickModel->brickBuffer,
+               exaBrickModel->scalarBuffer,
                {512,512,512},
                modelBounds);
 

@@ -38,6 +38,7 @@ namespace exa {
     std::string scalarFileName = "";
     std::string gridsFileName = "";
     std::string amrCellFileName = "";
+    std::string exaBrickFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
@@ -495,6 +496,9 @@ namespace exa {
       else if (arg == "-cells") {
         cmdline.amrCellFileName = argv[++i];
       }
+      else if (arg == "-bricks") {
+        cmdline.exaBrickFileName = argv[++i];
+      }
       else if (arg == "-mesh") {
         cmdline.meshFileName = argv[++i];
       }
@@ -555,12 +559,10 @@ namespace exa {
         usage("unknown cmdline arg '"+arg+"'");
     }
     
-    if (inFileName == "" && cmdline.amrCellFileName == "")
-      usage("no filename specified");
-
     OWLRenderer renderer(inFileName,
                          cmdline.gridsFileName,
                          cmdline.amrCellFileName,
+                         cmdline.exaBrickFileName,
                          cmdline.meshFileName,
                          cmdline.scalarFileName);
 

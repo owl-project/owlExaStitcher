@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2022-2022 Stefan Zellmann                                      //
+// Copyright 2019 Ingo Wald                                                 //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -16,42 +16,35 @@
 
 #pragma once
 
-#include <owl/owl.h>
-#include <owl/common/math/box.h>
-#include <owl/common/math/vec.h>
+#include <cstddef>
+#include <mutex>
+#include <set>
+#include <vector>
+#include "deviceCode.h"
 
 namespace exa {
 
-  struct Grid
-  {
-    //
-    void build(OWLContext       owl,
-               OWLBuffer        vertices,   /* umesh verts; w is value */
-               OWLBuffer        indices,    /* umesh indices */
-               OWLBuffer        gridlets,   /* gridlet buffer */
-               OWLBuffer        amrCells,   /* AMR cells */
-               OWLBuffer        amrScalars, /* scalars used with AMR cells */
-               OWLBuffer        exaBricks,  /* exa bricks */
-               OWLBuffer        exaScalars, /* scalars used with ExaBricks */
-               const owl::vec3i numMCs,
-               const owl::box3f bounds);
-
-    //
-    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
-
-    // min/max value ranges
-    OWLBuffer  valueRanges;
-
-    // Majorants
-    OWLBuffer  maxOpacities { 0 };
-
-    // Number of MCs
-    owl::vec3i dims;
-
-    // World bounds the grid spans
-    owl::box3f worldBounds;
+  /*! helper class that allows for keeping track which bricks overlap
+      in which basis-function region */
+  struct ABRs {
+    
+    void buildFrom(const ExaBrick *bricks,
+                   const size_t numBricks,
+                   const float *scalarFields);
+    void addLeaf(std::vector<std::pair<box3f,int>> &buildPrims,
+                 const box3f &domain);
+    void buildRec(std::vector<std::pair<box3f,int>> &buildPrims,
+                  const box3f &domain);
+    void computeValueRange(ABR &abr,
+                           const ExaBrick *bricks,
+                           const float *scalarFields);
+    
+    std::mutex mutex;
+    std::vector<ABR> value;
+    /*! offset in parent's leaflist class where our leaf list starst */
+    std::vector<int> leafList;
   };
-
+  
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

@@ -16,40 +16,38 @@
 
 #pragma once
 
-#include <owl/owl.h>
-#include <owl/common/math/box.h>
-#include <owl/common/math/vec.h>
+#include <vector>
+#include "ABRs.h"
+#include "deviceCode.h"
+#include "Model.h"
 
 namespace exa {
 
-  struct Grid
-  {
-    //
-    void build(OWLContext       owl,
-               OWLBuffer        vertices,   /* umesh verts; w is value */
-               OWLBuffer        indices,    /* umesh indices */
-               OWLBuffer        gridlets,   /* gridlet buffer */
-               OWLBuffer        amrCells,   /* AMR cells */
-               OWLBuffer        amrScalars, /* scalars used with AMR cells */
-               OWLBuffer        exaBricks,  /* exa bricks */
-               OWLBuffer        exaScalars, /* scalars used with ExaBricks */
-               const owl::vec3i numMCs,
-               const owl::box3f bounds);
+  struct ExaBrickModel : Model {
+    typedef std::shared_ptr<ExaBrickModel> SP;
 
-    //
-    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+    static ExaBrickModel::SP load(const std::string brickFileName,
+                                  const std::string scalarFileName);
 
-    // min/max value ranges
-    OWLBuffer  valueRanges;
+    std::vector<ExaBrick> bricks;
+    std::vector<float>    scalars;
+    ABRs                  abrs;
 
-    // Majorants
-    OWLBuffer  maxOpacities { 0 };
+    // owl
+    OWLGeomType geomType;
+    OWLGroup    blas;
+    OWLGroup    tlas;
+    OWLBuffer   abrBuffer;
+    OWLBuffer   brickBuffer;
+    OWLBuffer   scalarBuffer;
+    OWLBuffer   abrLeafListBuffer;
 
-    // Number of MCs
-    owl::vec3i dims;
+    bool initGPU(OWLContext, OWLModule module);
 
-    // World bounds the grid spans
-    owl::box3f worldBounds;
+    // Statistics
+    void memStats(size_t &bricksBytes,
+                  size_t &scalarsBytes,
+                  size_t &abrsBytes);
   };
 
 } // ::exa

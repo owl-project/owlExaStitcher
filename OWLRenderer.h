@@ -18,6 +18,7 @@
 
 #include "qtOWL/ColorMaps.h"
 #include "AMRCellModel.h"
+#include "ExaBrickModel.h"
 #include "ExaStitchModel.h"
 #include "Grid.h"
 
@@ -25,9 +26,10 @@ namespace exa {
 
   struct OWLRenderer
   {
-    OWLRenderer(const std::string inFileName,
+    OWLRenderer(const std::string umeshFileName,
                 const std::string gridsFileName = "",
                 const std::string amrCellFileName = "",
+                const std::string exaBrickFileName = "",
                 const std::string meshFileName = "",
                 const std::string scalarFileName = "");
 
@@ -73,6 +75,7 @@ namespace exa {
     } xf;
 
     ExaStitchModel::SP exaStitchModel { 0 };
+    ExaBrickModel::SP exaBrickModel { 0 };
     AMRCellModel::SP amrCellModel { 0 };
     Grid grid;
 

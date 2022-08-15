@@ -53,6 +53,11 @@ namespace exa {
     return (a + b - 1) / b;
   }
 
+  inline int __both__ iRoundUp(int a, int b)
+  {
+    return iDivUp(a,b) * b;
+  }
+
   __global__ void initGrid(range1f *valueRanges, const vec3i dims)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
@@ -244,8 +249,8 @@ namespace exa {
 
   // AMR cell overload
   __global__ void buildGrid(range1f       *valueRanges,
-                            const AMRCell *amrCells,
-                            const float   *amrScalars,
+                            const AMRCell *cells,
+                            const float   *scalars,
                             const size_t   numAmrCells,
                             const vec3i    dims,
                             const box3f    worldBounds)
@@ -255,7 +260,7 @@ namespace exa {
     if (threadID >= numAmrCells)
       return;
 
-    const AMRCell &cell = amrCells[threadID];
+    const AMRCell &cell = cells[threadID];
 
     vec3i lower = cell.pos;
     vec3i upper = lower + (1<<cell.level);
@@ -265,7 +270,7 @@ namespace exa {
     const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
     const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
 
-    const float value = amrScalars[threadID];
+    const float value = scalars[threadID];
 
     if (!isnan(value)) {
       for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
@@ -280,12 +285,94 @@ namespace exa {
     }
   }
 
+  // ExaBrick overload
+  __global__ void getMaxBrickSize(const ExaBrick *bricks,
+                                  const size_t    numBricks,
+                                  vec3i          *maxBrickSize)
+  {
+    size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+
+    if (threadID >= numBricks)
+      return;
+
+    ::atomicMax(&maxBrickSize->x,bricks[threadID].size.x);
+    ::atomicMax(&maxBrickSize->y,bricks[threadID].size.y);
+    ::atomicMax(&maxBrickSize->z,bricks[threadID].size.z);
+  }
+
+  __global__ void buildGrid(range1f        *valueRanges,
+                            const ExaBrick *bricks,
+                            const float    *scalars,
+                            const size_t    numBricks,
+                            const vec3i     maxBrickSize,
+                            const vec3i     dims,
+                            const box3f     worldBounds)
+  {
+    size_t brickID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+
+    if (brickID >= numBricks)
+      return;
+
+    const ExaBrick &brick = bricks[brickID];
+
+    int xy = blockIdx.z * blockDim.z + threadIdx.z;
+    int x = xy%maxBrickSize.x;
+    int y = xy/maxBrickSize.x;
+    int z = blockIdx.y * blockDim.y + threadIdx.y;
+    int dimX = min(maxBrickSize.x,brick.size.x);
+    int dimY = min(maxBrickSize.y,brick.size.y);
+    int dimZ = min(maxBrickSize.z,brick.size.z);
+
+    if (x >= dimX || y >= dimY || z >= dimZ)
+      return;
+
+    vec3i lower = brick.lower;
+    vec3i upper = lower + brick.size * (1<<brick.level);
+
+    const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+
+    const vec3f mcSize(worldBounds.size() / vec3f(dims));
+    const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
+
+    for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
+      for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
+        for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
+          const vec3i mcID(mcx,mcy,mcz);
+          const box3f mcBounds(worldBounds.lower+vec3f(mcID)*mcSize,
+                               worldBounds.lower+vec3f(mcID+1)*mcSize);
+
+          /*for (int z=0; z<brick.size.z; ++z)*/ {
+            /*for (int y=0; y<brick.size.y; ++y)*/ {
+              /*for (int x=0; x<brick.size.x; ++x)*/ {
+                const box3f cellBounds(vec3f(brick.lower + vec3i(x,y,z)*(1<<brick.level))-halfCell,
+                                       vec3f(brick.lower + vec3i(x+1,y+1,z+1)*(1<<brick.level))+halfCell);
+                if (mcBounds.overlaps(cellBounds)) {
+                  const int idx
+                    = brick.begin
+                    + x
+                    + y * brick.size.x
+                    + z * brick.size.x*brick.size.y;
+                  const float value = scalars[idx];
+
+                  atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,value);
+                  atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,value);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   void Grid::build(OWLContext  owl,
                    OWLBuffer   vertices,
                    OWLBuffer   indices,
                    OWLBuffer   gridlets,
                    OWLBuffer   amrCells,
                    OWLBuffer   amrScalars,
+                   OWLBuffer   exaBricks,
+                   OWLBuffer   exaScalars,
                    const vec3i numMCs,
                    const box3f bounds)
   {
@@ -366,6 +453,44 @@ namespace exa {
         numAmrCells,dims,worldBounds);
       cudaDeviceSynchronize();
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
+    }
+
+    // Add contrib from ExaBricks
+    if (exaBricks && exaScalars) {
+      double tfirst = getCurrentTime();
+      size_t numThreads = 1024;
+      size_t numBricks = owlBufferSizeInBytes(exaBricks)/sizeof(ExaBrick);
+      std::cout << "DDA grid: adding " << numBricks << " ExaBricks\n";
+      vec3i *maxBrickSize;
+      cudaMalloc(&maxBrickSize,sizeof(vec3i));
+      vec3i init = 0;
+      cudaMemcpy(maxBrickSize,&init,sizeof(init),cudaMemcpyHostToDevice);
+
+      getMaxBrickSize<<<iDivUp(numBricks, numThreads), numThreads>>>(
+        (const ExaBrick *)owlBufferGetPointer(exaBricks,0),
+        numBricks,maxBrickSize);
+
+      vec3i hMaxBrickSize;
+      cudaMemcpy(&hMaxBrickSize,maxBrickSize,sizeof(hMaxBrickSize),
+                 cudaMemcpyDeviceToHost);
+
+      dim3 gridDims(numBricks,hMaxBrickSize.z,hMaxBrickSize.y*hMaxBrickSize.x); // et haett noch immer juut jejange...
+      dim3 blockDims(8,8,8);
+      dim3 numBlocks(iDivUp(gridDims.x,blockDims.x),
+                     iDivUp(gridDims.y,blockDims.y),
+                     iDivUp(gridDims.z,blockDims.z));
+
+      buildGrid<<<numBlocks, blockDims>>>(
+        (range1f *)owlBufferGetPointer(valueRanges,0),
+        (const ExaBrick *)owlBufferGetPointer(exaBricks,0),
+        (const float *)owlBufferGetPointer(exaScalars,0),
+        numBricks,hMaxBrickSize,dims,worldBounds);
+
+      cudaFree(maxBrickSize);
+      cudaDeviceSynchronize();
+      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
+      double tlast = getCurrentTime();
+      std::cout << tlast-tfirst << '\n';
     }
   }
 
