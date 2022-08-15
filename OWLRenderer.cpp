@@ -41,10 +41,7 @@ namespace exa {
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
-     { "gridletBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,gridletBVH)},
-     { "boundaryCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,boundaryCellBVH)},
-     { "amrCellBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,amrCellBVH)},
-     { "abrBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,abrBVH)},
+     { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
@@ -184,19 +181,18 @@ namespace exa {
     // ==================================================================
 
     if (exaStitchModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "boundaryCellBVH", exaStitchModel->stitchGeom.tlas);
-      owlParamsSetGroup(lp, "gridletBVH", exaStitchModel->gridletGeom.tlas);
+      owlParamsSetGroup(lp, "sampleBVH", exaStitchModel->tlas);
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "abrBVH", exaBrickModel->tlas);
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->tlas);
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
       owlParamsSetBuffer(lp,"abrLeafListBuffer", exaBrickModel->abrLeafListBuffer);
       setSampler(EXA_BRICK_SAMPLER);
     } else if (amrCellModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "amrCellBVH", amrCellModel->tlas);
+      owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
     }
 

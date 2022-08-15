@@ -41,14 +41,14 @@ namespace exa {
     struct {
       OWLGeomType geomType;
       OWLGroup blas;
-      OWLGroup tlas;
     } gridletGeom;
 
     struct {
       OWLGeomType geomType;
       OWLGroup blas;
-      OWLGroup tlas;
     } stitchGeom;
+
+    OWLGroup tlas;
 
     OWLBuffer indexBuffer;
     OWLBuffer vertexBuffer;

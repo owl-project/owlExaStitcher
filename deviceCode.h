@@ -133,10 +133,7 @@ namespace exa {
     int       accumID;
     int       shadeMode;
     int       sampler;
-    OptixTraversableHandle gridletBVH;
-    OptixTraversableHandle boundaryCellBVH;
-    OptixTraversableHandle amrCellBVH;
-    OptixTraversableHandle abrBVH;
+    OptixTraversableHandle sampleBVH;
     OptixTraversableHandle meshBVH;
     Gridlet  *gridletBuffer;
     box3f      modelBounds;

@@ -198,6 +198,7 @@ namespace exa {
   struct VolumePRD {
     int primID;
     float value;
+    unsigned cellTag;
   };
 
 
@@ -285,6 +286,7 @@ namespace exa {
           VolumePRD& prd = owl::getPRD<VolumePRD>();
           prd.value = value;
           prd.primID = primID;
+          prd.cellTag = GRID_TAG;
         }
       }
     }
@@ -340,6 +342,7 @@ namespace exa {
       VolumePRD& prd = owl::getPRD<VolumePRD>();
       prd.value = value;
       prd.primID = primID;
+      prd.cellTag = ELEM_TAG;
     }
   }
 
@@ -502,7 +505,6 @@ namespace exa {
   struct Sample {
     int      primID;
     float    value;
-    vec3f    gradient;
     unsigned cellTag;
   };
 
@@ -512,23 +514,13 @@ namespace exa {
     {
       auto& lp = optixLaunchParams;
 
-      VolumePRD prd{-1,0.f};
+      VolumePRD prd{-1,0.f,-1};
       owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
-      unsigned cellTag = 0;
 
-      owl::traceRay(lp.gridletBVH,ray,prd,
+      owl::traceRay(lp.sampleBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      if (prd.primID != -1)
-        cellTag = GRID_TAG;
-      else {
-        owl::traceRay(lp.boundaryCellBVH,ray,prd,
-                      OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-        if (prd.primID != -1)
-          cellTag = ELEM_TAG;
-      }
-
-      return {prd.primID,prd.value,{0.f,0.f,0.f},cellTag};
+      return {prd.primID,prd.value,prd.cellTag};
     }
   };
 
@@ -540,7 +532,7 @@ namespace exa {
       BasisPRD prd{0.f,0.f};
       owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
 
-      owl::traceRay(lp.amrCellBVH,ray,prd,
+      owl::traceRay(lp.sampleBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       int primID = -1;
@@ -549,7 +541,7 @@ namespace exa {
         primID = 0; // non-negative dummy value
         value = prd.sumWeightedValues/prd.sumWeights;
       }
-      return {primID,value,{0.f,0.f,0.f},unsigned(-1)};
+      return {primID,value,unsigned(-1)};
     }
   };
 
@@ -664,10 +656,10 @@ namespace exa {
       ray.tmax = 0.f;
 
       ExaBrickPRD prd{-1,pos};
-      owl::traceRay(optixLaunchParams.abrBVH, ray, prd,
+      owl::traceRay(optixLaunchParams.sampleBVH, ray, prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      if (prd.leafID < 0) return {0,0.f,{0.f,0.f,0.f},unsigned(-1)};
+      if (prd.leafID < 0) return {0,0.f,unsigned(-1)};
       const ABR &abr = lp.abrBuffer[prd.leafID];
       const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
       const int  childCount = abr.leafListSize;
@@ -678,7 +670,7 @@ namespace exa {
         addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
       }
 
-      return {prd.leafID,sumWeightedValues/sumWeights,{0.f,0.f,0.f},unsigned(-1)};
+      return {prd.leafID,sumWeightedValues/sumWeights,unsigned(-1)};
     }
   };
 

@@ -270,13 +270,6 @@ namespace exa {
 
       gridletGeom.blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(gridletGeom.blas);
-
-      gridletGeom.tlas = owlInstanceGroupCreate(context, 1);
-      owlInstanceGroupSetChild(gridletGeom.tlas, 0, gridletGeom.blas);
-
-      owlGroupBuildAccel(gridletGeom.tlas);
-    } else {
-      return false;
     }
 
     // ==================================================================
@@ -310,14 +303,23 @@ namespace exa {
 
       stitchGeom.blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(stitchGeom.blas);
+    }
 
-      stitchGeom.tlas = owlInstanceGroupCreate(context, 1);
-      owlInstanceGroupSetChild(stitchGeom.tlas, 0, stitchGeom.blas);
-
-      owlGroupBuildAccel(stitchGeom.tlas);
+    if (gridletGeom.blas && stitchGeom.blas) {
+      tlas = owlInstanceGroupCreate(context, 2);
+      owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
+      owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
+    } else if (gridletGeom.blas) {
+      tlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
+    } else if (stitchGeom.blas) {
+      tlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(tlas, 0, stitchGeom.blas);
     } else {
       return false;
     }
+
+    owlGroupBuildAccel(tlas);
 
     // All tests passed => success
     return true;
