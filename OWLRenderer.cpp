@@ -303,7 +303,7 @@ namespace exa {
                amrCellModel->scalarBuffer,
                exaBrickModel->brickBuffer,
                exaBrickModel->scalarBuffer,
-               {16,16,16},
+               {1024,1024,512},
                modelBounds);
 
     setRange(valueRange);
