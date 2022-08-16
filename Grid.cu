@@ -314,7 +314,7 @@ namespace exa {
       it = first;
       step = count/2;
       it += step;
-      if (*it < cellID) {
+      if (*it <= cellID) {
         first = ++it;
         count -= step+1;
       } else {
