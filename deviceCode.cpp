@@ -27,9 +27,6 @@ using owl::vec3i;
 using owl::vec4f;
 using owl::vec4i;
 
-#define ELEM_TAG 0x1
-#define GRID_TAG 0x2
-
 namespace exa {
 
   extern "C" __constant__ LaunchParams optixLaunchParams;
@@ -197,8 +194,8 @@ namespace exa {
 
   struct VolumePRD {
     int primID;
+    int cellID;
     float value;
-    unsigned cellTag;
   };
 
 
@@ -286,7 +283,9 @@ namespace exa {
           VolumePRD& prd = owl::getPRD<VolumePRD>();
           prd.value = value;
           prd.primID = primID;
-          prd.cellTag = GRID_TAG;
+          prd.cellID = imin.z*gridlet.dims.y*gridlet.dims.x
+                          + imin.y*gridlet.dims.x
+                          + imin.x;
         }
       }
     }
@@ -342,7 +341,7 @@ namespace exa {
       VolumePRD& prd = owl::getPRD<VolumePRD>();
       prd.value = value;
       prd.primID = primID;
-      prd.cellTag = ELEM_TAG;
+      prd.cellID = -1; // not a gridlet -> -1
     }
   }
 
@@ -503,9 +502,9 @@ namespace exa {
   // ------------------------------------------------------------------
   
   struct Sample {
-    int      primID;
-    float    value;
-    unsigned cellTag;
+    int   primID;
+    int   cellID;
+    float value;
   };
 
 
@@ -514,13 +513,13 @@ namespace exa {
     {
       auto& lp = optixLaunchParams;
 
-      VolumePRD prd{-1,0.f,-1};
+      VolumePRD prd{-1,-1,0.f};
       owl::Ray ray(pos,vec3f(1.f),0.f,0.f);
 
       owl::traceRay(lp.sampleBVH,ray,prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      return {prd.primID,prd.value,prd.cellTag};
+      return {prd.primID,prd.cellID,prd.value};
     }
   };
 
@@ -541,7 +540,7 @@ namespace exa {
         primID = 0; // non-negative dummy value
         value = prd.sumWeightedValues/prd.sumWeights;
       }
-      return {primID,value,unsigned(-1)};
+      return {primID,-1/*TODO:cellID*/,value};
     }
   };
 
@@ -659,7 +658,7 @@ namespace exa {
       owl::traceRay(optixLaunchParams.sampleBVH, ray, prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      if (prd.leafID < 0) return {0,0.f,unsigned(-1)};
+      if (prd.leafID < 0) return {0,0,0.f};
       const ABR &abr = lp.abrBuffer[prd.leafID];
       const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
       const int  childCount = abr.leafListSize;
@@ -670,7 +669,7 @@ namespace exa {
         addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
       }
 
-      return {prd.leafID,sumWeightedValues/sumWeights,unsigned(-1)};
+      return {prd.leafID,/*TODO: cellID*/-1,sumWeightedValues/sumWeights};
     }
   };
 
@@ -786,12 +785,15 @@ namespace exa {
           s.value -= xfDomain.lower;
           s.value /= xfDomain.upper-xfDomain.lower;
           xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
-          if (s.cellTag == ELEM_TAG) {
+          if (s.cellID == -1) { // uelem
             xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
-          } else if (s.cellTag == GRID_TAG) {
+          } else {
             const Gridlet &gridlet = lp.gridletBuffer[s.primID];
-            vec3f posInLevelCoords = pos / (1<<gridlet.level);
-            vec3i imin(posInLevelCoords);
+            vec3i imin = {
+              s.cellID%gridlet.dims.x,
+              s.cellID/gridlet.dims.x%gridlet.dims.y,
+              s.cellID/(gridlet.dims.x*gridlet.dims.y)
+            };
             int col_index = imin.x % 2 == imin.y  % 2;
             col_index = imin.z % 2 == 0 ? col_index : !col_index;
             if (col_index==0) {
@@ -807,12 +809,15 @@ namespace exa {
           xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
           const vec3f rgb1(tex2D<float4>(lp.transferFunc.texture,s.value,.5f));
           vec3f rgb2;
-          if (s.cellTag == ELEM_TAG) {
+          if (s.cellID == -1) { // uelem
             rgb2 = vec3f(1,0,0);
-          } else if (s.cellTag == GRID_TAG) {
+          } else {
             const Gridlet &gridlet = lp.gridletBuffer[s.primID];
-            vec3f posInLevelCoords = pos / (1<<gridlet.level);
-            vec3i imin(posInLevelCoords);
+            vec3i imin = {
+              s.cellID%gridlet.dims.x,
+              s.cellID/gridlet.dims.x%gridlet.dims.y,
+              s.cellID/(gridlet.dims.x*gridlet.dims.y)
+            };
             int col_index = imin.x % 2 == imin.y  % 2;
             col_index = imin.z % 2 == 0 ? col_index : !col_index;
             if (col_index==0) {
