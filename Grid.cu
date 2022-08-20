@@ -158,14 +158,11 @@ namespace exa {
     if (x >= dimX || y >= dimY || z >= dimZ)
       return;
 
-    vec3i lower = gridlet.lower * (1<<gridlet.level);
-    vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
-
-    const vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
+    const box3f &gridletBounds = gridlet.getBounds();
 
     const vec3f mcSize(worldBounds.size() / vec3f(dims));
-    const vec3i loMC = projectOnGrid(vec3f(lower)+halfCell,dims,worldBounds);
-    const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
+    const vec3i loMC = projectOnGrid(gridletBounds.lower,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(gridletBounds.upper,dims,worldBounds);
 
     const vec3i numScalars = gridlet.dims+1;
 
@@ -181,8 +178,9 @@ namespace exa {
           /*for (int z=0; z<gridlet.dims.z; ++z)*/ {
             /*for (int y=0; y<gridlet.dims.y; ++y)*/ {
               /*for (int x=0; x<gridlet.dims.x; ++x)*/ {
-                const box3f cellBounds(vec3f((gridlet.lower+vec3i(x,y,z)) * (1<<gridlet.level))+halfCell,
-                                       vec3f((gridlet.lower+vec3i(x+1,y+1,z+1)) * (1<<gridlet.level))+halfCell);
+                const float cellWidth = 1<<gridlet.level;
+                const box3f cellBounds(vec3f((gridlet.lower+vec3i(x,y,z)) * cellWidth) + .5f*cellWidth,
+                                       vec3f((gridlet.lower+vec3i(x+1,y+1,z+1)) * cellWidth) + .5f*cellWidth);
                 if (mcBounds.overlaps(cellBounds)) {
                   vec3i imin(x,y,z);
                   vec3i imax(x+1,y+1,z+1);
