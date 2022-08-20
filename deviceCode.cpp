@@ -19,6 +19,7 @@
 #include "Grid.cuh"
 #include "Plane.h"
 #include "UElems.h"
+#include "DDA.h"
 
 using owl::vec2f;
 using owl::vec2i;
@@ -682,6 +683,13 @@ namespace exa {
     Teaser,   /* paper teaser */
   };
 
+  inline __device__
+  float getMajorant(const GridIterationState &gridIterationState)
+  {
+    const auto& lp = optixLaunchParams;
+    return lp.grid.maxOpacities[linearIndex(gridIterationState,lp.grid.dims)];
+  }
+
   template <ShadeMode SM, typename Sampler>
   inline __device__
   void sampleInteraction(const Ray     &ray,
@@ -696,51 +704,11 @@ namespace exa {
     auto& lp = optixLaunchParams;
 
     Le = 0.f;
+    type = Boundary;
+    Tr = 1.f;
 
-    const vec3f rcp_dir = rcp(ray.direction);
-
-    const vec3f lo = (lp.modelBounds.lower - ray.origin) * rcp_dir;
-    const vec3f hi = (lp.modelBounds.upper - ray.origin) * rcp_dir;
-
-    const vec3f tnear = min(lo,hi);
-    const vec3f tfar  = max(lo,hi);
-
-    vec3i cellID = projectOnGrid(ray.origin,lp.grid.dims,lp.modelBounds);
-
-    // Distance in world space to get from cell to cell
-    const vec3f dist((tfar-tnear)/vec3f(lp.grid.dims));
-
-    // Cell increment
-    const vec3i step = {
-      ray.direction.x > 0.f ? 1 : -1,
-      ray.direction.y > 0.f ? 1 : -1,
-      ray.direction.z > 0.f ? 1 : -1
-    };
-
-    // Stop when we reach grid borders
-    const vec3i stop = {
-      ray.direction.x > 0.f ? lp.grid.dims.x : -1,
-      ray.direction.y > 0.f ? lp.grid.dims.y : -1,
-      ray.direction.z > 0.f ? lp.grid.dims.z : -1
-    };
-
-    // Increment in world space
-    vec3f tnext = {
-      ray.direction.x > 0.f ? tnear.x + float(cellID.x+1) * dist.x
-                            : tnear.x + float(lp.grid.dims.x-cellID.x) * dist.x,
-      ray.direction.y > 0.f ? tnear.y + float(cellID.y+1) * dist.y
-                            : tnear.y + float(lp.grid.dims.y-cellID.y) * dist.y,
-      ray.direction.z > 0.f ? tnear.z + float(cellID.z+1) * dist.z
-                            : tnear.z + float(lp.grid.dims.z-cellID.z) * dist.z
-    };
-
-
-    float t0 = max(ray.tmin,0.f);
-
-    while (1) { // DDA loop
-    
-      const float t1 = min(reduce_min(tnext),ray.tmax);
-      const float majorant = lp.grid.maxOpacities[linearIndex(cellID,lp.grid.dims)];
+    auto woodcockFunc = [&](const auto &domainIterationState, float t0, float t1) {
+      const float majorant = getMajorant(domainIterationState);
 
       float t = t0;
 
@@ -855,55 +823,19 @@ namespace exa {
           Le = getLe(s);
           Tr = 0.f;
           type = Emission;
-          return;
+          return false;
         } else */if (sigmaT >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
-          return;
+          return false;
         }
       }
 
-#if 1
-      int axis = arg_min(tnext);
-      tnext[axis] += dist[axis];
-      cellID[axis] += step[axis];
-      if (cellID[axis]==stop[axis]) {
-        type = Boundary;
-        Tr = 1.f;
-        break;
-      }
-#else
-      const float t_closest = reduce_min(tnext);
-      if (tnext.x == t_closest) {
-        tnext.x += dist.x;
-        cellID.x += step.x;
-        if (cellID.x==stop.x) {
-          type = Boundary;
-          Tr = 1.f;
-          break;
-        }
-      }
-      if (tnext.y == t_closest) {
-        tnext.y += dist.y;
-        cellID.y += step.y;
-        if (cellID.y==stop.y) {
-          type = Boundary;
-          Tr = 1.f;
-          break;
-        }
-      }
-      if (tnext.z == t_closest) {
-        tnext.z += dist.z;
-        cellID.z += step.z;
-        if (cellID.z==stop.z) {
-          type = Boundary;
-          Tr = 1.f;
-          break;
-        }
-      }
-#endif
-      t0 = t1;
-    }
+      return true;
+    };
+
+    dda3(ray,lp.grid.dims,lp.modelBounds,woodcockFunc);
+
   }
 
   // ------------------------------------------------------------------
