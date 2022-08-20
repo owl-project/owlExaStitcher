@@ -51,8 +51,8 @@ namespace exa {
     box3f getBounds() const
     {
       const float cellWidth = 1<<level;
-      return box3f(vec3f(lower) + 0.5f*cellWidth,
-                   vec3f(lower) + vec3f(dims) + 0.5f*cellWidth);
+      return box3f((vec3f(lower) + 0.5f) * cellWidth,
+                   (vec3f(lower) + vec3f(dims) + 0.5f) * cellWidth);
     }
   };
 
