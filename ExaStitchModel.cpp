@@ -161,6 +161,8 @@ namespace exa {
       while (!in.eof()) {
         Gridlet gridlet;
         in.read((char *)&gridlet.lower,sizeof(gridlet.lower));
+        if (!in.good())
+          break;
         in.read((char *)&gridlet.level,sizeof(gridlet.level));
         in.read((char *)&gridlet.dims,sizeof(gridlet.dims));
 
