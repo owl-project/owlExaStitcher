@@ -31,7 +31,8 @@ namespace exa {
                 const std::string amrCellFileName = "",
                 const std::string exaBrickFileName = "",
                 const std::string meshFileName = "",
-                const std::string scalarFileName = "");
+                const std::string scalarFileName = "",
+                const vec3i numMCs = {128,128,128});
 
    ~OWLRenderer();
 
@@ -54,6 +55,9 @@ namespace exa {
 
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);
+
+    void setNumMCs(const vec3i numMCs);
+    void buildGrid();
 
     OWLContext owl;
     OWLModule  module;
@@ -78,6 +82,7 @@ namespace exa {
     ExaBrickModel::SP exaBrickModel { 0 };
     AMRCellModel::SP amrCellModel { 0 };
     Grid grid;
+    vec3i numMCs { 128, 128, 128 };
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

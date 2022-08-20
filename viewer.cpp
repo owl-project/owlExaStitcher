@@ -56,6 +56,7 @@ namespace exa {
       float d{1000.f};
     } clipPlanes[CLIP_PLANES_MAX];
     int shadeMode = 0;
+    vec3i numMCs{128,128,128};
     vec2i windowSize  = vec2i(1024,1024);
     float dt = .5f;
     int spp = 1;
@@ -555,7 +556,12 @@ namespace exa {
       else if (arg == "-sm") {
         cmdline.shadeMode = std::atoi(argv[++i]);
       }
-      else
+      else if (arg == "--num-mcs") {
+        cmdline.numMCs.x = std::atoi(argv[++i]);
+        cmdline.numMCs.y = std::atoi(argv[++i]);
+        cmdline.numMCs.z = std::atoi(argv[++i]);
+      }
+      else 
         usage("unknown cmdline arg '"+arg+"'");
     }
     
@@ -564,7 +570,8 @@ namespace exa {
                          cmdline.amrCellFileName,
                          cmdline.exaBrickFileName,
                          cmdline.meshFileName,
-                         cmdline.scalarFileName);
+                         cmdline.scalarFileName,
+                         cmdline.numMCs);
 
     const box3f modelBounds = renderer.modelBounds;
 

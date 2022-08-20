@@ -95,7 +95,8 @@ namespace exa {
                            const std::string amrCellFileName,
                            const std::string exaBrickFileName,
                            const std::string meshFileName,
-                           const std::string scalarFileName)
+                           const std::string scalarFileName,
+                           const vec3i numMCs)
   {
     // ==================================================================
     // AMR/UMesh models etc
@@ -294,25 +295,7 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
 
-    grid.build(owl,
-               exaStitchModel->vertexBuffer,
-               exaStitchModel->indexBuffer,
-               exaStitchModel->gridletBuffer,
-               exaStitchModel->gridletScalarBuffer,
-               amrCellModel->cellBuffer,
-               amrCellModel->scalarBuffer,
-               exaBrickModel->brickBuffer,
-               exaBrickModel->scalarBuffer,
-               {1024,1024,512},
-               modelBounds);
-
-    setRange(valueRange);
-
-    owlParamsSet3i(lp,"grid.dims",
-                   grid.dims.x,
-                   grid.dims.y,
-                   grid.dims.z);
-    owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
+    setNumMCs(numMCs); // also builds the grid
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
@@ -512,6 +495,35 @@ namespace exa {
     owlParamsSet2f(lp,"subImage.selection.upper",si.upper.x,si.upper.y);
     owlParamsSet1i(lp,"subImage.selecting",(int)active);
     accumID = 0;
+  }
+
+  void OWLRenderer::buildGrid()
+  {
+    grid.build(owl,
+               exaStitchModel->vertexBuffer,
+               exaStitchModel->indexBuffer,
+               exaStitchModel->gridletBuffer,
+               exaStitchModel->gridletScalarBuffer,
+               amrCellModel->cellBuffer,
+               amrCellModel->scalarBuffer,
+               exaBrickModel->brickBuffer,
+               exaBrickModel->scalarBuffer,
+               numMCs,
+               modelBounds);
+
+    setRange(valueRange);
+
+    owlParamsSet3i(lp,"grid.dims",
+                   grid.dims.x,
+                   grid.dims.y,
+                   grid.dims.z);
+    owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
+  }
+
+  void OWLRenderer::setNumMCs(const vec3i numMCs)
+  {
+    this->numMCs = numMCs;
+    buildGrid();
   }
 } // ::exa
 
