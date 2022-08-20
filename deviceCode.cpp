@@ -426,7 +426,6 @@ namespace exa {
                  optixGetObjectRayDirection(),
                  optixGetRayTmin(),
                  optixGetRayTmax());
-    float t0 = ray.tmin, t1 = ray.tmax;
     const ABR &abr = self.abrBuffer[leafID];
     const box3f bounds = abr.domain;
 #if 1
@@ -444,8 +443,8 @@ namespace exa {
 
     if (optixReportIntersection(t0, 0)) {
       ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
-      prd.t0 = t0;
-      prd.t1 = t1;
+      prd.t0 = ray.tmin;
+      prd.t1 = ray.tmax;
       prd.leafID = leafID;
       prd.samplePos = ray.origin;
     }
