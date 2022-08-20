@@ -46,6 +46,14 @@ namespace exa {
     /*! offset into the scalar data index buffer (in which all gridlets
         are stored sequentially) */
     uint32_t begin;
+
+    inline __both__
+    box3f getBounds() const
+    {
+      const float cellWidth = 1<<level;
+      return box3f(vec3f(lower) + 0.5f*cellWidth,
+                   vec3f(lower) + vec3f(dims) + 0.5f*cellWidth);
+    }
   };
 
   struct AMRCell {

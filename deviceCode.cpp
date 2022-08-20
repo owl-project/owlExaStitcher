@@ -210,12 +210,7 @@ namespace exa {
     const GridletGeom &self = *(const GridletGeom *)geomData;
 
     const Gridlet &gridlet = self.gridletBuffer[leafID];
-    vec3i lower = gridlet.lower * (1<<gridlet.level);
-    vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
-
-    vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
-
-    result = box3f(vec3f(lower)+halfCell,vec3f(upper)+halfCell);
+    result = gridlet.getBounds();
   }
 
   OPTIX_INTERSECT_PROGRAM(GridletGeomIsect)()
@@ -225,20 +220,11 @@ namespace exa {
     vec3f pos = optixGetObjectRayOrigin();
 
     const Gridlet &gridlet = self.gridletBuffer[primID];
-    vec3f lower(gridlet.lower * (1<<gridlet.level));
-    vec3f upper = lower + vec3f(gridlet.dims * (1<<gridlet.level));
-
-    vec3f halfCell = vec3f(1<<gridlet.level)*.5f;
-    lower += halfCell;
-    upper += halfCell;
-
-    //box3f bounds((vec3f)lower,(vec3f)upper);
-    pos -= lower;
-    box3f bounds(vec3f(0.f),(vec3f)(upper-lower));
+    const box3f &bounds = gridlet.getBounds();
 
     if (bounds.contains(pos)) {
       vec3i numScalars = gridlet.dims+1;
-      vec3f posInLevelCoords = pos / (1<<gridlet.level);
+      vec3f posInLevelCoords = (pos-bounds.lower) / (1<<gridlet.level);
       vec3i imin(posInLevelCoords);
       vec3i imax = min(imin+1,numScalars-1);
 
