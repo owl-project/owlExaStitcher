@@ -207,11 +207,10 @@ namespace exa {
 
         gridlets.push_back(gridlet);
 
-        vec3i lower = gridlet.lower * (1<<gridlet.level);
-        vec3i upper = lower + gridlet.dims * (1<<gridlet.level);
+        const box3f bounds = gridlet.getBounds();
 
-        modelBounds.extend(vec3f(lower));
-        modelBounds.extend(vec3f(upper));
+        modelBounds.extend(bounds.lower);
+        modelBounds.extend(bounds.upper);
       }
     }
 
