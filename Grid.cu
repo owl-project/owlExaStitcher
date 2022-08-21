@@ -447,7 +447,7 @@ namespace exa {
     valueRange.upper /= xfRange.upper-xfRange.lower;
 
     int lo = clamp(int(valueRange.lower*(numColors-1)),0,(int)numColors-1);
-    int hi = clamp(int(valueRange.upper*(numColors-1)),0,(int)numColors-1);
+    int hi = clamp(int(valueRange.upper*(numColors-1))+1,0,(int)numColors-1);
 
     float maxOpacity = 0.f;
     for (int i=lo; i<=hi; ++i) {
