@@ -63,6 +63,7 @@ add_executable(exaStitchViewer
   ABRs.cpp
   AMRCellModel.cpp
   ExaBrickModel.cpp
+  ExaBrickModel.cu
   ExaStitchModel.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp

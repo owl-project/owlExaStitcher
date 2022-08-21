@@ -133,8 +133,22 @@ namespace exa {
                                    sizeof(ExaBrickGeom),
                                    exaBrickGeomVars, -1);
       owlGeomTypeSetBoundsProg(geomType, module, "ExaBrickGeomBounds");
-      owlGeomTypeSetIntersectProg(geomType, 0, module, "ExaBrickGeomIsect");
-      owlGeomTypeSetClosestHit(geomType, 0, module, "ExaBrickGeomCH");
+      owlGeomTypeSetIntersectProg(geomType,
+                                  RADIANCE_RAY_TYPE,
+                                  module,
+                                  "ExaBrickGeomIsect");
+      owlGeomTypeSetClosestHit(geomType,
+                               RADIANCE_RAY_TYPE,
+                               module,
+                               "ExaBrickGeomCH");
+      owlGeomTypeSetIntersectProg(geomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  "ExaBrickGeomSamplingIsect");
+      owlGeomTypeSetClosestHit(geomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "ExaBrickGeomCH");
 
       OWLGeom geom = owlGeomCreate(context, geomType);
       owlGeomSetPrimCount(geom, abrs.value.size());

@@ -83,6 +83,7 @@ namespace exa {
     AMRCellModel::SP amrCellModel { 0 };
     Grid grid;
     vec3i numMCs { 128, 128, 128 };
+    bool useDDA = true;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

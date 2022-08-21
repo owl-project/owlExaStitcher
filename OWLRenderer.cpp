@@ -46,11 +46,13 @@ namespace exa {
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
+     { "useDDA", OWL_INT, OWL_OFFSETOF(LaunchParams,useDDA)},
      // exa brick buffers (for eval!)
      { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
      { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
+     { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -172,6 +174,7 @@ namespace exa {
 
 
     owl = owlContextCreate(nullptr,1);
+    owlContextSetRayTypeCount(owl,2);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
@@ -238,7 +241,10 @@ namespace exa {
                                             OWL_TRIANGLES,
                                             sizeof(MeshGeom),
                                             meshGeomVars, -1);
-      owlGeomTypeSetClosestHit(meshGeom.geomType, 0, module, "MeshGeomCH");
+      owlGeomTypeSetClosestHit(meshGeom.geomType,
+                               RADIANCE_RAY_TYPE,
+                               module,
+                               "MeshGeomCH");
 
       owlBuildPrograms(owl);
 
@@ -296,6 +302,7 @@ namespace exa {
                    modelBounds.upper.z);
 
     setNumMCs(numMCs); // also builds the grid
+    owlParamsSet1i(lp,"useDDA",(int)useDDA);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
@@ -368,8 +375,13 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-    owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
+    if (useDDA) {
+      grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
+    } else if (exaBrickModel) {
+      exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+    }
     
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
@@ -429,8 +441,13 @@ namespace exa {
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
     if (xf.colorMapBuffer) {
-      grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
+      if (useDDA) {
+        grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+        owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
+      } else if (exaBrickModel) {
+        exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+        owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+      }
     }
   }
 

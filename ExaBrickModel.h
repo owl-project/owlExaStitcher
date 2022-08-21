@@ -41,8 +41,12 @@ namespace exa {
     OWLBuffer   brickBuffer;
     OWLBuffer   scalarBuffer;
     OWLBuffer   abrLeafListBuffer;
+    OWLBuffer   maxOpacities;
 
     bool initGPU(OWLContext, OWLModule module);
+
+    // Compute per-ABR max opacities on the GPU
+    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
 
     // Statistics
     void memStats(size_t &bricksBytes,

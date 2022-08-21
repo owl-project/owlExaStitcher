@@ -83,8 +83,14 @@ namespace exa {
                                    sizeof(AMRCellGeom),
                                    amrCellGeomVars, -1);
       owlGeomTypeSetBoundsProg(geomType, module, "AMRCellGeomBounds");
-      owlGeomTypeSetIntersectProg(geomType, 0, module, "AMRCellGeomIsect");
-      owlGeomTypeSetClosestHit(geomType, 0, module, "AMRCellGeomCH");
+      owlGeomTypeSetIntersectProg(geomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  "AMRCellGeomIsect");
+      owlGeomTypeSetClosestHit(geomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "AMRCellGeomCH");
 
       OWLGeom geom = owlGeomCreate(context, geomType);
       owlGeomSetPrimCount(geom, cells.size());

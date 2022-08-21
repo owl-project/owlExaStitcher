@@ -250,8 +250,14 @@ namespace exa {
                                                sizeof(GridletGeom),
                                                gridletGeomVars, -1);
       owlGeomTypeSetBoundsProg(gridletGeom.geomType, module, "GridletGeomBounds");
-      owlGeomTypeSetIntersectProg(gridletGeom.geomType, 0, module, "GridletGeomIsect");
-      owlGeomTypeSetClosestHit(gridletGeom.geomType, 0, module, "GridletGeomCH");
+      owlGeomTypeSetIntersectProg(gridletGeom.geomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  "GridletGeomIsect");
+      owlGeomTypeSetClosestHit(gridletGeom.geomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "GridletGeomCH");
 
       OWLGeom geom = owlGeomCreate(context, gridletGeom.geomType);
       owlGeomSetPrimCount(geom, gridlets.size());
@@ -283,8 +289,14 @@ namespace exa {
                                               sizeof(StitchGeom),
                                               stitchGeomVars, -1);
       owlGeomTypeSetBoundsProg(stitchGeom.geomType, module, "StitchGeomBounds");
-      owlGeomTypeSetIntersectProg(stitchGeom.geomType, 0, module, "StitchGeomIsect");
-      owlGeomTypeSetClosestHit(stitchGeom.geomType, 0, module, "StitchGeomCH");
+      owlGeomTypeSetIntersectProg(stitchGeom.geomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  "StitchGeomIsect");
+      owlGeomTypeSetClosestHit(stitchGeom.geomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "StitchGeomCH");
 
       OWLGeom geom = owlGeomCreate(context, stitchGeom.geomType);
       owlGeomSetPrimCount(geom, indices.size()/8);

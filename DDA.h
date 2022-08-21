@@ -22,12 +22,12 @@ namespace exa {
 
   typedef vec3i GridIterationState;
   
-  template <typename Func>
+  template <typename Func, int RT=0, int NRT=1>
   inline __device__
-  void dda3(const Ray        &ray,
-            const owl::vec3i &gridDims,
-            const owl::box3f &modelBounds,
-            const Func       &func)
+  void dda3(const owl::RayT<RT,NRT> &ray,
+            const owl::vec3i        &gridDims,
+            const owl::box3f        &modelBounds,
+            const Func              &func)
   {
     using namespace owl;
 

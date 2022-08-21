@@ -29,6 +29,9 @@ using namespace owl::common;
 
 typedef owl::interval<float> range1f;
 
+#define RADIANCE_RAY_TYPE 0
+#define SAMPLING_RAY_TYPE 1
+
 #define CLIP_PLANES_MAX 1
 
 #define EXA_STITCH_SAMPLER 0
@@ -151,6 +154,9 @@ namespace exa {
     ABR      *abrBuffer;
     float    *scalarBuffer;
     int      *abrLeafListBuffer;
+    float    *abrMaxOpacities;
+
+    int       useDDA;
 
     struct {
       cudaTextureObject_t texture;
