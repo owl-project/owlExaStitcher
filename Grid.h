@@ -32,8 +32,7 @@ namespace exa {
                OWLBuffer        gridletScalars, /* scalars referenced by gridlets */
                OWLBuffer        amrCells,       /* AMR cells */
                OWLBuffer        amrScalars,     /* scalars used with AMR cells */
-               OWLBuffer        exaBricks,      /* exa bricks */
-               OWLBuffer        exaScalars,     /* scalars used with ExaBricks */
+               OWLBuffer        abrs,           /* ExaBrick ABRs */
                const owl::vec3i numMCs,
                const owl::box3f bounds);
 

@@ -14,7 +14,6 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include <cub/device/device_scan.cuh>
 #include "deviceCode.h"
 #include "Grid.h"
 #include "Grid.cuh"
@@ -286,98 +285,30 @@ namespace exa {
   }
 
   // ExaBrick overload
-  __global__ void makeBrickSizesArray(const ExaBrick *bricks,
-                                      const size_t    numBricks,
-                                      int            *brickSizes)
-  {
-    size_t brickID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
-
-    if (brickID >= numBricks)
-      return;
-
-    brickSizes[brickID] = volume(bricks[brickID].size);
-  }
-
-  __device__ int getBrickID(size_t     cellID,
-                            const int *brickSizeSlots,
-                            size_t     numBricks)
-  {
-    // binary search to find the brick for the given cellID
-    const int *it;
-    const int *first = brickSizeSlots;
-    int count = numBricks;
-    int step;
-
-    while (count>0) {
-      it = first;
-      step = count/2;
-      it += step;
-      if (*it <= cellID) {
-        first = ++it;
-        count -= step+1;
-      } else {
-        count = step;
-      }
-    }
-    return int(first-brickSizeSlots-1);
-  }
-
-  __global__ void buildGrid(range1f        *valueRanges,
-                            const ExaBrick *bricks,
-                            const float    *scalars,
-                            const size_t    numBricks,
-                            const int      *brickSizeSlots,
-                            const vec3i     dims,
-                            const box3f     worldBounds)
+  __global__ void buildGrid(range1f      *valueRanges,
+                            const ABR    *abrs,
+                            const size_t  numABRs,
+                            const vec3i   dims,
+                            const box3f   worldBounds)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
-    int brickID = getBrickID(threadID,brickSizeSlots,numBricks);
+    if (threadID >= numABRs)
+      return;
 
-    const ExaBrick &brick = bricks[brickID];
-
-    // Local cell ID
-    size_t cellID = threadID-brickSizeSlots[brickID];
-
-    int x = cellID%brick.size.x;
-    int y = cellID/brick.size.x%brick.size.y;
-    int z = cellID/(brick.size.x*brick.size.y);
-
-    vec3i lower = brick.lower;
-    vec3i upper = lower + brick.size * (1<<brick.level);
-
-    const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+    const box3f domain = abrs[threadID].domain;
+    const range1f valueRange = abrs[threadID].valueRange;
 
     const vec3f mcSize(worldBounds.size() / vec3f(dims));
-    const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
-    const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
+    const vec3i loMC = projectOnGrid(domain.lower,dims,worldBounds);
+    const vec3i upMC = projectOnGrid(domain.upper,dims,worldBounds);
 
     for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
       for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
         for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
           const vec3i mcID(mcx,mcy,mcz);
-          const box3f mcBounds(worldBounds.lower+vec3f(mcID)*mcSize,
-                               worldBounds.lower+vec3f(mcID+1)*mcSize);
-
-          /*for (int z=0; z<brick.size.z; ++z)*/ {
-            /*for (int y=0; y<brick.size.y; ++y)*/ {
-              /*for (int x=0; x<brick.size.x; ++x)*/ {
-                const box3f cellBounds(vec3f(brick.lower + vec3i(x,y,z)*(1<<brick.level))-halfCell,
-                                       vec3f(brick.lower + vec3i(x+1,y+1,z+1)*(1<<brick.level))+halfCell);
-                if (mcBounds.overlaps(cellBounds)) {
-                  const int idx
-                    = brick.begin
-                    + x
-                    + y * brick.size.x
-                    + z * brick.size.x*brick.size.y;
-                  const float value = scalars[idx];
-
-                  atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,value);
-                  atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,value);
-                }
-              }
-            }
-          }
+          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
+          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
         }
       }
     }
@@ -390,8 +321,7 @@ namespace exa {
                    OWLBuffer   gridletScalars,
                    OWLBuffer   amrCells,
                    OWLBuffer   amrScalars,
-                   OWLBuffer   exaBricks,
-                   OWLBuffer   exaScalars,
+                   OWLBuffer   abrs,
                    const vec3i numMCs,
                    const box3f bounds)
   {
@@ -476,47 +406,15 @@ namespace exa {
     }
 
     // Add contrib from ExaBricks
-    if (exaBricks && exaScalars) {
+    if (abrs) {
       double tfirst = getCurrentTime();
       size_t numThreads = 1024;
-      size_t numBricks = owlBufferSizeInBytes(exaBricks)/sizeof(ExaBrick);
-      std::cout << "DDA grid: adding " << numBricks << " ExaBricks\n";
-
-      // Compute array with linear brick sizes
-      int *brickSizes;
-      cudaMalloc(&brickSizes,numBricks*sizeof(int));
-      makeBrickSizesArray<<<iDivUp(numBricks, numThreads), numThreads>>>(
-        (const ExaBrick *)owlBufferGetPointer(exaBricks,0),
-        numBricks,brickSizes);
-
-      // Scan that array to give us slots
-      int *brickSizeSlots;
-      cudaMalloc(&brickSizeSlots,numBricks*sizeof(int));
-
-      void *scanStorage = nullptr;
-      size_t scanStorageBytes = 0;
-      cub::DeviceScan::ExclusiveSum(scanStorage,
-                                    scanStorageBytes,
-                                    brickSizes,
-                                    brickSizeSlots,
-                                    numBricks);
-      cudaMalloc(&scanStorage,scanStorageBytes);
-      cub::DeviceScan::ExclusiveSum(scanStorage,
-                                    scanStorageBytes,
-                                    brickSizes,
-                                    brickSizeSlots,
-                                    numBricks);
-      cudaFree(scanStorage);
-
-      size_t numCells = owlBufferSizeInBytes(exaScalars)/sizeof(float);
-      buildGrid<<<iDivUp(numCells, numThreads), numThreads>>>(
+      size_t numABRs = owlBufferSizeInBytes(abrs)/sizeof(ABR);
+      std::cout << "DDA grid: adding " << numABRs << " ExaBrick ABRs\n";
+      buildGrid<<<iDivUp(numABRs, numThreads), numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
-        (const ExaBrick *)owlBufferGetPointer(exaBricks,0),
-        (const float *)owlBufferGetPointer(exaScalars,0),
-        numBricks,brickSizeSlots,dims,worldBounds);
-
-      cudaFree(brickSizeSlots);
-      cudaFree(brickSizes);
+        (const ABR *)owlBufferGetPointer(abrs,0),
+        numABRs,dims,worldBounds);
 
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
       double tlast = getCurrentTime();

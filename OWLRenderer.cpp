@@ -524,8 +524,7 @@ namespace exa {
                exaStitchModel->gridletScalarBuffer,
                amrCellModel->cellBuffer,
                amrCellModel->scalarBuffer,
-               exaBrickModel->brickBuffer,
-               exaBrickModel->scalarBuffer,
+               exaBrickModel->abrBuffer,
                numMCs,
                modelBounds);
 
