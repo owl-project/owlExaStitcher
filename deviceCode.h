@@ -146,6 +146,7 @@ namespace exa {
     int       sampler;
     OptixTraversableHandle sampleBVH;
     OptixTraversableHandle meshBVH;
+    OptixTraversableHandle majorantBVH;
     Gridlet  *gridletBuffer;
     box3f      modelBounds;
 
@@ -155,8 +156,6 @@ namespace exa {
     float    *scalarBuffer;
     int      *abrLeafListBuffer;
     float    *abrMaxOpacities;
-
-    int       useDDA;
 
     struct {
       cudaTextureObject_t texture;

@@ -43,10 +43,10 @@ namespace exa {
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
+     { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
-     { "useDDA", OWL_INT, OWL_OFFSETOF(LaunchParams,useDDA)},
      // exa brick buffers (for eval!)
      { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
@@ -302,7 +302,6 @@ namespace exa {
                    modelBounds.upper.z);
 
     setNumMCs(numMCs); // also builds the grid
-    owlParamsSet1i(lp,"useDDA",(int)useDDA);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
@@ -381,6 +380,7 @@ namespace exa {
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+      owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
     }
     
     if (xf.colorMapTexture != 0) {
@@ -447,6 +447,7 @@ namespace exa {
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
         owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
       }
     }
   }

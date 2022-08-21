@@ -684,10 +684,9 @@ namespace exa {
       ExaBrickPRD prd;
       prd.leafID = -1;
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
-      const auto &abrBVH = optixLaunchParams.sampleBVH;
       Ray newRay = ray;
       newRay.tmin = alreadyIntegratedDistance;
-      owl::traceRay(abrBVH, newRay, prd,
+      owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
@@ -1127,10 +1126,10 @@ namespace exa {
       renderFrame_Impl<Default,true>(sampler);
     } else if (lp.sampler==EXA_BRICK_SAMPLER) {
       ExaBrickSampler sampler;
-      if (lp.useDDA)
-        renderFrame_Impl<Default,true>(sampler);
-      else
+      if (lp.majorantBVH)
         renderFrame_Impl<Default,false>(sampler);
+      else
+        renderFrame_Impl<Default,true>(sampler);
     }
   }
 } // ::exa
