@@ -58,6 +58,24 @@ namespace exa {
     return iDivUp(a,b) * b;
   }
 
+  __device__ inline void updateMC(const vec3i    mcID,
+                                  const vec3i    gridDims,
+                                  const range1f  valueRange,
+                                  range1f       *valueRanges)
+  {
+    atomicMin(&valueRanges[linearIndex(mcID,gridDims)].lower,valueRange.lower);
+    atomicMax(&valueRanges[linearIndex(mcID,gridDims)].upper,valueRange.upper);
+  }
+
+  __device__ inline void updateMC(const vec3i  mcID,
+                                  const vec3i  gridDims,
+                                  const float  value,
+                                  range1f     *valueRanges)
+  {
+    updateMC(mcID,gridDims,range1f{value,value},valueRanges);
+  }
+
+
   __global__ void initGrid(range1f *valueRanges, const vec3i dims)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
@@ -109,8 +127,7 @@ namespace exa {
       for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
         for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
           const vec3i mcID(mcx,mcy,mcz);
-          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
-          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
+          updateMC(mcID,dims,valueRange,valueRanges);
         }
       }
     }
@@ -239,8 +256,7 @@ namespace exa {
               }
             }
           }
-          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
-          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
+          updateMC(mcID,dims,valueRange,valueRanges);
         }
       }
     }
@@ -276,8 +292,7 @@ namespace exa {
         for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
           for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
             const vec3i mcID(mcx,mcy,mcz);
-            atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,value);
-            atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,value);
+            updateMC(mcID,dims,value,valueRanges);
           }
         }
       }
@@ -307,8 +322,7 @@ namespace exa {
       for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
         for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
           const vec3i mcID(mcx,mcy,mcz);
-          atomicMin(&valueRanges[linearIndex(mcID,dims)].lower,valueRange.lower);
-          atomicMax(&valueRanges[linearIndex(mcID,dims)].upper,valueRange.upper);
+          updateMC(mcID,dims,valueRange,valueRanges);
         }
       }
     }
