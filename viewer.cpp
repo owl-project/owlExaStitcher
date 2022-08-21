@@ -185,21 +185,21 @@ namespace exa {
         screenShot("Witcher3.png");
         break;
       case 'H':
-        //renderer->heatMapEnabled = !renderer->heatMapEnabled;
+        renderer->heatMapEnabled = !renderer->heatMapEnabled;
         break;
       case '<':
-        //renderer->heatMapScale /= 1.5f;
+        renderer->heatMapScale /= 1.5f;
         break;
       case '>':
-        //renderer->heatMapScale *= 1.5f;
+        renderer->heatMapScale *= 1.5f;
         break;
       case ')':
-        //renderer->spp++;
-        //PRINT(renderer->spp);
+        renderer->spp++;
+        PRINT(renderer->spp);
         break;
       case '(':
-        //renderer->spp = max(1,renderer->spp-1);
-        //PRINT(renderer->spp);
+        renderer->spp = max(1,renderer->spp-1);
+        PRINT(renderer->spp);
         break;
       case 'T':
         if (xfEditor) xfEditor->saveTo("owlDVR.xf");
