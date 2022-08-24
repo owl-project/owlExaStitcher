@@ -14,6 +14,10 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#if _WIN32 // need to include windows.h before gl.h
+#include <windows.h>
+#endif
+
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <owl/common/math/box.h>

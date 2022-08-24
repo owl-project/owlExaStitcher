@@ -157,7 +157,7 @@ namespace exa {
     size_t numNonEmptyTotal = 0;
     gridletScalars.clear();
     if (!gridsFileName.empty()) {
-      std::ifstream in(gridsFileName);
+      std::ifstream in(gridsFileName, std::ios::binary);
       while (!in.eof()) {
         Gridlet gridlet;
         in.read((char *)&gridlet.lower,sizeof(gridlet.lower));

@@ -209,7 +209,8 @@ namespace exa {
       const ExaBrick &brick = bricks[brickID];
       const float cellWidth = 1<<brick.level;
       
-      bool valid_z[brick.size.z];
+      // bool valid_z[brick.size.z];
+      std::vector<bool> valid_z(brick.size.z);
       for (int iz=0;iz<brick.size.z;iz++) {
         float pos_z = brick.lower.z + (iz+.5f)*cellWidth;
         float lo_z  = pos_z - cellWidth;
@@ -217,7 +218,8 @@ namespace exa {
         valid_z[iz] = (lo_z <= region.domain.upper.z) && (hi_z >= region.domain.lower.z);
       }
       
-      bool valid_y[brick.size.y];
+      // bool valid_y[brick.size.y];
+      std::vector<bool> valid_y(brick.size.y);
       for (int iy=0;iy<brick.size.y;iy++) {
         float pos_y = brick.lower.y + (iy+.5f)*cellWidth;
         float lo_y  = pos_y - cellWidth;
@@ -225,7 +227,8 @@ namespace exa {
         valid_y[iy] = (lo_y <= region.domain.upper.y) && (hi_y >= region.domain.lower.y);
       }
       
-      bool valid_x[brick.size.x];
+      // bool valid_x[brick.size.x];
+      std::vector<bool> valid_x(brick.size.x);
       for (int ix=0;ix<brick.size.x;ix++) {
         float pos_x = brick.lower.x + (ix+.5f)*cellWidth;
         float lo_x  = pos_x - cellWidth;
