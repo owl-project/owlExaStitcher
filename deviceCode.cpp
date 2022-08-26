@@ -108,6 +108,13 @@ namespace exa {
                  (b&255)/255.f);
   }
 
+  inline __device__ int uniformSampleOneLight(Random &rnd)
+  {
+    const int numLights = optixLaunchParams.numLights;
+    int which = int(rnd() * numLights); if (which == numLights) which = 0;
+    return which;
+  }
+
   inline  __device__ Ray generateRay(const vec2f screen)
   {
     auto &lp = optixLaunchParams;
@@ -947,8 +954,12 @@ namespace exa {
     return henyeyGreensteinTr(-w, wi, g);
   }
 
+  // ------------------------------------------------------------------
+  // RAYGEN PathTracer
+  // ------------------------------------------------------------------
+
   template <ShadeMode SM, bool useDDA,  typename Sampler>
-  __device__ inline void renderFrame_Impl(Sampler sampler)
+  __device__ inline void pathTrace_Impl(Sampler sampler)
   {
     auto& lp = optixLaunchParams;
 
@@ -1109,27 +1120,235 @@ namespace exa {
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
 
-  OPTIX_RAYGEN_PROGRAM(renderFrame)()
+  OPTIX_RAYGEN_PROGRAM(pathTrace)()
   {
     auto& lp = optixLaunchParams;
 
     if (lp.sampler==EXA_STITCH_SAMPLER) {
       ExaStitchSampler sampler;
       if (lp.shadeMode==1)
-        renderFrame_Impl<Gridlets,true>(sampler);
+        pathTrace_Impl<Gridlets,true>(sampler);
       else if (lp.shadeMode==2)
-        renderFrame_Impl<Teaser,true>(sampler);
+        pathTrace_Impl<Teaser,true>(sampler);
       else
-        renderFrame_Impl<Default,true>(sampler);
+        pathTrace_Impl<Default,true>(sampler);
     } else if (lp.sampler==AMR_CELL_SAMPLER) {
       AMRCellSampler sampler;
-      renderFrame_Impl<Default,true>(sampler);
+      pathTrace_Impl<Default,true>(sampler);
     } else if (lp.sampler==EXA_BRICK_SAMPLER) {
       ExaBrickSampler sampler;
       if (lp.majorantBVH)
-        renderFrame_Impl<Default,false>(sampler);
+        pathTrace_Impl<Default,false>(sampler);
       else
-        renderFrame_Impl<Default,true>(sampler);
+        pathTrace_Impl<Default,true>(sampler);
+    }
+  }
+
+
+  // ------------------------------------------------------------------
+  // RAYGEN DirectLighting
+  // ------------------------------------------------------------------
+
+  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  __device__ inline void directLighting_Impl(Sampler sampler)
+  {
+    auto& lp = optixLaunchParams;
+
+    vec4f bgColor = vec4f(backGroundColor(),1.f);
+    const int spp = lp.render.spp;
+    const vec2i pixelIndex = owl::getLaunchIndex();
+    int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
+    Random random(pixelID,lp.accumID);
+    uint64_t clock_begin = clock64();
+    vec4f accumColor = 0.f;
+
+
+    for (int sampleID=0;sampleID<spp;sampleID++) {
+      vec4f color = 0.f;
+
+      float rx = random();
+      float ry = random();
+      vec2f screen = vec2f(pixelIndex)+vec2f(rx,ry);
+      if (lp.subImage.active) {
+        const vec2f size(owl::getLaunchDims());
+        screen /= size;
+        screen = (vec2f(1.f)-screen)*subImageUV().lower
+                            + screen*subImageUV().upper;
+        screen *= size;
+      }
+      Ray ray = generateRay(screen);
+      vec3f throughput = 1.f;
+
+      float t0 = 1e30f, t1 = -1e30f;
+
+      if (intersect(ray,lp.modelBounds,t0,t1)) {
+        for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+          const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+          Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+          bool backFace=false;
+          float plane_t = FLT_MAX;
+
+          if (clipPlaneEnabled) {
+            plane_t = intersect(ray,plane,backFace);
+            if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+            if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+          }
+        }
+
+        ray.origin += ray.direction * t0;
+        t1 -= t0;
+
+        vec3f Le; // emission
+        float Tr; // transmittance
+        CollisionType ctype;
+        ray.tmax = t1;
+
+        MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
+        if (lp.meshBVH) {
+          owl::traceRay(lp.meshBVH,ray,meshPRD,
+                        OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+          if (meshPRD.primID >= 0) {
+            ray.tmax = min(ray.tmax,meshPRD.t_hit);
+          }
+        }
+
+        vec3f pos;
+        vec4f xf = 0.f; // albedo and extinction coefficient
+        sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
+
+        // left the volume?
+        if (ctype==Boundary && meshPRD.primID < 0) {
+
+        } else {
+          vec3f albedo;
+          if (ctype==Boundary && meshPRD.primID >= 0) {
+            constexpr float eps = 1.f;// finest cell size
+            pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
+            albedo = meshPRD.kd;
+          } else {
+            albedo = vec3f(xf);
+          }
+
+          if (lp.numLights > 0) {
+            int lightID = uniformSampleOneLight(random);
+
+            const vec3f lightDir = normalize(lp.lights[lightID].pos-pos);
+            //printf("(%i,%i): %f,%f,%f\n",lp.numLights,lightID,lp.lights[lightID].pos.x,lp.lights[lightID].pos.y,lp.lights[lightID].pos.z);
+
+            const float ld = length(lp.lights[lightID].pos-pos);
+
+            Ray shadowRay;
+            shadowRay.origin = pos;
+            shadowRay.direction = lightDir;
+            shadowRay.tmax = ld;
+
+            float t00 = 1e30f, t11 = -1e30f;
+
+            intersect(shadowRay,lp.modelBounds,t00,t11);
+            for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+              const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+              Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+              bool backFace=false;
+              float plane_t = FLT_MAX;
+
+              if (clipPlaneEnabled) {
+                plane_t = intersect(ray,plane,backFace);
+                if (plane_t > t00 && !backFace) t00 = max(t00,plane_t);
+                if (plane_t < t11 &&  backFace) t11 = min(plane_t,t11);
+              }
+            }
+
+            vec3f shadow_Le;
+            float shadow_Tr;
+            CollisionType shadow_ctype;
+            shadowRay.tmax = t11;
+
+            meshPRD = {-1,-1.f,{0.f},{0.f}};
+            if (lp.meshBVH) {
+              owl::traceRay(lp.meshBVH,shadowRay,meshPRD,
+                            OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+              if (meshPRD.primID >= 0) {
+                shadowRay.tmax = min(shadowRay.tmax,meshPRD.t_hit);
+              }
+            }
+
+            vec3f shadow_pos;
+            vec4f shadow_xf = 0.f; // albedo and extinction coefficient
+            sampleInteraction<SM,useDDA>(shadowRay,
+                                         sampler,
+                                         shadow_ctype,
+                                         shadow_pos,
+                                         shadow_Tr,
+                                         shadow_Le,
+                                         shadow_xf,
+                                         random);
+
+            if (ctype==Boundary && meshPRD.primID >= 0) {
+              throughput = max(0.f,dot(meshPRD.Ng,lightDir)) * albedo * shadow_Tr / (ld*ld) * lp.lights[lightID].intensity;
+            } else {
+              throughput *= albedo * shadow_Tr / (ld*ld) * lp.lights[lightID].intensity;
+            }
+          } else {
+            // Just assume we have a (1,1,1) ambient light
+            throughput *= albedo;
+            // Surfaces, shade them with a directional headlight
+            if (ctype==Boundary && meshPRD.primID >= 0) {
+              throughput *= fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
+            }
+          }
+        }
+      }
+
+      color = vec4f(throughput.x,throughput.y,throughput.z,1.f);
+      accumColor += color;
+    }
+
+
+    uint64_t clock_end = clock64();
+    if (lp.render.heatMapEnabled > 0.f) {
+      float t = (clock_end-clock_begin)*(lp.render.heatMapScale/spp);
+      accumColor = over(vec4f(heatMap(t),.5f),accumColor);
+    }
+
+    if (lp.accumID > 0)
+      accumColor += vec4f(lp.accumBuffer[pixelID]);
+    lp.accumBuffer[pixelID] = accumColor;
+    accumColor *= (1.f/(lp.accumID+1));
+
+    bool crossHairs = DEBUGGING && (owl::getLaunchIndex().x == owl::getLaunchDims().x/2
+                                 || owl::getLaunchIndex().y == owl::getLaunchDims().y/2);
+
+    const box2i si = subImageSelectionWin();
+    bool subImageSel = lp.subImage.selecting
+          && (((pixelIndex.x==si.lower.x || pixelIndex.x==si.upper.x) && (pixelIndex.y >= si.lower.y && pixelIndex.y <= si.upper.y))
+           || ((pixelIndex.y==si.lower.y || pixelIndex.y==si.upper.y) && (pixelIndex.x >= si.lower.x && pixelIndex.x <= si.upper.x)));
+
+    if (crossHairs || subImageSel) accumColor = vec4f(1.f) - accumColor;
+
+    lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
+  }
+
+  OPTIX_RAYGEN_PROGRAM(directLighting)()
+  {
+    auto& lp = optixLaunchParams;
+
+    if (lp.sampler==EXA_STITCH_SAMPLER) {
+      ExaStitchSampler sampler;
+      if (lp.shadeMode==1)
+        directLighting_Impl<Gridlets,true>(sampler);
+      else if (lp.shadeMode==2)
+        directLighting_Impl<Teaser,true>(sampler);
+      else
+        directLighting_Impl<Default,true>(sampler);
+    } else if (lp.sampler==AMR_CELL_SAMPLER) {
+      AMRCellSampler sampler;
+      directLighting_Impl<Default,true>(sampler);
+    } else if (lp.sampler==EXA_BRICK_SAMPLER) {
+      ExaBrickSampler sampler;
+      if (lp.majorantBVH)
+        directLighting_Impl<Default,false>(sampler);
+      else
+        directLighting_Impl<Default,true>(sampler);
     }
   }
 } // ::exa

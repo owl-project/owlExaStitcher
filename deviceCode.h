@@ -33,6 +33,7 @@ typedef owl::interval<float> range1f;
 #define SAMPLING_RAY_TYPE 1
 
 #define CLIP_PLANES_MAX 1
+#define LIGHTS_MAX      4
 
 #define EXA_STITCH_SAMPLER 0
 #define AMR_CELL_SAMPLER   1
@@ -144,6 +145,7 @@ namespace exa {
     int       accumID;
     int       shadeMode;
     int       sampler;
+    int       numLights;
     OptixTraversableHandle sampleBVH;
     OptixTraversableHandle meshBVH;
     OptixTraversableHandle majorantBVH;
@@ -190,6 +192,10 @@ namespace exa {
       vec3f N;
       float d;
     } clipPlanes[CLIP_PLANES_MAX];
+    struct {
+      vec3f pos;
+      float intensity;
+    } lights[LIGHTS_MAX];
   };
 
 } // ::exa

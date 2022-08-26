@@ -188,11 +188,13 @@ namespace exa {
 
   void ExaBrickModel::memStats(size_t &bricksBytes,
                                size_t &scalarsBytes,
-                               size_t &abrsBytes)
+                               size_t &abrsBytes,
+                               size_t &abrLeafListBytes)
   {
     bricksBytes = bricks.empty()   ? 0 : bricks.size()*sizeof(bricks[0]);
     scalarsBytes = scalars.empty() ? 0 : scalars.size()*sizeof(scalars[0]);
     abrsBytes = abrs.value.empty() ? 0 : abrs.value.size()*sizeof(abrs.value[0]);
+    abrLeafListBytes = abrs.leafList.empty() ? 0 : abrs.leafList.size()*sizeof(abrs.leafList[0]);
   }
 
 } // ::exa

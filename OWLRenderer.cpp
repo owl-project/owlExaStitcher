@@ -41,6 +41,7 @@ namespace exa {
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
+     { "numLights", OWL_INT, OWL_OFFSETOF(LaunchParams,numLights)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
@@ -73,6 +74,15 @@ namespace exa {
      { "clipPlane1.enabled",     OWL_INT,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].enabled) },
      { "clipPlane1.N",     OWL_FLOAT3,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].N) },
      { "clipPlane1.d",     OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,clipPlanes[1].d) },
+     // lights
+     { "light0.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[0].pos)},
+     { "light0.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[0].intensity)},
+     { "light1.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[1].pos)},
+     { "light1.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[1].intensity)},
+     { "light2.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[2].pos)},
+     { "light2.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[2].intensity)},
+     { "light3.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[3].pos)},
+     { "light3.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[3].intensity)},
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -137,6 +147,7 @@ namespace exa {
       size_t exaBrickBytes = 0;
       size_t exaScalarBytes = 0;
       size_t abrBytes = 0;
+      size_t abrLeafListBytes = 0;
       size_t amrCellBytes = 0;
       size_t amrScalarBytes = 0;
       size_t meshIndexBytes = 0;
@@ -148,7 +159,7 @@ namespace exa {
 
       exaStitchModel->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
                                emptyScalarsBytes,nonEmptyScalarsBytes);
-      exaBrickModel->memStats(exaBrickBytes,exaScalarBytes,abrBytes);
+      exaBrickModel->memStats(exaBrickBytes,exaScalarBytes,abrBytes,abrLeafListBytes);
       amrCellModel->memStats(amrCellBytes,amrScalarBytes);
 
       size_t totalBytes = elemVertexBytes+elemIndexBytes+emptyScalarsBytes+nonEmptyScalarsBytes
@@ -167,6 +178,7 @@ namespace exa {
       std::cout << "EXA bricks..........: " << owl::prettyBytes(exaBrickBytes) << '\n';
       std::cout << "EXA scalars.........: " << owl::prettyBytes(exaScalarBytes) << '\n';
       std::cout << "EXA ABRs............: " << owl::prettyBytes(abrBytes) << '\n';
+      std::cout << "EXA ABR leaf list...: " << owl::prettyBytes(abrLeafListBytes) << '\n';
       std::cout << "mesh.vertex.........: " << owl::prettyBytes(meshVertexBytes) << '\n';
       std::cout << "mesh.index..........: " << owl::prettyBytes(meshIndexBytes) << '\n';
       std::cout << "TOTAL...............: " << owl::prettyBytes(totalBytes) << '\n';
@@ -177,7 +189,8 @@ namespace exa {
     owlContextSetRayTypeCount(owl,2);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
-    rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
+    directLightingRayGen = owlRayGenCreate(owl,module,"directLighting",sizeof(RayGen),rayGenVars,-1);
+    pathTraceRayGen = owlRayGenCreate(owl,module,"pathTrace",sizeof(RayGen),rayGenVars,-1);
 
 
     // ==================================================================
@@ -357,7 +370,23 @@ namespace exa {
     owlParamsSet1i(lp,"render.heatMapEnabled",heatMapEnabled);
     owlParamsSet1f(lp,"render.heatMapScale",heatMapScale);
 
-    owlLaunch2D(rayGen,fbSize.x,fbSize.y,lp);
+    switch (type) {
+      default:
+      case Type::PathTracer: {
+        owlLaunch2D(pathTraceRayGen,fbSize.x,fbSize.y,lp);
+        break;
+      }
+      case Type::DirectLighting: {
+        owlLaunch2D(directLightingRayGen,fbSize.x,fbSize.y,lp);
+        break;
+      }
+    }
+  }
+
+  void OWLRenderer::setType(const OWLRenderer::Type t)
+  {
+    type = t;
+    accumID = 0;
   }
 
   void OWLRenderer::setColorMap(const std::vector<vec4f> &newCM)
@@ -512,6 +541,17 @@ namespace exa {
     owlParamsSet2f(lp,"subImage.selection.lower",si.lower.x,si.lower.y);
     owlParamsSet2f(lp,"subImage.selection.upper",si.upper.x,si.upper.y);
     owlParamsSet1i(lp,"subImage.selecting",(int)active);
+    accumID = 0;
+  }
+
+  void OWLRenderer::setLightSource(int lightID, const owl::vec3f &pos, float intensity)
+  {
+    numLights = max(numLights,lightID+1);
+    if (lightID==0) {
+      owlParamsSet3f(lp,"light0.pos",pos.x,pos.y,pos.z);
+      owlParamsSet1f(lp,"light0.intensity",intensity);
+      owlParamsSet1i(lp,"numLights",numLights);
+    } else assert(0); // TODO!
     accumID = 0;
   }
 

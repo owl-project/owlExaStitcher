@@ -16,43 +16,40 @@
 
 #pragma once
 
-#include <vector>
-#include "ABRs.h"
-#include "deviceCode.h"
-#include "Model.h"
+#include <QObject>
+#include <owl/common/math/vec.h>
 
 namespace exa {
+  
+  class LightInteractor : public QObject
+  {
+    Q_OBJECT
+  public:
 
-  struct ExaBrickModel : Model {
-    typedef std::shared_ptr<ExaBrickModel> SP;
+    void setWorldScale(const float s);
 
-    static ExaBrickModel::SP load(const std::string brickFileName,
-                                  const std::string scalarFileName);
+    void update(const float *view, const float *proj, const owl::vec2i fbSize);
 
-    std::vector<ExaBrick> bricks;
-    std::vector<float>    scalars;
-    ABRs                  abrs;
+    void draw() const;
 
-    // owl
-    OWLGeomType geomType;
-    OWLGroup    blas;
-    OWLGroup    tlas;
-    OWLBuffer   abrBuffer;
-    OWLBuffer   brickBuffer;
-    OWLBuffer   scalarBuffer;
-    OWLBuffer   abrLeafListBuffer;
-    OWLBuffer   maxOpacities;
+    void mouseButtonLeft(const owl::vec2i &where, bool pressed);
+    void mouseDragLeft(const owl::vec2i &where, const owl::vec2i &delta);
 
-    bool initGPU(OWLContext, OWLModule module);
+    void setPos(const owl::vec3f p);
 
-    // Compute per-ABR max opacities on the GPU
-    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+    void toggleActive() { active_ = !active_; }
+    bool active() const { return active_; }
+    bool hasFocus() const { return true; }
 
-    // Statistics
-    void memStats(size_t &bricksBytes,
-                  size_t &scalarsBytes,
-                  size_t &abrsBytes,
-                  size_t &abrLeafListBytes);
+  signals:
+    void lightPosChanged(owl::vec3f);
+  private:
+    owl::vec3f pos{ 0.f };
+    bool active_;
+    float scale = 3.f;
+    float view[16];
+    float proj[16];
+    owl::vec2i fbSize;
   };
 
 } // ::exa

@@ -26,6 +26,8 @@ namespace exa {
 
   struct OWLRenderer
   {
+    enum class Type { PathTracer, DirectLighting, RayMarcher, };
+
     OWLRenderer(const std::string umeshFileName,
                 const std::string gridsFileName = "",
                 const std::string amrCellFileName = "",
@@ -43,6 +45,8 @@ namespace exa {
     void resize(const vec2i &newSize);
     void render(uint32_t *fbPointer);
 
+    void setType(const Type t);
+
     void setColorMap(const std::vector<vec4f> &newCM);
     void setRange(interval<float> xfDomain);
     void setRelDomain(interval<float> relDomain);
@@ -56,13 +60,18 @@ namespace exa {
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);
 
+    void setLightSource(int lightID, const owl::vec3f &pos, float intensity);
+
     void setNumMCs(const vec3i numMCs);
     void buildGrid();
 
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;
-    OWLRayGen  rayGen;
+    OWLRayGen  directLightingRayGen;
+    OWLRayGen  pathTraceRayGen;
+
+    Type type = Type::DirectLighting;
 
     struct {
       OWLGeomType geomType;
@@ -84,6 +93,8 @@ namespace exa {
     Grid grid;
     vec3i numMCs { 128, 128, 128 };
     bool useDDA = true;
+
+    int numLights = 0;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

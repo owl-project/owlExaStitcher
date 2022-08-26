@@ -24,6 +24,7 @@
 #include <QSlider>
 #include "qtOWL/OWLViewer.h"
 #include "qtOWL/XFEditor.h"
+#include "LightInteractor.h"
 #include "OWLRenderer.h"
 
 #define DUMP_FRAMES 0
@@ -55,7 +56,13 @@ namespace exa {
       vec3f N{0,0,1};
       float d{1000.f};
     } clipPlanes[CLIP_PLANES_MAX];
+    int rendererType = 0;
     int shadeMode = 0;
+    struct {
+      vec3f pos{0,0,0};
+      float intensity{ 0.f };
+      bool on = false;
+    } lights[1];
     vec3i numMCs{128,128,128};
     vec2i windowSize  = vec2i(1024,1024);
     float dt = .5f;
@@ -187,6 +194,9 @@ namespace exa {
       case 'H':
         renderer->heatMapEnabled = !renderer->heatMapEnabled;
         break;
+      case 'l':
+        emit lightEdittingToggled();
+        break;
       case '<':
         renderer->heatMapScale /= 1.5f;
         break;
@@ -238,6 +248,20 @@ namespace exa {
           renderer->setSubImageSelection({},false); // deactivate selection
         }
         downPos = where;
+      } else if (lightInteractor.active()) {
+        float distToCenter = length(renderer->modelBounds.center() - camera.getFrom());
+        float zNear = distToCenter - length(renderer->modelBounds.span())/2.f;
+        float zFar  = distToCenter + length(renderer->modelBounds.span())/2.f;
+        Mat4 view = lookAt(camera.getFrom(),
+                           camera.getAt(),
+                           camera.getUp());
+        Mat4 proj = perspective(camera.getFovyInDegrees()*M_PI/180.f,
+                                float(fbSize.x)/fbSize.y,
+                                zNear,zFar);
+
+        
+        lightInteractor.update(view.m,proj.m,fbSize);
+        lightInteractor.mouseButtonLeft(where,pressed);
       } else {
         inherited::mouseButtonLeft(where,pressed);
       }
@@ -271,6 +295,8 @@ namespace exa {
                                vec2f(subImageWin.upper)/vec2f(size));
         renderer->setSubImageSelection(subImageUV,true);
         emit subImageSelectionChanged(subImageUV);
+      } else if (lightInteractor.active()) {
+        lightInteractor.mouseDragLeft(where,delta);
       } else {
         inherited::mouseDragLeft(where,delta);
       }
@@ -279,11 +305,13 @@ namespace exa {
   signals:
     void subImageChanged(box2f subImageUV);
     void subImageSelectionChanged(box2f subImageUV);
+    void lightEdittingToggled();
 
   public slots:
     void colorMapChanged(qtOWL::XFEditor *xf);
     void rangeChanged(range1f r);
     void opacityScaleChanged(double scale);
+    void lightPosChanged(owl::vec3f pos);
 
   public:
 
@@ -294,6 +322,7 @@ namespace exa {
     bool subImageSelecting = false;
     std::vector<box2f> subImageUndoStack;
     size_t subImageUndoStackTop = 0;
+    LightInteractor lightInteractor;
 
     enum class SubImageSelectionContraint {
       KeepAspect,Square,Free,
@@ -395,12 +424,16 @@ namespace exa {
     inherited::draw();
 
     const Camera &camera = inherited::getCamera();
+
+    float distToCenter = length(renderer->modelBounds.center() - camera.getFrom());
+    float zNear = distToCenter - length(renderer->modelBounds.span())/2.f;
+    float zFar  = distToCenter + length(renderer->modelBounds.span())/2.f;
     Mat4 view = lookAt(camera.getFrom(),
                        camera.getAt(),
                        camera.getUp());
     Mat4 proj = perspective(camera.getFovyInDegrees()*M_PI/180.f,
                             float(fbSize.x)/fbSize.y,
-                            .001f,100000.f);
+                            zNear,zFar);
 
     
     glViewport(0, 0, fbSize.x, fbSize.y);
@@ -454,6 +487,9 @@ namespace exa {
     }
 
     glPopAttrib();
+
+    if (lightInteractor.active())
+      lightInteractor.draw();
   }
 
   void Viewer::colorMapChanged(qtOWL::XFEditor *xfEditor)
@@ -476,6 +512,18 @@ namespace exa {
   {
     renderer->setOpacityScale((float)scale);
     renderer->resetAccum();
+  }
+
+  void Viewer::lightPosChanged(owl::vec3f pos)
+  {
+    renderer->setLightSource(0,pos,cmdline.lights[0].intensity);
+    std::ios_base::fmtflags f(std::cout.flags());
+    std::cout << std::fixed;
+    std::cout << "Cmdline: \"--light "
+              << pos.x << ' ' << pos.y << ' ' << pos.z << ' '
+              << cmdline.lights[0].intensity
+              << "\"\n";
+    std::cout.flags(f);
   }
 
 
@@ -553,6 +601,9 @@ namespace exa {
         cmdline.clipPlanes[P].N.z = std::stof(argv[++i]);
         cmdline.clipPlanes[P].d   = std::stof(argv[++i]);
       }
+      else if (arg == "-rt") {
+        cmdline.rendererType = std::atoi(argv[++i]);
+      }
       else if (arg == "-sm") {
         cmdline.shadeMode = std::atoi(argv[++i]);
       }
@@ -560,6 +611,13 @@ namespace exa {
         cmdline.numMCs.x = std::atoi(argv[++i]);
         cmdline.numMCs.y = std::atoi(argv[++i]);
         cmdline.numMCs.z = std::atoi(argv[++i]);
+      }
+      else if (arg == "--light") {
+        cmdline.lights[0].pos.x     = std::stof(argv[++i]);
+        cmdline.lights[0].pos.y     = std::stof(argv[++i]);
+        cmdline.lights[0].pos.z     = std::stof(argv[++i]);
+        cmdline.lights[0].intensity = std::stof(argv[++i]);
+        cmdline.lights[0].on = true;
       }
       else 
         usage("unknown cmdline arg '"+arg+"'");
@@ -599,6 +657,7 @@ namespace exa {
                                   /*fovy(deg)*/70.f);
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
+    viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
 
     renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
     renderer.setColorMap(renderer.xf.colorMap);
@@ -610,7 +669,15 @@ namespace exa {
                             cmdline.clipPlanes[i].d);
     }
 
+    renderer.setType((OWLRenderer::Type)cmdline.rendererType);
     renderer.setShadeMode(cmdline.shadeMode);
+    if (!cmdline.lights[0].on) {
+      cmdline.lights[0].pos = modelBounds.upper;
+      cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
+      cmdline.lights[0].on = true;
+    }
+    renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity);
+    viewer.lightInteractor.setPos(cmdline.lights[0].pos);
 
     if (!cmdline.subImage.empty())
       renderer.setSubImage(cmdline.subImage,true);
@@ -624,6 +691,8 @@ namespace exa {
                      &viewer, &Viewer::rangeChanged);
     QObject::connect(xfEditor,&qtOWL::XFEditor::opacityScaleChanged,
                      &viewer, &Viewer::opacityScaleChanged);
+    QObject::connect(&viewer.lightInteractor,&LightInteractor::lightPosChanged,
+                     &viewer, &Viewer::lightPosChanged);
 
     viewer.xfEditor = xfEditor;
 
@@ -644,14 +713,38 @@ namespace exa {
     QGroupBox *renderSettingsBox = new QGroupBox("Render Settings");
     vlayout.addWidget(renderSettingsBox);
 
-    QComboBox *shadeModeSelection = new QComboBox;
-    for (int i=0; i<renderer.shadeModes().size(); ++i) {
-      shadeModeSelection->addItem(renderer.shadeModes()[i].c_str());
-    }
-    shadeModeSelection->setCurrentIndex(cmdline.shadeMode);
+    // Renderer type
+    QHBoxLayout rendererTypeLayout;
+    QLabel rendererTypeLabel("Renderer: ");
+    QComboBox rendererTypeSelection;
+    rendererTypeSelection.addItem("Path Tracer");
+    rendererTypeSelection.addItem("Direct Lighting Renderer");
+    //rendererTypeSelection.addItem("A+E Ray Marcher");
+    rendererTypeSelection.setCurrentIndex(cmdline.rendererType);
+    rendererTypeLayout.addWidget(&rendererTypeLabel);
+    rendererTypeLayout.addWidget(&rendererTypeSelection);
 
+
+    // Shade mode
+    QHBoxLayout shadeModeLayout;
+    QLabel shadeModeLabel("Shade Mode: ");
+    QComboBox shadeModeSelection;
+    for (int i=0; i<renderer.shadeModes().size(); ++i) {
+      shadeModeSelection.addItem(renderer.shadeModes()[i].c_str());
+    }
+    shadeModeSelection.setCurrentIndex(cmdline.shadeMode);
+    shadeModeLayout.addWidget(&shadeModeLabel);
+    shadeModeLayout.addWidget(&shadeModeSelection);
+
+    // Light source
+    QCheckBox editLightEnabled("Edit Light Pos");
+    editLightEnabled.setCheckState(Qt::Unchecked);
+
+    // Add layouts
     QVBoxLayout settingsvlayout(renderSettingsBox);
-    settingsvlayout.addWidget(shadeModeSelection);
+    settingsvlayout.addLayout(&rendererTypeLayout);
+    settingsvlayout.addLayout(&shadeModeLayout);
+    settingsvlayout.addWidget(&editLightEnabled);
 
     // ==================================================================
     // Sub image
@@ -773,11 +866,26 @@ namespace exa {
       return (1.f-d01) * f0 + d01*f1;
     };
 
+    // Renderer type select
+    QObject::connect(&rendererTypeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+      [&](int item) {
+        renderer.setType((OWLRenderer::Type)item);
+      });
+
     // Shade mode select
-    QObject::connect(shadeModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+    QObject::connect(&shadeModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         renderer.setShadeMode(item);
       });
+
+    // Light pos editing enabled
+    QObject::connect(&editLightEnabled, qOverload<int>(&QCheckBox::stateChanged),
+      [&](int state) {
+        viewer.lightInteractor.toggleActive();
+      });
+
+    // Light pos editing toggled via key press
+    QObject::connect(&viewer, &Viewer::lightEdittingToggled, &editLightEnabled, &QCheckBox::toggle);
 
     // Clip plane select
     QObject::connect(clipPlaneSelection, qOverload<int>(&QComboBox::currentIndexChanged),
