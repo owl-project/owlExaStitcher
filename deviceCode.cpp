@@ -1307,7 +1307,7 @@ namespace exa {
 
         // left the volume?
         if (ctype==Boundary && meshPRD.primID < 0) {
-
+          color = bgColor;
         } else {
           vec3f albedo;
           if (ctype==Boundary && meshPRD.primID >= 0) {
@@ -1328,10 +1328,12 @@ namespace exa {
               throughput *= fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
             }
           }
+          color = vec4f(throughput,1.f);
         }
+      } else {
+        color = bgColor;
       }
 
-      color = vec4f(throughput.x,throughput.y,throughput.z,1.f);
       accumColor += color;
     }
 
