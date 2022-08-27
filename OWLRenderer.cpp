@@ -41,7 +41,6 @@ namespace exa {
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
-     { "numLights", OWL_INT, OWL_OFFSETOF(LaunchParams,numLights)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
@@ -77,12 +76,16 @@ namespace exa {
      // lights
      { "light0.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[0].pos)},
      { "light0.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[0].intensity)},
+     { "light0.on", OWL_INT, OWL_OFFSETOF(LaunchParams,lights[0].on)},
      { "light1.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[1].pos)},
      { "light1.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[1].intensity)},
+     { "light1.on", OWL_INT, OWL_OFFSETOF(LaunchParams,lights[1].on)},
      { "light2.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[2].pos)},
      { "light2.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[2].intensity)},
+     { "light2.on", OWL_INT, OWL_OFFSETOF(LaunchParams,lights[2].on)},
      { "light3.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[3].pos)},
      { "light3.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[3].intensity)},
+     { "light3.on", OWL_INT, OWL_OFFSETOF(LaunchParams,lights[3].on)},
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -328,6 +331,10 @@ namespace exa {
     owlParamsSet1i(lp,"subImage.selecting",0);
 
     owlParamsSet1i(lp,"shadeMode",0);
+    owlParamsSet1i(lp,"light0.on",0);
+    owlParamsSet1i(lp,"light1.on",0);
+    owlParamsSet1i(lp,"light2.on",0);
+    owlParamsSet1i(lp,"light3.on",0);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -544,13 +551,12 @@ namespace exa {
     accumID = 0;
   }
 
-  void OWLRenderer::setLightSource(int lightID, const owl::vec3f &pos, float intensity)
+  void OWLRenderer::setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on)
   {
-    numLights = max(numLights,lightID+1);
     if (lightID==0) {
       owlParamsSet3f(lp,"light0.pos",pos.x,pos.y,pos.z);
       owlParamsSet1f(lp,"light0.intensity",intensity);
-      owlParamsSet1i(lp,"numLights",numLights);
+      owlParamsSet1i(lp,"light0.on",(int)on);
     } else assert(0); // TODO!
     accumID = 0;
   }

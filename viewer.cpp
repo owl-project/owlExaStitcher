@@ -516,7 +516,7 @@ namespace exa {
 
   void Viewer::lightPosChanged(owl::vec3f pos)
   {
-    renderer->setLightSource(0,pos,cmdline.lights[0].intensity);
+    renderer->setLightSource(0,pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
     std::ios_base::fmtflags f(std::cout.flags());
     std::cout << std::fixed;
     std::cout << "Cmdline: \"--light "
@@ -674,9 +674,8 @@ namespace exa {
     if (!cmdline.lights[0].on) {
       cmdline.lights[0].pos = modelBounds.upper;
       cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
-      cmdline.lights[0].on = true;
     }
-    renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity);
+    renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
     viewer.lightInteractor.setPos(cmdline.lights[0].pos);
 
     if (!cmdline.subImage.empty())
@@ -737,14 +736,19 @@ namespace exa {
     shadeModeLayout.addWidget(&shadeModeSelection);
 
     // Light source
+    QHBoxLayout light0Layout;
+    QCheckBox light0Enabled("Enable Light");
+    light0Enabled.setCheckState(Qt::Unchecked);
     QCheckBox editLightEnabled("Edit Light Pos");
     editLightEnabled.setCheckState(Qt::Unchecked);
+    light0Layout.addWidget(&light0Enabled);
+    light0Layout.addWidget(&editLightEnabled);
 
     // Add layouts
     QVBoxLayout settingsvlayout(renderSettingsBox);
     settingsvlayout.addLayout(&rendererTypeLayout);
     settingsvlayout.addLayout(&shadeModeLayout);
-    settingsvlayout.addWidget(&editLightEnabled);
+    settingsvlayout.addLayout(&light0Layout);
 
     // ==================================================================
     // Sub image
@@ -886,6 +890,15 @@ namespace exa {
 
     // Light pos editing toggled via key press
     QObject::connect(&viewer, &Viewer::lightEdittingToggled, &editLightEnabled, &QCheckBox::toggle);
+
+    // light0 enabled
+    QObject::connect(&light0Enabled, qOverload<int>(&QCheckBox::stateChanged),
+      [&](int state) {
+        cmdline.lights[0].on = state;
+        viewer.renderer->setLightSource(0,cmdline.lights[0].pos,
+                                        cmdline.lights[0].intensity,
+                                        cmdline.lights[0].on);
+      });
 
     // Clip plane select
     QObject::connect(clipPlaneSelection, qOverload<int>(&QComboBox::currentIndexChanged),

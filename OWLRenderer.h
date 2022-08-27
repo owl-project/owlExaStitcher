@@ -60,7 +60,7 @@ namespace exa {
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);
 
-    void setLightSource(int lightID, const owl::vec3f &pos, float intensity);
+    void setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on);
 
     void setNumMCs(const vec3i numMCs);
     void buildGrid();
@@ -93,8 +93,6 @@ namespace exa {
     Grid grid;
     vec3i numMCs { 128, 128, 128 };
     bool useDDA = true;
-
-    int numLights = 0;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

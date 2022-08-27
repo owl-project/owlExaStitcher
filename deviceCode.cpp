@@ -108,9 +108,18 @@ namespace exa {
                  (b&255)/255.f);
   }
 
-  inline __device__ int uniformSampleOneLight(Random &rnd)
+  inline __device__ int getNumLights()
   {
-    const int numLights = optixLaunchParams.numLights;
+    auto &lp = optixLaunchParams;
+    int numLights = 0;
+    for (int i=0; i<LIGHTS_MAX; ++i) {
+      if (lp.lights[i].on) numLights++;
+    }
+    return numLights;
+  }
+
+  inline __device__ int uniformSampleOneLight(Random &rnd, int numLights)
+  {
     int which = int(rnd() * numLights); if (which == numLights) which = 0;
     return which;
   }
@@ -899,11 +908,12 @@ namespace exa {
   inline __device__
   vec3f sampleLight(const vec3f    pos,
                     Sampler        sampler,
-                    Random        &random)
+                    Random        &random,
+                    int            numLights)
   {
     auto &lp = optixLaunchParams;
 
-    int lightID = uniformSampleOneLight(random);
+    int lightID = uniformSampleOneLight(random,numLights);
 
     const vec3f lightDir = normalize(lp.lights[lightID].pos-pos);
     //printf("(%i,%i): %f,%f,%f\n",lp.numLights,lightID,lp.lights[lightID].pos.x,lp.lights[lightID].pos.y,lp.lights[lightID].pos.z);
@@ -1032,6 +1042,7 @@ namespace exa {
     auto& lp = optixLaunchParams;
 
     vec4f bgColor = vec4f(backGroundColor(),1.f);
+    const int numLights = getNumLights();
     const int spp = lp.render.spp;
     const vec2i pixelIndex = owl::getLaunchIndex();
     int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
@@ -1128,8 +1139,8 @@ namespace exa {
 
           throughput += Le;
 
-          if (lp.numLights > 0) {
-            Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random);
+          if (numLights > 0) {
+            Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random,numLights);
           }
 
           // Sample BRDF or phase function
@@ -1162,7 +1173,7 @@ namespace exa {
         }
       }
 
-      if (lp.numLights==0) { // ambient light!
+      if (numLights==0) { // ambient light!
         Ld = 1.f;
       }
 
@@ -1232,6 +1243,7 @@ namespace exa {
     auto& lp = optixLaunchParams;
 
     vec4f bgColor = vec4f(backGroundColor(),1.f);
+    const int numLights = getNumLights();
     const int spp = lp.render.spp;
     const vec2i pixelIndex = owl::getLaunchIndex();
     int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
@@ -1306,8 +1318,8 @@ namespace exa {
             albedo = vec3f(xf);
           }
 
-          if (lp.numLights > 0) {
-            throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random);
+          if (numLights > 0) {
+            throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random,numLights);
           } else {
             // Just assume we have a (1,1,1) ambient light
             throughput *= albedo;

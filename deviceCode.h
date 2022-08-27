@@ -145,7 +145,6 @@ namespace exa {
     int       accumID;
     int       shadeMode;
     int       sampler;
-    int       numLights;
     OptixTraversableHandle sampleBVH;
     OptixTraversableHandle meshBVH;
     OptixTraversableHandle majorantBVH;
@@ -195,6 +194,7 @@ namespace exa {
     struct {
       vec3f pos;
       float intensity;
+      int   on;
     } lights[LIGHTS_MAX];
   };
 
