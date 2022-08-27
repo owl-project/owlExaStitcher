@@ -895,6 +895,74 @@ namespace exa {
 
   }
 
+  template <ShadeMode SM, bool useDDA, typename Sampler>
+  inline __device__
+  vec3f sampleLight(const vec3f    pos,
+                    Sampler        sampler,
+                    Random        &random)
+  {
+    auto &lp = optixLaunchParams;
+
+    int lightID = uniformSampleOneLight(random);
+
+    const vec3f lightDir = normalize(lp.lights[lightID].pos-pos);
+    //printf("(%i,%i): %f,%f,%f\n",lp.numLights,lightID,lp.lights[lightID].pos.x,lp.lights[lightID].pos.y,lp.lights[lightID].pos.z);
+
+    const float ld = length(lp.lights[lightID].pos-pos);
+
+    Ray ray;
+    ray.origin = pos;
+    ray.direction = lightDir;
+    ray.tmax = ld;
+
+    float t00 = 1e30f, t11 = -1e30f;
+
+    intersect(ray,lp.modelBounds,t00,t11);
+    for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+      const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+      Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+      bool backFace=false;
+      float plane_t = FLT_MAX;
+
+      if (clipPlaneEnabled) {
+        plane_t = intersect(ray,plane,backFace);
+        if (plane_t > t00 && !backFace) t00 = max(t00,plane_t);
+        if (plane_t < t11 &&  backFace) t11 = min(plane_t,t11);
+      }
+    }
+
+    ray.tmax = t11;
+
+    MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
+    if (lp.meshBVH) {
+      owl::traceRay(lp.meshBVH,ray,meshPRD,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      if (meshPRD.primID >= 0) {
+        ray.tmax = min(ray.tmax,meshPRD.t_hit);
+      }
+    }
+
+    vec3f Le;
+    CollisionType ctype;
+    vec3f newPos;
+    float Tr;
+    vec4f xf = 0.f; // albedo and extinction coefficient (ignored)
+    sampleInteraction<SM,useDDA>(ray,
+                                 sampler,
+                                 ctype,
+                                 newPos,
+                                 Tr,
+                                 Le,
+                                 xf,
+                                 random);
+
+    if (ctype==Boundary && meshPRD.primID >= 0) {
+      return max(0.f,dot(meshPRD.Ng,lightDir)) * Tr / (ld*ld) * lp.lights[lightID].intensity;
+    } else {
+      return Tr / (ld*ld) * lp.lights[lightID].intensity;
+    }
+  }
+
   // ------------------------------------------------------------------
   // Lambertian BRDF
   // ------------------------------------------------------------------
@@ -987,6 +1055,7 @@ namespace exa {
       }
       Ray ray = generateRay(screen);
       vec3f throughput = 1.f;
+      vec3f Ld = 0.f;
       unsigned bounce = 0;
 
       float t0 = 1e30f, t1 = -1e30f;
@@ -1059,6 +1128,10 @@ namespace exa {
 
           throughput += Le;
 
+          if (lp.numLights > 0) {
+            Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random);
+          }
+
           // Sample BRDF or phase function
           vec3f scatterDir;
           float pdf;
@@ -1089,8 +1162,12 @@ namespace exa {
         }
       }
 
-      color = 1.f;//over(color,bgColor);
-      color *= vec4f(throughput.x,throughput.y,throughput.z,1.f);
+      if (lp.numLights==0) { // ambient light!
+        Ld = 1.f;
+      }
+
+      vec3f L = Ld * throughput;
+      color = vec4f(L,1.f);
       color = bounce ? color : bgColor;
       accumColor += color;
     }
@@ -1230,64 +1307,7 @@ namespace exa {
           }
 
           if (lp.numLights > 0) {
-            int lightID = uniformSampleOneLight(random);
-
-            const vec3f lightDir = normalize(lp.lights[lightID].pos-pos);
-            //printf("(%i,%i): %f,%f,%f\n",lp.numLights,lightID,lp.lights[lightID].pos.x,lp.lights[lightID].pos.y,lp.lights[lightID].pos.z);
-
-            const float ld = length(lp.lights[lightID].pos-pos);
-
-            Ray shadowRay;
-            shadowRay.origin = pos;
-            shadowRay.direction = lightDir;
-            shadowRay.tmax = ld;
-
-            float t00 = 1e30f, t11 = -1e30f;
-
-            intersect(shadowRay,lp.modelBounds,t00,t11);
-            for (int i=0; i<CLIP_PLANES_MAX; ++i) {
-              const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
-              Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
-              bool backFace=false;
-              float plane_t = FLT_MAX;
-
-              if (clipPlaneEnabled) {
-                plane_t = intersect(ray,plane,backFace);
-                if (plane_t > t00 && !backFace) t00 = max(t00,plane_t);
-                if (plane_t < t11 &&  backFace) t11 = min(plane_t,t11);
-              }
-            }
-
-            vec3f shadow_Le;
-            float shadow_Tr;
-            CollisionType shadow_ctype;
-            shadowRay.tmax = t11;
-
-            meshPRD = {-1,-1.f,{0.f},{0.f}};
-            if (lp.meshBVH) {
-              owl::traceRay(lp.meshBVH,shadowRay,meshPRD,
-                            OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-              if (meshPRD.primID >= 0) {
-                shadowRay.tmax = min(shadowRay.tmax,meshPRD.t_hit);
-              }
-            }
-
-            vec3f shadow_pos;
-            vec4f shadow_xf = 0.f; // albedo and extinction coefficient
-            sampleInteraction<SM,useDDA>(shadowRay,
-                                         sampler,
-                                         shadow_ctype,
-                                         shadow_pos,
-                                         shadow_Tr,
-                                         shadow_Le,
-                                         shadow_xf,
-                                         random);
-
-            if (ctype==Boundary && meshPRD.primID >= 0) {
-              throughput = max(0.f,dot(meshPRD.Ng,lightDir)) * albedo * shadow_Tr / (ld*ld) * lp.lights[lightID].intensity;
-            } else {
-              throughput *= albedo * shadow_Tr / (ld*ld) * lp.lights[lightID].intensity;
-            }
+            throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random);
           } else {
             // Just assume we have a (1,1,1) ambient light
             throughput *= albedo;
