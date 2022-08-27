@@ -39,6 +39,14 @@ typedef owl::interval<float> range1f;
 #define AMR_CELL_SAMPLER   1
 #define EXA_BRICK_SAMPLER  2
 
+#define PATH_TRACING_INTEGRATOR 0
+#define DIRECT_LIGHT_INTEGRATOR 1
+#define RAY_MARCHING_INTEGRATOR 2
+
+#define SHADE_MODE_DEFAULT  0
+#define SHADE_MODE_GRIDLETS 1
+#define SHADE_MODE_TEASER   2
+
 namespace exa {
   struct RayGen {
   };
@@ -143,6 +151,7 @@ namespace exa {
     float    *fbDepth;
     float4   *accumBuffer;
     int       accumID;
+    int       integrator;
     int       shadeMode;
     int       sampler;
     OptixTraversableHandle sampleBVH;

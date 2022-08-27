@@ -68,8 +68,7 @@ namespace exa {
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;
-    OWLRayGen  directLightingRayGen;
-    OWLRayGen  pathTraceRayGen;
+    OWLRayGen  rayGen;
 
     Type type = Type::DirectLighting;
 

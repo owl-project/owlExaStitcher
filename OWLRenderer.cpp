@@ -40,6 +40,7 @@ namespace exa {
      { "accumBuffer",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,accumBuffer) },
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
+     { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
@@ -192,8 +193,7 @@ namespace exa {
     owlContextSetRayTypeCount(owl,2);
     module = owlModuleCreate(owl,embedded_deviceCode);
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
-    directLightingRayGen = owlRayGenCreate(owl,module,"directLighting",sizeof(RayGen),rayGenVars,-1);
-    pathTraceRayGen = owlRayGenCreate(owl,module,"pathTrace",sizeof(RayGen),rayGenVars,-1);
+    rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
 
     // ==================================================================
@@ -377,22 +377,12 @@ namespace exa {
     owlParamsSet1i(lp,"render.heatMapEnabled",heatMapEnabled);
     owlParamsSet1f(lp,"render.heatMapScale",heatMapScale);
 
-    switch (type) {
-      default:
-      case Type::PathTracer: {
-        owlLaunch2D(pathTraceRayGen,fbSize.x,fbSize.y,lp);
-        break;
-      }
-      case Type::DirectLighting: {
-        owlLaunch2D(directLightingRayGen,fbSize.x,fbSize.y,lp);
-        break;
-      }
-    }
+    owlLaunch2D(rayGen,fbSize.x,fbSize.y,lp);
   }
 
-  void OWLRenderer::setType(const OWLRenderer::Type t)
+  void OWLRenderer::setType(const OWLRenderer::Type type)
   {
-    type = t;
+    owlParamsSet1i(lp,"integrator",(int)type);
     accumID = 0;
   }
 

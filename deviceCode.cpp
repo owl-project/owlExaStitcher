@@ -1033,260 +1033,44 @@ namespace exa {
   }
 
   // ------------------------------------------------------------------
-  // RAYGEN PathTracer
+  // Multi-scattering path tracing integration function
   // ------------------------------------------------------------------
 
   template <ShadeMode SM, bool useDDA,  typename Sampler>
-  __device__ inline void pathTrace_Impl(Sampler sampler)
+  inline __device__
+  vec4f pathTracingIntegrate(Ray          ray,
+                             Sampler      sampler,
+                             Random      &random,
+                             const vec4f  bgColor,
+                             int          numLights)
   {
     auto& lp = optixLaunchParams;
 
-    vec4f bgColor = vec4f(backGroundColor(),1.f);
-    const int numLights = getNumLights();
-    const int spp = lp.render.spp;
-    const vec2i pixelIndex = owl::getLaunchIndex();
-    int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
-    Random random(pixelID,lp.accumID);
-    uint64_t clock_begin = clock64();
-    vec4f accumColor = 0.f;
+    vec4f color = 0.f;
+    vec3f throughput = 1.f;
+    vec3f Ld = 0.f;
+    unsigned bounce = 0;
 
+    float t0 = 1e30f, t1 = -1e30f;
 
-    for (int sampleID=0;sampleID<spp;sampleID++) {
-      vec4f color = 0.f;
+    if (intersect(ray,lp.modelBounds,t0,t1)) {
+      for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+        const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+        Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+        bool backFace=false;
+        float plane_t = FLT_MAX;
 
-      float rx = random();
-      float ry = random();
-      vec2f screen = vec2f(pixelIndex)+vec2f(rx,ry);
-      if (lp.subImage.active) {
-        const vec2f size(owl::getLaunchDims());
-        screen /= size;
-        screen = (vec2f(1.f)-screen)*subImageUV().lower
-                            + screen*subImageUV().upper;
-        screen *= size;
-      }
-      Ray ray = generateRay(screen);
-      vec3f throughput = 1.f;
-      vec3f Ld = 0.f;
-      unsigned bounce = 0;
-
-      float t0 = 1e30f, t1 = -1e30f;
-
-      if (intersect(ray,lp.modelBounds,t0,t1)) {
-        for (int i=0; i<CLIP_PLANES_MAX; ++i) {
-          const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
-          Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
-          bool backFace=false;
-          float plane_t = FLT_MAX;
-
-          if (clipPlaneEnabled) {
-            plane_t = intersect(ray,plane,backFace);
-            if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
-            if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
-          }
-        }
-
-        ray.origin += ray.direction * t0;
-        t1 -= t0;
-
-        while (1) { // pathtracing loop
-          vec3f Le; // emission
-          float Tr; // transmittance
-          CollisionType ctype;
-          ray.tmax = t1;
-
-          MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
-          if (lp.meshBVH) {
-            owl::traceRay(lp.meshBVH,ray,meshPRD,
-                          OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-            if (meshPRD.primID >= 0) {
-              ray.tmax = min(ray.tmax,meshPRD.t_hit);
-            }
-          }
-
-          vec3f pos;
-          vec4f xf = 0.f; // albedo and extinction coefficient
-          sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
-
-          // left the volume?
-          if (ctype==Boundary && meshPRD.primID < 0)
-            break;
-
-          // max path lenght exceeded?
-          if (bounce++ >= 1024/*lp.maxBounces*/) {
-            throughput = 0.f;
-            break;
-          }
-
-          vec3f albedo;
-          if (ctype==Boundary && meshPRD.primID >= 0) {
-            constexpr float eps = 1.f;// finest cell size
-            pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
-            albedo = meshPRD.kd;
-          } else {
-            albedo = vec3f(xf);
-          }
-          throughput *= albedo;
-
-          // russian roulette absorption
-          float P = reduce_max(throughput);
-          if (P < .2f/*lp.rouletteProb*/) {
-            if (random() > P) {
-              throughput = 0.f;
-              break;
-            }
-            throughput /= P;
-          }
-
-          throughput += Le;
-
-          if (numLights > 0) {
-            Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random,numLights);
-          }
-
-          // Sample BRDF or phase function
-          vec3f scatterDir;
-          float pdf;
-          if (ctype==Boundary && meshPRD.primID >= 0) {
-            lambertianSample(meshPRD.Ng,-ray.direction,scatterDir,pdf,random);
-            throughput *= fmaxf(0.f,dot(scatterDir,meshPRD.Ng));
-            pos += 16.f*normalize(scatterDir);
-          } else {
-            float g = 0.f; // isotropic
-            henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
-          }
-          ray.origin    = pos;
-          ray.direction = scatterDir;
-
-          intersect(ray,lp.modelBounds,t0,t1);
-
-          for (int i=0; i<CLIP_PLANES_MAX; ++i) {
-            const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
-            Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
-            if (clipPlaneEnabled) {
-              bool backFace=false;
-              float plane_t = FLT_MAX;
-              plane_t = intersect(ray,plane,backFace);
-              if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
-              if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
-            }
-          }
+        if (clipPlaneEnabled) {
+          plane_t = intersect(ray,plane,backFace);
+          if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+          if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
         }
       }
 
-      if (numLights==0) { // ambient light!
-        Ld = 1.f;
-      }
+      ray.origin += ray.direction * t0;
+      t1 -= t0;
 
-      vec3f L = Ld * throughput;
-      color = vec4f(L,1.f);
-      color = bounce ? color : bgColor;
-      accumColor += color;
-    }
-
-
-    uint64_t clock_end = clock64();
-    if (lp.render.heatMapEnabled > 0.f) {
-      float t = (clock_end-clock_begin)*(lp.render.heatMapScale/spp);
-      accumColor = over(vec4f(heatMap(t),.5f),accumColor);
-    }
-
-    if (lp.accumID > 0)
-      accumColor += vec4f(lp.accumBuffer[pixelID]);
-    lp.accumBuffer[pixelID] = accumColor;
-    accumColor *= (1.f/(lp.accumID+1));
-
-    bool crossHairs = DEBUGGING && (owl::getLaunchIndex().x == owl::getLaunchDims().x/2
-                                 || owl::getLaunchIndex().y == owl::getLaunchDims().y/2);
-
-    const box2i si = subImageSelectionWin();
-    bool subImageSel = lp.subImage.selecting
-          && (((pixelIndex.x==si.lower.x || pixelIndex.x==si.upper.x) && (pixelIndex.y >= si.lower.y && pixelIndex.y <= si.upper.y))
-           || ((pixelIndex.y==si.lower.y || pixelIndex.y==si.upper.y) && (pixelIndex.x >= si.lower.x && pixelIndex.x <= si.upper.x)));
-
-    if (crossHairs || subImageSel) accumColor = vec4f(1.f) - accumColor;
-
-    lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
-  }
-
-  OPTIX_RAYGEN_PROGRAM(pathTrace)()
-  {
-    auto& lp = optixLaunchParams;
-
-    if (lp.sampler==EXA_STITCH_SAMPLER) {
-      ExaStitchSampler sampler;
-      if (lp.shadeMode==1)
-        pathTrace_Impl<Gridlets,true>(sampler);
-      else if (lp.shadeMode==2)
-        pathTrace_Impl<Teaser,true>(sampler);
-      else
-        pathTrace_Impl<Default,true>(sampler);
-    } else if (lp.sampler==AMR_CELL_SAMPLER) {
-      AMRCellSampler sampler;
-      pathTrace_Impl<Default,true>(sampler);
-    } else if (lp.sampler==EXA_BRICK_SAMPLER) {
-      ExaBrickSampler sampler;
-      if (lp.majorantBVH)
-        pathTrace_Impl<Default,false>(sampler);
-      else
-        pathTrace_Impl<Default,true>(sampler);
-    }
-  }
-
-
-  // ------------------------------------------------------------------
-  // RAYGEN DirectLighting
-  // ------------------------------------------------------------------
-
-  template <ShadeMode SM, bool useDDA,  typename Sampler>
-  __device__ inline void directLighting_Impl(Sampler sampler)
-  {
-    auto& lp = optixLaunchParams;
-
-    vec4f bgColor = vec4f(backGroundColor(),1.f);
-    const int numLights = getNumLights();
-    const int spp = lp.render.spp;
-    const vec2i pixelIndex = owl::getLaunchIndex();
-    int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
-    Random random(pixelID,lp.accumID);
-    uint64_t clock_begin = clock64();
-    vec4f accumColor = 0.f;
-
-
-    for (int sampleID=0;sampleID<spp;sampleID++) {
-      vec4f color = 0.f;
-
-      float rx = random();
-      float ry = random();
-      vec2f screen = vec2f(pixelIndex)+vec2f(rx,ry);
-      if (lp.subImage.active) {
-        const vec2f size(owl::getLaunchDims());
-        screen /= size;
-        screen = (vec2f(1.f)-screen)*subImageUV().lower
-                            + screen*subImageUV().upper;
-        screen *= size;
-      }
-      Ray ray = generateRay(screen);
-      vec3f throughput = 1.f;
-
-      float t0 = 1e30f, t1 = -1e30f;
-
-      if (intersect(ray,lp.modelBounds,t0,t1)) {
-        for (int i=0; i<CLIP_PLANES_MAX; ++i) {
-          const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
-          Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
-          bool backFace=false;
-          float plane_t = FLT_MAX;
-
-          if (clipPlaneEnabled) {
-            plane_t = intersect(ray,plane,backFace);
-            if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
-            if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
-          }
-        }
-
-        ray.origin += ray.direction * t0;
-        t1 -= t0;
-
+      while (1) { // pathtracing loop
         vec3f Le; // emission
         float Tr; // transmittance
         CollisionType ctype;
@@ -1306,35 +1090,217 @@ namespace exa {
         sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
 
         // left the volume?
-        if (ctype==Boundary && meshPRD.primID < 0) {
-          color = bgColor;
-        } else {
-          vec3f albedo;
-          if (ctype==Boundary && meshPRD.primID >= 0) {
-            constexpr float eps = 1.f;// finest cell size
-            pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
-            albedo = meshPRD.kd;
-          } else {
-            albedo = vec3f(xf);
-          }
+        if (ctype==Boundary && meshPRD.primID < 0)
+          break;
 
-          if (numLights > 0) {
-            throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random,numLights);
-          } else {
-            // Just assume we have a (1,1,1) ambient light
-            throughput *= albedo;
-            // Surfaces, shade them with a directional headlight
-            if (ctype==Boundary && meshPRD.primID >= 0) {
-              throughput *= fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
-            }
-          }
-          color = vec4f(throughput,1.f);
+        // max path lenght exceeded?
+        if (bounce++ >= 1024/*lp.maxBounces*/) {
+          throughput = 0.f;
+          break;
         }
-      } else {
-        color = bgColor;
+
+        vec3f albedo;
+        if (ctype==Boundary && meshPRD.primID >= 0) {
+          constexpr float eps = 1.f;// finest cell size
+          pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
+          albedo = meshPRD.kd;
+        } else {
+          albedo = vec3f(xf);
+        }
+        throughput *= albedo;
+
+        // russian roulette absorption
+        float P = reduce_max(throughput);
+        if (P < .2f/*lp.rouletteProb*/) {
+          if (random() > P) {
+            throughput = 0.f;
+            break;
+          }
+          throughput /= P;
+        }
+
+        throughput += Le;
+
+        if (numLights > 0) {
+          Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random,numLights);
+        }
+
+        // Sample BRDF or phase function
+        vec3f scatterDir;
+        float pdf;
+        if (ctype==Boundary && meshPRD.primID >= 0) {
+          lambertianSample(meshPRD.Ng,-ray.direction,scatterDir,pdf,random);
+          throughput *= fmaxf(0.f,dot(scatterDir,meshPRD.Ng));
+          pos += 16.f*normalize(scatterDir);
+        } else {
+          float g = 0.f; // isotropic
+          henyeyGreensteinSample(-ray.direction,scatterDir,pdf,g,random);
+        }
+        ray.origin    = pos;
+        ray.direction = scatterDir;
+
+        intersect(ray,lp.modelBounds,t0,t1);
+
+        for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+          const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+          Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+          if (clipPlaneEnabled) {
+            bool backFace=false;
+            float plane_t = FLT_MAX;
+            plane_t = intersect(ray,plane,backFace);
+            if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+            if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+          }
+        }
+      }
+    }
+
+    if (numLights==0) { // ambient light!
+      Ld = 1.f;
+    }
+
+    vec3f L = Ld * throughput;
+    color = vec4f(L,1.f);
+    color = bounce ? color : bgColor;
+
+    return color;
+  }
+
+  // ------------------------------------------------------------------
+  // Single-scattering/direct lighting integration function
+  // ------------------------------------------------------------------
+
+  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  inline __device__
+  vec4f directLightingIntegrate(Ray          ray,
+                                Sampler      sampler,
+                                Random      &random,
+                                const vec4f  bgColor,
+                                int          numLights)
+  {
+    auto& lp = optixLaunchParams;
+
+    vec4f color = 0.f;
+    vec3f throughput = 1.f;
+
+    float t0 = 1e30f, t1 = -1e30f;
+
+    if (intersect(ray,lp.modelBounds,t0,t1)) {
+      for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+        const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+        Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+        bool backFace=false;
+        float plane_t = FLT_MAX;
+
+        if (clipPlaneEnabled) {
+          plane_t = intersect(ray,plane,backFace);
+          if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+          if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+        }
       }
 
-      accumColor += color;
+      ray.origin += ray.direction * t0;
+      t1 -= t0;
+
+      vec3f Le; // emission
+      float Tr; // transmittance
+      CollisionType ctype;
+      ray.tmax = t1;
+
+      MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
+      if (lp.meshBVH) {
+        owl::traceRay(lp.meshBVH,ray,meshPRD,
+                      OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+        if (meshPRD.primID >= 0) {
+          ray.tmax = min(ray.tmax,meshPRD.t_hit);
+        }
+      }
+
+      vec3f pos;
+      vec4f xf = 0.f; // albedo and extinction coefficient
+      sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
+
+      // left the volume?
+      if (ctype==Boundary && meshPRD.primID < 0) {
+        color = bgColor;
+      } else {
+        vec3f albedo;
+        if (ctype==Boundary && meshPRD.primID >= 0) {
+          constexpr float eps = 1.f;// finest cell size
+          pos = ray.origin+ray.direction*meshPRD.t_hit+normalize(ray.direction)*eps;
+          albedo = meshPRD.kd;
+        } else {
+          albedo = vec3f(xf);
+        }
+
+        if (numLights > 0) {
+          throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random,numLights);
+        } else {
+          // Just assume we have a (1,1,1) ambient light
+          throughput *= albedo;
+          // Surfaces, shade them with a directional headlight
+          if (ctype==Boundary && meshPRD.primID >= 0) {
+            throughput *= fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
+          }
+        }
+        color = vec4f(throughput,1.f);
+      }
+    } else {
+      color = bgColor;
+    }
+
+    return color;
+  }
+
+  // ------------------------------------------------------------------
+  // RAYGEN
+  // ------------------------------------------------------------------
+
+  enum Integrator { PathTracer, DirectLighting, RayMarcher };
+
+  template <Integrator I, ShadeMode SM, bool useDDA,  typename Sampler>
+  __device__ inline void renderFrame_Impl(Sampler sampler)
+  {
+    auto& lp = optixLaunchParams;
+
+    vec4f bgColor = vec4f(backGroundColor(),1.f);
+    const int numLights = getNumLights();
+    const int spp = lp.render.spp;
+    const vec2i pixelIndex = owl::getLaunchIndex();
+    int pixelID = pixelIndex.x + owl::getLaunchDims().x*pixelIndex.y;
+    Random random(pixelID,lp.accumID);
+    uint64_t clock_begin = clock64();
+    vec4f accumColor = 0.f;
+
+
+    for (int sampleID=0;sampleID<spp;sampleID++) {
+      vec4f color = 0.f;
+
+      float rx = random();
+      float ry = random();
+      vec2f screen = vec2f(pixelIndex)+vec2f(rx,ry);
+      if (lp.subImage.active) {
+        const vec2f size(owl::getLaunchDims());
+        screen /= size;
+        screen = (vec2f(1.f)-screen)*subImageUV().lower
+                            + screen*subImageUV().upper;
+        screen *= size;
+      }
+      Ray ray = generateRay(screen);
+
+      if constexpr (I==PathTracer) {
+        accumColor += pathTracingIntegrate<SM,useDDA>(ray,
+                                                      sampler,
+                                                      random,
+                                                      bgColor,
+                                                      numLights);
+      } else if constexpr (I==DirectLighting) {
+        accumColor += directLightingIntegrate<SM,useDDA>(ray,
+                                                         sampler,
+                                                         random,
+                                                         bgColor,
+                                                         numLights);
+      }
     }
 
 
@@ -1362,27 +1328,77 @@ namespace exa {
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
 
-  OPTIX_RAYGEN_PROGRAM(directLighting)()
+  OPTIX_RAYGEN_PROGRAM(renderFrame)()
   {
     auto& lp = optixLaunchParams;
 
-    if (lp.sampler==EXA_STITCH_SAMPLER) {
-      ExaStitchSampler sampler;
-      if (lp.shadeMode==1)
-        directLighting_Impl<Gridlets,true>(sampler);
-      else if (lp.shadeMode==2)
-        directLighting_Impl<Teaser,true>(sampler);
-      else
-        directLighting_Impl<Default,true>(sampler);
-    } else if (lp.sampler==AMR_CELL_SAMPLER) {
-      AMRCellSampler sampler;
-      directLighting_Impl<Default,true>(sampler);
-    } else if (lp.sampler==EXA_BRICK_SAMPLER) {
-      ExaBrickSampler sampler;
-      if (lp.majorantBVH)
-        directLighting_Impl<Default,false>(sampler);
-      else
-        directLighting_Impl<Default,true>(sampler);
+    // Path tracing
+    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<PathTracer,Default,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_GRIDLETS) {
+      renderFrame_Impl<PathTracer,Gridlets,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_TEASER) {
+      renderFrame_Impl<PathTracer,Teaser,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH==0 &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<PathTracer,Default,true>(ExaBrickSampler{});
+    }
+
+    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      // TODO: switch between these using macros
+      renderFrame_Impl<PathTracer,Default,true>(ExaBrickSampler{});
+      //renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
+    }
+
+    
+    // Direct lighting
+    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<DirectLighting,Default,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_GRIDLETS) {
+      renderFrame_Impl<DirectLighting,Gridlets,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_TEASER) {
+      renderFrame_Impl<DirectLighting,Teaser,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH==0 &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
+    }
+
+    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      // TODO: switch between these using macros
+      renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
+      //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
     }
   }
 } // ::exa
