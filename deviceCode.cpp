@@ -139,6 +139,17 @@ namespace exa {
     return Ray(org,dir,0.f,1e10f);
   }
 
+  inline __device__
+  float firstSampleT(const range1f &rayInterval,
+                     const float dt,
+                     const float ils_t0)
+  {
+    float numSegsf = floor((rayInterval.lower - dt*ils_t0)/dt);
+    float t = dt * (ils_t0 + numSegsf);
+    if (t < rayInterval.lower) t += dt;
+    return t;
+  }
+               
   inline __device__ box2f subImageUV()
   {
     return optixLaunchParams.subImage.value;
@@ -515,10 +526,54 @@ namespace exa {
 
 
   // ------------------------------------------------------------------
+  // Generic integration sampler for DVR and ISOs
+  // ------------------------------------------------------------------
+
+  template <typename VolumeSampler>
+  struct DefaultMarcher {
+
+    inline __device__
+    vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f)
+    {
+      auto& lp = optixLaunchParams;
+
+      VolumeSampler sampler;
+      float dt = lp.render.dt;
+      vec4f color = 0.f;
+
+      for (float t=firstSampleT({t0,t1},dt,ils_t0); t<=t1; t+=dt) {
+        const vec3f pos = ray.origin+ray.direction*t;
+        Sample s = sampler.sampleVolume(pos);
+
+        if (s.primID < 0)
+          continue;
+
+        const range1f xfDomain = lp.transferFunc.domain;
+        s.value -= xfDomain.lower;
+        s.value /= xfDomain.upper-xfDomain.lower;
+        const vec4f xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+        color += (1.f-color.w)*xf.w*vec4f(vec3f(xf), 1.f);
+
+        if (color.w >= 0.99f) {
+          break;
+        }
+      }
+
+      return color;
+    }
+
+    inline __device__
+    vec4f integrateISO(const SamplingRay ray, float t0, float t1)
+    {
+      //
+    }
+  };
+
+  // ------------------------------------------------------------------
   // Samplers
   // ------------------------------------------------------------------
 
-  struct ExaStitchSampler {
+  struct ExaStitchSampler : DefaultMarcher<ExaStitchSampler> {
     inline __device__ Sample sampleVolume(const vec3f pos)
     {
       auto& lp = optixLaunchParams;
@@ -533,7 +588,7 @@ namespace exa {
     }
   };
 
-  struct AMRCellSampler {
+  struct AMRCellSampler : DefaultMarcher<AMRCellSampler> {
     inline __device__ Sample sampleVolume(const vec3f pos)
     {
       auto& lp = optixLaunchParams;
@@ -554,7 +609,7 @@ namespace exa {
     }
   };
 
-  struct ExaBrickSampler {
+  struct ExaBrickSampler : DefaultMarcher<ExaBrickSampler> {
     inline __device__ float getScalar(const int brickID,
                                       const int ix, const int iy, const int iz)
     {
@@ -1253,6 +1308,56 @@ namespace exa {
   }
 
   // ------------------------------------------------------------------
+  // Ray marching integration function
+  // ------------------------------------------------------------------
+
+  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  inline __device__
+  vec4f rayMarchingIntegrate(Ray          ray,
+                             Sampler      sampler,
+                             Random      &random,
+                             const vec4f  bgColor,
+                             int          numLights)
+  {
+    auto& lp = optixLaunchParams;
+
+    vec4f color = bgColor;
+    vec3f throughput = 1.f;
+
+    float t0 = 1e30f, t1 = -1e30f;
+
+    if (intersect(ray,lp.modelBounds,t0,t1)) {
+      for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+        const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
+        Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
+        bool backFace=false;
+        float plane_t = FLT_MAX;
+
+        if (clipPlaneEnabled) {
+          plane_t = intersect(ray,plane,backFace);
+          if (plane_t > t0 && !backFace) t0 = max(t0,plane_t);
+          if (plane_t < t1 &&  backFace) t1 = min(plane_t,t1);
+        }
+      }
+
+
+      MeshPRD meshPRD{-1,-1.f,{0.f},{0.f}};
+      if (lp.meshBVH) {
+        owl::traceRay(lp.meshBVH,ray,meshPRD,
+                      OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+        if (meshPRD.primID >= 0) {
+          t1 = min(t1,meshPRD.t_hit);
+          color = fmaxf(0.f,dot(-ray.direction,meshPRD.Ng)); // TODO: lights from LPs
+        }
+      }
+
+      color = over(sampler.integrateDVR(ray,t0,t1,random()),color);
+    }
+
+    return color;
+  }
+
+  // ------------------------------------------------------------------
   // RAYGEN
   // ------------------------------------------------------------------
 
@@ -1300,7 +1405,14 @@ namespace exa {
                                                          random,
                                                          bgColor,
                                                          numLights);
+      } else if constexpr (I==RayMarcher) {
+        accumColor += rayMarchingIntegrate<SM,useDDA>(ray,
+                                                      sampler,
+                                                      random,
+                                                      bgColor,
+                                                      numLights);
       }
+
     }
 
 
@@ -1398,6 +1510,41 @@ namespace exa {
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
       renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
+      //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
+    }
+
+
+    // Ray marcher
+    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<RayMarcher,Default,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_GRIDLETS) {
+      renderFrame_Impl<RayMarcher,Gridlets,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
+        lp.sampler==EXA_STITCH_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_TEASER) {
+      renderFrame_Impl<RayMarcher,Teaser,true>(ExaStitchSampler{});
+    }
+
+    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH==0 &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      renderFrame_Impl<RayMarcher,Default,true>(ExaBrickSampler{});
+    }
+
+    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
+        lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.shadeMode==SHADE_MODE_DEFAULT) {
+      // TODO: switch between these using macros
+      renderFrame_Impl<RayMarcher,Default,true>(ExaBrickSampler{});
       //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
     }
   }

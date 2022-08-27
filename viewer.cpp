@@ -718,7 +718,7 @@ namespace exa {
     QComboBox rendererTypeSelection;
     rendererTypeSelection.addItem("Path Tracer");
     rendererTypeSelection.addItem("Direct Lighting Renderer");
-    //rendererTypeSelection.addItem("A+E Ray Marcher");
+    rendererTypeSelection.addItem("A+E Ray Marcher");
     rendererTypeSelection.setCurrentIndex(cmdline.rendererType);
     rendererTypeLayout.addWidget(&rendererTypeLabel);
     rendererTypeLayout.addWidget(&rendererTypeSelection);
