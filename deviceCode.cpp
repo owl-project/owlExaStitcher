@@ -1472,6 +1472,7 @@ namespace exa {
 
     if (lp.integrator==PATH_TRACING_INTEGRATOR &&
         lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
       renderFrame_Impl<PathTracer,Default,true>(ExaBrickSampler{});
@@ -1507,6 +1508,7 @@ namespace exa {
 
     if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
         lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
       renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
@@ -1542,6 +1544,7 @@ namespace exa {
 
     if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
         lp.sampler==EXA_BRICK_SAMPLER &&
+        lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
       renderFrame_Impl<RayMarcher,Default,true>(ExaBrickSampler{});
