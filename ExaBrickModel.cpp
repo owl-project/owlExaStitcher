@@ -50,7 +50,7 @@ namespace exa {
     // create brick and index buffers
     // -------------------------------------------------------
 
-    std::ifstream in(brickFileName);
+    std::ifstream in(brickFileName, std::ios::binary);
     if (!in.good()) return result;
     while (!in.eof()) {
       ExaBrick brick;
