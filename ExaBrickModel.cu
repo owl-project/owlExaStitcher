@@ -74,16 +74,10 @@ namespace exa {
                                           OWLBuffer colorMap,
                                           range1f xfRange)
   {
-    if (abrMaxOpacities) { owlBufferDestroy(abrMaxOpacities); }
-    if (brickMaxOpacities) { owlBufferDestroy(brickMaxOpacities); }
-
     size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
-    size_t numBricks = owlBufferSizeInBytes(brickBuffer)/sizeof(ExaBrick);
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
-    abrMaxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numABRs, nullptr);
-    brickMaxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numBricks, nullptr);
-
+    // maximum opacity buffers are pre-located in ExaBrickModel.cpp
     owlBufferClear(brickMaxOpacities);
 
     size_t numThreads = 1024;
@@ -98,4 +92,3 @@ namespace exa {
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
-

@@ -830,10 +830,10 @@ namespace exa {
       sample.value = sumWeightedValues/sumWeights;
 
       // const float opacity = tex2D<float4>(lp.transferFunc.texture, sample.value, .5f).w;
-      // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("wrong\n");
+      // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("abr majorant is wrong: %f > %f\n", opacity, lp.abrMaxOpacities[sample.primID]);
       // for (int childID=0;childID<childCount;childID++) {
       //   const int brickID = childList[childID];
-      //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("wrong\n");
+      //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("ext majorant is wrong: %f > %f\n", opacity, lp.exaBrickMaxOpacities[brickID]);
       // }
 #else
       ExaBrickSamplePRD sample(-1,-1,0.f);
@@ -1552,10 +1552,41 @@ namespace exa {
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
 
+  template<Integrator I, typename S, ShadeMode Shade>
+  inline void __device__ renderFrame_SelectSpaceSkippingMethod()
+  {
+    auto& lp = optixLaunchParams;
+    if (lp.majorantBVH==0) renderFrame_Impl<I,Shade,true>(S{});
+    else renderFrame_Impl<I,Shade,false>(S{});
+  }
+
+  template<Integrator I, typename S>
+  inline void __device__ renderFrame_SelectShadeMode()
+  {
+    auto& lp = optixLaunchParams;
+    if      (lp.shadeMode==SHADE_MODE_DEFAULT)  renderFrame_SelectSpaceSkippingMethod<I, S, Default >();
+    else if (lp.shadeMode==SHADE_MODE_GRIDLETS) renderFrame_SelectSpaceSkippingMethod<I, S, Gridlets>();
+    else if (lp.shadeMode==SHADE_MODE_TEASER)   renderFrame_SelectSpaceSkippingMethod<I, S, Teaser  >();   
+  }
+
+  template<Integrator I>
+  inline __device__ void renderFrame_SelectSampler()
+  {
+    auto& lp = optixLaunchParams;
+    if      (lp.sampler==EXA_STITCH_SAMPLER) renderFrame_SelectShadeMode<I, ExaStitchSampler>();
+    else if (lp.sampler==AMR_CELL_SAMPLER)   renderFrame_SelectShadeMode<I, AMRCellSampler  >();      
+    else if (lp.sampler==EXA_BRICK_SAMPLER)  renderFrame_SelectShadeMode<I, ExaBrickSampler>();
+  }
+
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
   {
     auto& lp = optixLaunchParams;
+    
+    if (lp.integrator==PATH_TRACING_INTEGRATOR)      renderFrame_SelectSampler<PathTracer>();
+    else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
+    else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
 
+#if 0
     // Path tracing
     if (lp.integrator==PATH_TRACING_INTEGRATOR &&
         lp.sampler==EXA_STITCH_SAMPLER &&
@@ -1591,7 +1622,6 @@ namespace exa {
       //renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
     }
 
-    
     // Direct lighting
     if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
         lp.sampler==EXA_STITCH_SAMPLER &&
@@ -1662,6 +1692,8 @@ namespace exa {
       renderFrame_Impl<RayMarcher,Default,false>(ExaBrickSampler{});
       //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
     }
+#endif
+
   }
 } // ::exa
 

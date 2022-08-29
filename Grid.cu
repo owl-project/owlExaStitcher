@@ -353,6 +353,9 @@ namespace exa {
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
       initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
+
+      // pre-allocating max-opacity buffer
+      maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numMCs, nullptr);
     }
 
     // Add contrib from uelems
@@ -473,16 +476,8 @@ namespace exa {
 
   void Grid::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
   {
-    if (maxOpacities) {
-      owlBufferDestroy(maxOpacities);
-    }
-
     size_t numMCs = dims.x*size_t(dims.y)*dims.z;
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
-
-    maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT,
-                                         numMCs,
-                                         nullptr);
 
     size_t numThreads = 1024;
     computeMaxOpacitiesGPU<<<iDivUp(numMCs, numThreads), numThreads>>>(

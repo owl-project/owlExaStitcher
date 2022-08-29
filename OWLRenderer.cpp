@@ -211,10 +211,16 @@ namespace exa {
 #else
       owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas); // add options to config
 #endif
+      if (useDDA)
+        owlParamsSetGroup(lp,"majorantBVH",0);
+      else
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
       owlParamsSetBuffer(lp,"abrLeafListBuffer", exaBrickModel->abrLeafListBuffer);
+      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
+      owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
@@ -407,14 +413,10 @@ namespace exa {
     };
     if (useDDA) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
-      owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
-      owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
     }
-    
+
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
       xf.colorMapTexture = 0;
@@ -475,12 +477,8 @@ namespace exa {
     if (xf.colorMapBuffer) {
       if (useDDA) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-        owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-        owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
-        owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       }
     }
   }
@@ -578,6 +576,7 @@ namespace exa {
                    grid.dims.y,
                    grid.dims.z);
     owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
+    owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
   }
 
   void OWLRenderer::setNumMCs(const vec3i numMCs)

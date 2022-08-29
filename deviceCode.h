@@ -164,18 +164,18 @@ namespace exa {
   };
 
   struct LaunchParams {
-    uint32_t *fbPointer;
-    float    *fbDepth;
-    float4   *accumBuffer;
-    int       accumID;
-    int       integrator;
-    int       shadeMode;
-    int       sampler;
-    OptixTraversableHandle sampleBVH;
-    OptixTraversableHandle meshBVH;
-    OptixTraversableHandle majorantBVH;
-    Gridlet  *gridletBuffer;
-    box3f      modelBounds;
+    uint32_t *fbPointer{};
+    float    *fbDepth{};
+    float4   *accumBuffer{};
+    int       accumID{};
+    int       integrator{};
+    int       shadeMode{};
+    int       sampler{};
+    OptixTraversableHandle sampleBVH{};
+    OptixTraversableHandle meshBVH{};
+    OptixTraversableHandle majorantBVH{};
+    Gridlet  *gridletBuffer{};
+    box3f      modelBounds{};
 
     // For ExaBrick benchmark
     ExaBrick *exaBrickBuffer;
