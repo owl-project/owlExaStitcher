@@ -1520,7 +1520,7 @@ namespace exa {
         lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
-      renderFrame_Impl<PathTracer,Default,true>(ExaBrickSampler{});
+      renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
       //renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
     }
 
@@ -1556,7 +1556,7 @@ namespace exa {
         lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
-      renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
+      renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
       //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
     }
 
@@ -1592,7 +1592,7 @@ namespace exa {
         lp.majorantBVH!=0 &&
         lp.shadeMode==SHADE_MODE_DEFAULT) {
       // TODO: switch between these using macros
-      renderFrame_Impl<RayMarcher,Default,true>(ExaBrickSampler{});
+      renderFrame_Impl<RayMarcher,Default,false>(ExaBrickSampler{});
       //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
     }
   }
