@@ -205,7 +205,11 @@ namespace exa {
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->tlas);
+#if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas); // add options to config
+#else
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas); // add options to config
+#endif
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
@@ -406,7 +410,7 @@ namespace exa {
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
-      owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
+      owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
     }
     
     if (xf.colorMapTexture != 0) {
@@ -473,7 +477,7 @@ namespace exa {
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
         owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       }
     }
   }

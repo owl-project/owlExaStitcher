@@ -29,8 +29,13 @@ using namespace owl::common;
 
 typedef owl::interval<float> range1f;
 
-#define RADIANCE_RAY_TYPE 0
-#define SAMPLING_RAY_TYPE 1
+enum RayTypeDecl {
+  RADIANCE_RAY_TYPE = 0,
+  SAMPLING_RAY_TYPE = 1,
+  NUM_RAY_TYPES
+};
+// #define RADIANCE_RAY_TYPE 0
+// #define SAMPLING_RAY_TYPE 1
 
 #define CLIP_PLANES_MAX 1
 #define LIGHTS_MAX      4
@@ -38,6 +43,10 @@ typedef owl::interval<float> range1f;
 #define EXA_STITCH_SAMPLER 0
 #define AMR_CELL_SAMPLER   1
 #define EXA_BRICK_SAMPLER  2
+
+#define EXA_BRICK_SAMPLER_ABR_BVH 0
+#define EXA_BRICK_SAMPLER_EXT_BVH 1
+#define EXA_BRICK_SAMPLER_STRATEGY EXA_BRICK_SAMPLER_EXT_BVH
 
 #define PATH_TRACING_INTEGRATOR 0
 #define DIRECT_LIGHT_INTEGRATOR 1
@@ -142,8 +151,16 @@ namespace exa {
     float   finestLevelCellWidth;
   };
 
-  struct ExaBrickGeom {
+  // struct ExaBrickGeom {
+  //   ABR *abrBuffer;
+  // };
+
+  struct ExaBrickABRGeom {
     ABR *abrBuffer;
+  };
+
+  struct ExaBrickExtGeom {
+    ExaBrick *exaBrickBuffer;
   };
 
   struct LaunchParams {

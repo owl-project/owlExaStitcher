@@ -34,9 +34,14 @@ namespace exa {
     ABRs                  abrs;
 
     // owl
-    OWLGeomType geomType;
-    OWLGroup    blas;
-    OWLGroup    tlas;
+    OWLGeomType abrGeomType;
+    OWLGroup    abrBlas;
+    OWLGroup    abrTlas;
+
+    OWLGeomType extGeomType;
+    OWLGroup    extBlas;
+    OWLGroup    extTlas;
+
     OWLBuffer   abrBuffer;
     OWLBuffer   brickBuffer;
     OWLBuffer   scalarBuffer;

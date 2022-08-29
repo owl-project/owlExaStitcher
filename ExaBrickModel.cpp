@@ -117,9 +117,15 @@ namespace exa {
 
   bool ExaBrickModel::initGPU(OWLContext context, OWLModule module)
   {
-    OWLVarDecl exaBrickGeomVars[]
+    OWLVarDecl abrGeomVars[]
     = {
-       { "abrBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,abrBuffer)},
+       { "abrBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickABRGeom,abrBuffer)},
+       { nullptr /* sentinel to mark end of list */ }
+    };
+
+    OWLVarDecl extGeomVars[]
+    = {
+       { "exaBrickBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickExtGeom,exaBrickBuffer)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -127,31 +133,54 @@ namespace exa {
     // exa brick geom
     // ==================================================================
 
-    if (!abrs.value.empty()) {
-      geomType = owlGeomTypeCreate(context,
+    if (!abrs.value.empty() && !bricks.empty()) {
+      // ABR geometry //
+
+      abrGeomType = owlGeomTypeCreate(context,
                                    OWL_GEOM_USER,
-                                   sizeof(ExaBrickGeom),
-                                   exaBrickGeomVars, -1);
-      owlGeomTypeSetBoundsProg(geomType, module, "ExaBrickGeomBounds");
-      owlGeomTypeSetIntersectProg(geomType,
+                                   sizeof(ExaBrickABRGeom),
+                                   abrGeomVars, -1);
+      owlGeomTypeSetBoundsProg(abrGeomType, module, "ExaBrickABRGeomBounds");
+      owlGeomTypeSetIntersectProg(abrGeomType,
                                   RADIANCE_RAY_TYPE,
                                   module,
-                                  "ExaBrickGeomIsect");
-      owlGeomTypeSetClosestHit(geomType,
+                                  "ExaBrickABRGeomIsect");
+      owlGeomTypeSetClosestHit(abrGeomType,
                                RADIANCE_RAY_TYPE,
                                module,
                                "ExaBrickGeomCH");
-      owlGeomTypeSetIntersectProg(geomType,
+      owlGeomTypeSetIntersectProg(abrGeomType,
                                   SAMPLING_RAY_TYPE,
                                   module,
-                                  "ExaBrickGeomSamplingIsect");
-      owlGeomTypeSetClosestHit(geomType,
+                                  "ExaBrickABRGeomSamplingIsect");
+      owlGeomTypeSetClosestHit(abrGeomType,
                                SAMPLING_RAY_TYPE,
                                module,
                                "ExaBrickGeomCH");
 
-      OWLGeom geom = owlGeomCreate(context, geomType);
-      owlGeomSetPrimCount(geom, abrs.value.size());
+      OWLGeom abrGeom = owlGeomCreate(context, abrGeomType);
+      owlGeomSetPrimCount(abrGeom, abrs.value.size());
+
+      // extended brick geometry //
+
+      extGeomType = owlGeomTypeCreate(context,
+                                   OWL_GEOM_USER,
+                                   sizeof(ExaBrickExtGeom),
+                                   extGeomVars, -1);
+      owlGeomTypeSetBoundsProg(extGeomType, module, "ExaBrickExtGeomBounds");
+      owlGeomTypeSetIntersectProg(extGeomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  "ExaBrickExtGeomSamplingIsect");
+      owlGeomTypeSetClosestHit(extGeomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "ExaBrickGeomCH");
+
+      OWLGeom extGeom = owlGeomCreate(context, extGeomType);
+      owlGeomSetPrimCount(extGeom, bricks.size());
+
+      // finalize //
 
       abrBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(ABR),
                                         abrs.value.size(),
@@ -169,17 +198,24 @@ namespace exa {
                                                 abrs.leafList.size(),
                                                 abrs.leafList.data());
 
-      owlGeomSetBuffer(geom,"abrBuffer",abrBuffer);
-
+      owlGeomSetBuffer(abrGeom,"abrBuffer",abrBuffer);
+      owlGeomSetBuffer(extGeom,"exaBrickBuffer",brickBuffer);
       owlBuildPrograms(context);
 
-      blas = owlUserGeomGroupCreate(context, 1, &geom);
-      owlGroupBuildAccel(blas);
+      // 1. ABR geometry 
+      abrBlas = owlUserGeomGroupCreate(context, 1, &abrGeom);
+      owlGroupBuildAccel(abrBlas);
+      abrTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
+      owlGroupBuildAccel(abrTlas);
 
-      tlas = owlInstanceGroupCreate(context, 1);
-      owlInstanceGroupSetChild(tlas, 0, blas);
+      // 2. extended brick geometry
+      extBlas = owlUserGeomGroupCreate(context, 1, &extGeom);
+      owlGroupBuildAccel(extBlas);
+      extTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(extTlas, 0, extBlas);
+      owlGroupBuildAccel(extTlas);
 
-      owlGroupBuildAccel(tlas);
       return true;
     }
 
