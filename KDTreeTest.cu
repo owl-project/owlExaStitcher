@@ -28,6 +28,8 @@ __global__ void test(KDTreeTraversable tree)
   ray.direction = normalize(vec3f(0.5f,1,0.1f));
 
   PRD prd;
+
+  kd::traceRay(tree,ray,prd,isect);
 }
 
 int main() {
