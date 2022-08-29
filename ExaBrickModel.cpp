@@ -17,6 +17,7 @@
 #include <fstream>
 #include <owl/common/parallel/parallel_for.h>
 #include "ExaBrickModel.h"
+#include "KDTree.h"
 
 namespace exa {
 

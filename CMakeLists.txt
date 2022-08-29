@@ -66,6 +66,7 @@ add_executable(exaStitchViewer
   ExaBrickModel.cu
   ExaStitchModel.cpp
   LightInteractor.cpp
+  KDTree.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
   viewer.cpp
