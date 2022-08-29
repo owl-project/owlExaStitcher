@@ -54,6 +54,7 @@ namespace exa {
      { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
+     { "exaBrickMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickMaxOpacities)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -409,7 +410,8 @@ namespace exa {
       owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
+      owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
     }
     
@@ -476,7 +478,8 @@ namespace exa {
         owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-        owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
+        owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
+        owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
         owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       }
     }

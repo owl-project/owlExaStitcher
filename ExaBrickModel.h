@@ -46,7 +46,9 @@ namespace exa {
     OWLBuffer   brickBuffer;
     OWLBuffer   scalarBuffer;
     OWLBuffer   abrLeafListBuffer;
-    OWLBuffer   maxOpacities;
+
+    OWLBuffer   abrMaxOpacities;
+    OWLBuffer   brickMaxOpacities;
 
     bool initGPU(OWLContext, OWLModule module);
 

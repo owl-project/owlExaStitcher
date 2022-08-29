@@ -46,7 +46,7 @@ enum RayTypeDecl {
 
 #define EXA_BRICK_SAMPLER_ABR_BVH 0
 #define EXA_BRICK_SAMPLER_EXT_BVH 1
-#define EXA_BRICK_SAMPLER_STRATEGY EXA_BRICK_SAMPLER_EXT_BVH
+#define EXA_BRICK_SAMPLER_STRATEGY EXA_BRICK_SAMPLER_ABR_BVH
 
 #define PATH_TRACING_INTEGRATOR 0
 #define DIRECT_LIGHT_INTEGRATOR 1
@@ -183,6 +183,7 @@ namespace exa {
     float    *scalarBuffer;
     int      *abrLeafListBuffer;
     float    *abrMaxOpacities;
+    float    *exaBrickMaxOpacities;
 
     struct {
       cudaTextureObject_t texture;

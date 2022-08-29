@@ -782,6 +782,13 @@ namespace exa {
         addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
       }
       sample.value = sumWeightedValues/sumWeights;
+
+      // const float opacity = tex2D<float4>(lp.transferFunc.texture, sample.value, .5f).w;
+      // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("wrong\n");
+      // for (int childID=0;childID<childCount;childID++) {
+      //   const int brickID = childList[childID];
+      //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("wrong\n");
+      // }
 #else
       ExaBrickSamplePRD sample(-1,-1,0.f);
       sample.sumWeightedValues = 0.f;

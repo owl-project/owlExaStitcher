@@ -15,30 +15,42 @@
 // ======================================================================== //
 
 #include "ExaBrickModel.h"
+#include "atomicOp.cuh"
 
 namespace exa {
 
-  inline int __both__ iDivUp(int a, int b)
+  inline int64_t __both__ iDivUp(int64_t a, int64_t b)
   {
     return (a + b - 1) / b;
   }
 
-  __global__ void computeMaxOpacitiesGPU(float       *maxOpacities,
+  __global__ void computeMaxOpacitiesGPU(float       *abrMaxOpacities,
+                                         float       *exaBrickMaxOpacities,
                                          const ABR   *abrs,
+                                         const int   *abrLeafList,
                                          const vec4f *colorMap,
                                          size_t       numABRs,
                                          size_t       numColors,
                                          range1f      xfRange)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+    if (threadID >= numABRs) return;
 
-    if (threadID >= numABRs)
-      return;
+    const ABR &abr = abrs[threadID];
+    const int *childList = &abrLeafList[abr.leafListBegin];
+    const int childCount = abr.leafListSize;
+    range1f valueRange = abr.valueRange;
 
-    range1f valueRange = abrs[threadID].valueRange;
+    const auto setOpacity = [&] (float opacity) {
+      for (int childID=0;childID<childCount;childID++) {
+        const int brickID = childList[childID];
+        atomicMax(exaBrickMaxOpacities + brickID, opacity);
+      }
+      abrMaxOpacities[threadID] = opacity;
+    };
 
     if (valueRange.upper < valueRange.lower) {
-      maxOpacities[threadID] = 0.f;
+      setOpacity(0.f);
       return;
     }
 
@@ -47,35 +59,39 @@ namespace exa {
     valueRange.upper -= xfRange.lower;
     valueRange.upper /= xfRange.upper-xfRange.lower;
 
-    int lo = clamp(int(valueRange.lower*(numColors-1)),0,(int)numColors-1);
+    int lo = clamp(int(valueRange.lower*(numColors-1)),  0,(int)numColors-1);
     int hi = clamp(int(valueRange.upper*(numColors-1))+1,0,(int)numColors-1);
 
     float maxOpacity = 0.f;
     for (int i=lo; i<=hi; ++i) {
       maxOpacity = fmaxf(maxOpacity,colorMap[i].w);
     }
-    maxOpacities[threadID] = maxOpacity;
+
+    setOpacity(maxOpacity);
   }
 
   void ExaBrickModel::computeMaxOpacities(OWLContext owl,
                                           OWLBuffer colorMap,
                                           range1f xfRange)
   {
-    if (maxOpacities) {
-      owlBufferDestroy(maxOpacities);
-    }
+    if (abrMaxOpacities) { owlBufferDestroy(abrMaxOpacities); }
+    if (brickMaxOpacities) { owlBufferDestroy(brickMaxOpacities); }
 
     size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
+    size_t numBricks = owlBufferSizeInBytes(brickBuffer)/sizeof(ExaBrick);
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
-    maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT,
-                                         numABRs,
-                                         nullptr);
+    abrMaxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numABRs, nullptr);
+    brickMaxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numBricks, nullptr);
+
+    owlBufferClear(brickMaxOpacities);
 
     size_t numThreads = 1024;
     computeMaxOpacitiesGPU<<<iDivUp(numABRs, numThreads), numThreads>>>(
-      (float *)owlBufferGetPointer(maxOpacities,0),
+      (float *)owlBufferGetPointer(abrMaxOpacities,0),
+      (float *)owlBufferGetPointer(brickMaxOpacities,0),
       (const ABR *)owlBufferGetPointer(abrBuffer,0),
+      (const int *)owlBufferGetPointer(abrLeafListBuffer,0),
       (const vec4f *)owlBufferGetPointer(colorMap,0),
       numABRs,numColors,xfRange);
   }

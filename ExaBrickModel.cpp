@@ -194,9 +194,12 @@ namespace exa {
                                            scalars.size(),
                                            scalars.data());
 
-      abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+      abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_INT,
                                                 abrs.leafList.size(),
                                                 abrs.leafList.data());
+
+      abrMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
+      brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
 
       owlGeomSetBuffer(abrGeom,"abrBuffer",abrBuffer);
       owlGeomSetBuffer(extGeom,"exaBrickBuffer",brickBuffer);
