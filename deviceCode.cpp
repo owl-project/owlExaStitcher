@@ -17,6 +17,7 @@
 #include <float.h>
 #include "deviceCode.h"
 #include "Grid.cuh"
+#include "KDTree.cuh"
 #include "Plane.h"
 #include "UElems.h"
 #include "DDA.h"
