@@ -532,8 +532,9 @@ namespace exa {
   template <typename VolumeSampler>
   struct DefaultMarcher {
 
+    template <bool Shading=true>
     inline __device__
-    vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f)
+    vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights =0)
     {
       auto& lp = optixLaunchParams;
 
@@ -552,7 +553,23 @@ namespace exa {
         s.value -= xfDomain.lower;
         s.value /= xfDomain.upper-xfDomain.lower;
         const vec4f xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
-        color += (1.f-color.w)*xf.w*vec4f(vec3f(xf), 1.f);
+
+        if constexpr (Shading) {
+          const vec3f g = gradient(pos);
+          const vec3f N = g / (length(g + 1e-4f));
+          const vec3f cd = vec3f(xf);
+          vec3f shaded = .1f*cd; // bit of ambient
+          if (numLights==0) shaded = cd; // in that case, fully ambient
+          for (int lightID=0; lightID<numLights; ++lightID) {
+            const vec3f L = normalize(lp.lights[lightID].pos-pos);
+            const float ld = length(lp.lights[lightID].pos-pos);
+            shaded += cd * (.9f*dot(N,L) / (ld*ld) * lp.lights[lightID].intensity);
+          }
+          color += (1.f-color.w)*xf.w*vec4f(shaded, 1.f);
+        }
+        else {
+          color += (1.f-color.w)*xf.w*vec4f(vec3f(xf), 1.f);
+        }
 
         if (color.w >= 0.99f) {
           break;
@@ -566,6 +583,34 @@ namespace exa {
     vec4f integrateISO(const SamplingRay ray, float t0, float t1)
     {
       //
+    }
+
+    inline __device__
+    vec3f gradient(const vec3f pos, VolumeSampler sampler = {})
+    {
+      const vec3f delta = 0.5f;
+
+      Sample s[6] = {
+        sampler.sampleVolume({pos.x+delta.x,pos.y,pos.z}),
+        sampler.sampleVolume({pos.x-delta.x,pos.y,pos.z}),
+        sampler.sampleVolume({pos.x,pos.y+delta.y,pos.z}),
+        sampler.sampleVolume({pos.x,pos.y-delta.y,pos.z}),
+        sampler.sampleVolume({pos.x,pos.y,pos.z+delta.z}),
+        sampler.sampleVolume({pos.x,pos.y,pos.z-delta.z})
+      };
+
+      for (int i=0; i<6; i+=2) {
+        if (s[i].primID < 0 || s[i+1].primID < 0) {
+          s[i].value = {0.f};
+          s[i+1].value = {0.f};
+        }
+      }
+
+      return {
+        s[0].value-s[1].value,
+        s[2].value-s[3].value,
+        s[4].value-s[5].value
+      };
     }
   };
 
@@ -1347,11 +1392,11 @@ namespace exa {
                       OPTIX_RAY_FLAG_DISABLE_ANYHIT);
         if (meshPRD.primID >= 0) {
           t1 = min(t1,meshPRD.t_hit);
-          color = fmaxf(0.f,dot(-ray.direction,meshPRD.Ng)); // TODO: lights from LPs
+          color = fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
         }
       }
 
-      color = over(sampler.integrateDVR(ray,t0,t1,random()),color);
+      color = over(sampler.integrateDVR(ray,t0,t1,random(),numLights),color);
     }
 
     return color;
