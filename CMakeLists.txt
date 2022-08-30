@@ -36,9 +36,10 @@ else()
     PTX_LINK_LIBRARIES
       owl::owl
     SOURCES
-      deviceCode.cu
+      deviceCode.cpp
   )
-set(CUTEEOWL_USE_CUDA ON CACHE BOOL "Build with CUDA frame buffer implementation" FORCE)
+  set_source_files_properties(deviceCode.cpp PROPERTIES LANGUAGE CUDA)
+  set(CUTEEOWL_USE_CUDA ON CACHE BOOL "Build with CUDA frame buffer implementation" FORCE)
 endif()
 add_subdirectory(${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/cuteeOwl)
 include_directories(${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/cuteeOwl)
@@ -66,6 +67,7 @@ add_executable(exaStitchViewer
   ExaBrickModel.cu
   ExaStitchModel.cpp
   LightInteractor.cpp
+  KDTree.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
   viewer.cpp
