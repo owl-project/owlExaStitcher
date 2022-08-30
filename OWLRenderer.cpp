@@ -42,6 +42,8 @@ namespace exa {
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
+     { "samplerModeExaBrick", OWL_INT, OWL_OFFSETOF(LaunchParams,samplerModeExaBrick)},
+     { "traversalMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,traversalMode)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
@@ -196,6 +198,9 @@ namespace exa {
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
+    setTraversalMode(MC_DDA_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
 
     // ==================================================================
     // Upload to GPU
@@ -206,15 +211,12 @@ namespace exa {
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-#if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas); // add options to config
-#else
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas); // add options to config
-#endif
-      if (useDDA)
-        owlParamsSetGroup(lp,"majorantBVH",0);
-      else
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
+      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
+      }
+      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->extTlas); 
+      }
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
@@ -222,6 +224,8 @@ namespace exa {
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
       owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
+      setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
+      // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
@@ -411,7 +415,7 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    if (useDDA) {
+    if (useDDA(traversalMode)) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -475,7 +479,7 @@ namespace exa {
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
     if (xf.colorMapBuffer) {
-      if (useDDA) {
+      if (useDDA(traversalMode)) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -528,6 +532,21 @@ namespace exa {
   {
     owlParamsSet1i(lp,"sampler",sampler);
     accumID = 0;
+  }
+  
+  void OWLRenderer::setSamplerModeExaBrick(int mode)
+  {
+    owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
+    if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
+    else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas);
+  }
+
+  void OWLRenderer::setTraversalMode(TraversalMode mode)
+  {
+    traversalMode = mode;
+    owlParamsSet1i(lp,"traversalMode",(int)mode);
   }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)

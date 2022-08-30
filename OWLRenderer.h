@@ -56,6 +56,8 @@ namespace exa {
     void setShadeMode(int sm);
     std::map<int,std::string> shadeModes();
     void setSampler(int sampler);
+    void setSamplerModeExaBrick(int mode);
+    void setTraversalMode(TraversalMode mode);
 
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);
@@ -91,7 +93,8 @@ namespace exa {
     AMRCellModel::SP amrCellModel { 0 };
     Grid grid;
     vec3i numMCs { 128, 128, 128 };
-    bool useDDA = true;
+
+    TraversalMode traversalMode;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

@@ -170,6 +170,14 @@ namespace exa {
                                    extGeomVars, -1);
       owlGeomTypeSetBoundsProg(extGeomType, module, "ExaBrickExtGeomBounds");
       owlGeomTypeSetIntersectProg(extGeomType,
+                                  RADIANCE_RAY_TYPE,
+                                  module,
+                                  "ExaBrickExtGeomIsect");
+      owlGeomTypeSetClosestHit(extGeomType,
+                               RADIANCE_RAY_TYPE,
+                               module,
+                               "ExaBrickGeomCH");
+      owlGeomTypeSetIntersectProg(extGeomType,
                                   SAMPLING_RAY_TYPE,
                                   module,
                                   "ExaBrickExtGeomSamplingIsect");

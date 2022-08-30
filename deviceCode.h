@@ -46,7 +46,6 @@ enum RayTypeDecl {
 
 #define EXA_BRICK_SAMPLER_ABR_BVH 0
 #define EXA_BRICK_SAMPLER_EXT_BVH 1
-#define EXA_BRICK_SAMPLER_STRATEGY EXA_BRICK_SAMPLER_ABR_BVH
 
 #define PATH_TRACING_INTEGRATOR 0
 #define DIRECT_LIGHT_INTEGRATOR 1
@@ -57,6 +56,17 @@ enum RayTypeDecl {
 #define SHADE_MODE_TEASER   2
 
 namespace exa {
+
+  enum TraversalMode {
+    MC_DDA_TRAVERSAL = 0,
+    MC_BVH_TRAVERSAL = 1,
+    EXABRICK_ARB_TRAVERSAL = 2,
+    EXABRICK_BVH_TRAVERSAL = 3,
+    EXABRICK_KDTREE_TRAVERSAL = 4,
+  };
+
+  __both__ inline bool useDDA(TraversalMode m) { return m == MC_DDA_TRAVERSAL || m == MC_BVH_TRAVERSAL; }
+
   struct RayGen {
   };
 
@@ -171,6 +181,9 @@ namespace exa {
     int       integrator{};
     int       shadeMode{};
     int       sampler{};
+    int       samplerModeExaBrick{};
+    int       traversalMode{};
+
     OptixTraversableHandle sampleBVH{};
     OptixTraversableHandle meshBVH{};
     OptixTraversableHandle majorantBVH{};
