@@ -862,13 +862,14 @@ namespace exa {
   // ABR domain iterator
   // ------------------------------------------------------------------
 
-  struct ABRIterationState {
+  template<TraversalMode Mode>
+  struct ExaBrickIterationState {
     int primID;
   };
 
-  template <typename Func>
+  template <TraversalMode Mode, typename Func>
   inline __device__
-  void iterateABRs(const Ray &ray, const Func &func)
+  void iterateExaBrick(const Ray &ray, const Func &func)
   {
     float alreadyIntegratedDistance = ray.tmin;
     while (1) {
@@ -883,18 +884,30 @@ namespace exa {
       if (prd.leafID < 0)
         return;
 
-      if (!func(ABRIterationState{prd.leafID},prd.t0,prd.t1))
+      if (!func(ExaBrickIterationState<Mode>{prd.leafID},prd.t0,prd.t1))
         return;
 
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
     }
   }
 
+  template<TraversalMode Mode>
+  __device__ float getMajorant(const ExaBrickIterationState<Mode> &state);
+
+  template<>
   inline __device__
-  float getMajorant(const ABRIterationState &abrIterationState)
+  float getMajorant(const ExaBrickIterationState<EXABRICK_ARB_TRAVERSAL> &state)
   {
     const auto& lp = optixLaunchParams;
-    return lp.abrMaxOpacities[abrIterationState.primID];
+    return lp.abrMaxOpacities[state.primID];
+  }
+
+  template<>
+  inline __device__
+  float getMajorant(const ExaBrickIterationState<EXABRICK_BVH_TRAVERSAL> &state)
+  {
+    const auto& lp = optixLaunchParams;
+    return lp.exaBrickMaxOpacities[state.primID];
   }
 
   // ------------------------------------------------------------------
@@ -1074,8 +1087,12 @@ namespace exa {
 
     if constexpr (useDDA)
       dda3(ray,lp.grid.dims,lp.modelBounds,woodcockFunc);
-    else
-      iterateABRs(ray,woodcockFunc);
+    else {
+      if (lp.traversalMode == EXABRICK_ARB_TRAVERSAL) 
+        iterateExaBrick<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
+        iterateExaBrick<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
+    }
 
   }
 

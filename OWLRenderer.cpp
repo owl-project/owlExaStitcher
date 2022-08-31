@@ -200,7 +200,7 @@ namespace exa {
 
     setTraversalMode(MC_DDA_TRAVERSAL);
     // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
-    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
+    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
 
     // ==================================================================
     // Upload to GPU
