@@ -436,9 +436,9 @@ namespace exa {
   // ExaBrick user geom (for eval!)
   // ------------------------------------------------------------------
   __device__ void addBasisFunctions(float &sumWeightedValues,
-                                             float &sumWeights,
-                                             const int brickID,
-                                             const vec3f pos);
+                                    float &sumWeights,
+                                    const int brickID,
+                                    const vec3f pos);
 
   struct ExaBrickPRD {
     float t0, t1;
@@ -717,138 +717,138 @@ namespace exa {
     static __device__ Sample sampleVolume(const vec3f pos);
   };
 
-    __device__ void addBasisFunctions(float &sumWeightedValues,
-                                             float &sumWeights,
-                                             const int brickID,
-                                             const vec3f pos)
-    {
-      const ExaBrick &brick    = optixLaunchParams.exaBrickBuffer[brickID];
-      const float cellWidth = (1<<brick.level);
-      //const float invCellWidth = 1.f/cellWidth;
-      const vec3f localPos = (pos - vec3f(brick.lower)) / vec3f(cellWidth) - vec3f(0.5f);
+  __device__ void addBasisFunctions(float &sumWeightedValues,
+                                    float &sumWeights,
+                                    const int brickID,
+                                    const vec3f pos)
+  {
+    const ExaBrick &brick    = optixLaunchParams.exaBrickBuffer[brickID];
+    const float cellWidth = (1<<brick.level);
+    //const float invCellWidth = 1.f/cellWidth;
+    const vec3f localPos = (pos - vec3f(brick.lower)) / vec3f(cellWidth) - vec3f(0.5f);
 #if 0
-      const vec3i idx_hi   = vec3i(localPos+vec3f(1.f)); // +1 to emulate 'floor()'
-      const vec3i idx_lo   = idx_hi - vec3i(1);
+    const vec3i idx_hi   = vec3i(localPos+vec3f(1.f)); // +1 to emulate 'floor()'
+    const vec3i idx_lo   = idx_hi - vec3i(1);
 #else
-      vec3i idx_lo   = vec3i(floorf(localPos.x),floorf(localPos.y),floorf(localPos.z));
-      idx_lo = max(vec3i(-1), idx_lo);
-      const vec3i idx_hi   = idx_lo + vec3i(1);
+    vec3i idx_lo   = vec3i(floorf(localPos.x),floorf(localPos.y),floorf(localPos.z));
+    idx_lo = max(vec3i(-1), idx_lo);
+    const vec3i idx_hi   = idx_lo + vec3i(1);
 #endif
-      const vec3f frac     = localPos - vec3f(idx_lo);
-      const vec3f neg_frac = vec3f(1.f) - frac;
+    const vec3f frac     = localPos - vec3f(idx_lo);
+    const vec3f neg_frac = vec3f(1.f) - frac;
 
-      // #define INV_CELL_WIDTH invCellWidth
-      #define INV_CELL_WIDTH 1.f
-      if (idx_lo.z >= 0 && idx_lo.z < brick.size.z) {
-        if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
-          if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_lo.z);
-            const float weight = (neg_frac.z)*(neg_frac.y)*(neg_frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
-          if (idx_hi.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_lo.z);
-            const float weight = (neg_frac.z)*(neg_frac.y)*(frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
+    // #define INV_CELL_WIDTH invCellWidth
+#define INV_CELL_WIDTH 1.f
+    if (idx_lo.z >= 0 && idx_lo.z < brick.size.z) {
+      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(neg_frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
         }
-        if (idx_hi.y < brick.size.y) {
-          if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_lo.z);
-            const float weight = (neg_frac.z)*(frac.y)*(neg_frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
-          if (idx_hi.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_lo.z);
-            const float weight = (neg_frac.z)*(frac.y)*(frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(neg_frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
         }
       }
-      
-      if (idx_hi.z < brick.size.z) {
-        if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
-          if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_hi.z);
-            const float weight = (frac.z)*(neg_frac.y)*(neg_frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
-          if (idx_hi.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_hi.z);
-            const float weight = (frac.z)*(neg_frac.y)*(frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
+      if (idx_hi.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
         }
-        if (idx_hi.y < brick.size.y) {
-          if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_hi.z);
-            const float weight = (frac.z)*(frac.y)*(neg_frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
-          if (idx_hi.x < brick.size.x) {
-            const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_hi.z);
-            const float weight = (frac.z)*(frac.y)*(frac.x);
-            sumWeights += weight;
-            sumWeightedValues += weight*scalar;
-          }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
         }
       }
     }
 
-    __device__ Sample ExaBrickSampler::sampleVolume(const vec3f pos)
-    {
-      auto& lp = optixLaunchParams;
+    if (idx_hi.z < brick.size.z) {
+      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_hi.z);
+          const float weight = (frac.z)*(neg_frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_hi.z);
+          const float weight = (frac.z)*(neg_frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+      if (idx_hi.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_hi.z);
+          const float weight = (frac.z)*(frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_hi.z);
+          const float weight = (frac.z)*(frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+    }
+  }
 
-      SamplingRay ray;
-      ray.origin = pos;
-      ray.direction = vec3f(1.f);
-      ray.tmin = 0.f;
-      ray.tmax = 0.f;
+  __device__ Sample ExaBrickSampler::sampleVolume(const vec3f pos)
+  {
+    auto& lp = optixLaunchParams;
+
+    SamplingRay ray;
+    ray.origin = pos;
+    ray.direction = vec3f(1.f);
+    ray.tmin = 0.f;
+    ray.tmax = 0.f;
 
 #if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
-      Sample sample{-1,-1,0.f};
-      owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+    Sample sample{-1,-1,0.f};
+    owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      if (sample.primID < 0) return {0,0,0.f};
-      const ABR &abr = lp.abrBuffer[sample.primID];
-      const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
-      const int  childCount = abr.leafListSize;
-      float sumWeightedValues = 0.f;
-      float sumWeights = 0.f;
-      for (int childID=0;childID<childCount;childID++) {
-        const int brickID = childList[childID];
-        addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
-      }
-      sample.value = sumWeightedValues/sumWeights;
+    if (sample.primID < 0) return {0,0,0.f};
+    const ABR &abr = lp.abrBuffer[sample.primID];
+    const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+    const int  childCount = abr.leafListSize;
+    float sumWeightedValues = 0.f;
+    float sumWeights = 0.f;
+    for (int childID=0;childID<childCount;childID++) {
+      const int brickID = childList[childID];
+      addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
+    }
+    sample.value = sumWeightedValues/sumWeights;
 
-      // const float opacity = tex2D<float4>(lp.transferFunc.texture, sample.value, .5f).w;
-      // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("abr majorant is wrong: %f > %f\n", opacity, lp.abrMaxOpacities[sample.primID]);
-      // for (int childID=0;childID<childCount;childID++) {
-      //   const int brickID = childList[childID];
-      //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("ext majorant is wrong: %f > %f\n", opacity, lp.exaBrickMaxOpacities[brickID]);
-      // }
+    // const float opacity = tex2D<float4>(lp.transferFunc.texture, sample.value, .5f).w;
+    // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("abr majorant is wrong: %f > %f\n", opacity, lp.abrMaxOpacities[sample.primID]);
+    // for (int childID=0;childID<childCount;childID++) {
+    //   const int brickID = childList[childID];
+    //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("ext majorant is wrong: %f > %f\n", opacity, lp.exaBrickMaxOpacities[brickID]);
+    // }
 #else
-      ExaBrickSamplePRD sample(-1,-1,0.f);
-      sample.sumWeightedValues = 0.f;
-      sample.sumWeights = 0.f;
+    ExaBrickSamplePRD sample(-1,-1,0.f);
+    sample.sumWeightedValues = 0.f;
+    sample.sumWeights = 0.f;
 
-      owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+    owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-      if (sample.primID < 0) return {0,0,0.f};
-      sample.value = sample.sumWeightedValues/sample.sumWeights;
+    if (sample.primID < 0) return {0,0,0.f};
+    sample.value = sample.sumWeightedValues/sample.sumWeights;
 #endif
 
-      return sample; // slice to Sample class
-    }
+    return sample; // slice to Sample class
+  }
 
   // ------------------------------------------------------------------
   // ABR domain iterator
