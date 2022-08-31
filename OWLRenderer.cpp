@@ -55,6 +55,7 @@ namespace exa {
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
      { "exaBrickMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickMaxOpacities)},
+     { "voxelSpaceTransform", OWL_AFFINE3F, OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },

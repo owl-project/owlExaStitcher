@@ -448,6 +448,7 @@ namespace exa {
   struct ExaBrickSamplePRD : Sample {
     float sumWeightedValues = 0.f;
     float sumWeights = 0.f;
+    ExaBrickSamplePRD() = default;
     __device__ ExaBrickSamplePRD(int primID, int cellID, float value) : Sample{primID, cellID, value} {}
   };
 
@@ -699,7 +700,7 @@ namespace exa {
     }
   };
 
-  struct ExaBrickSampler : DefaultMarcher<ExaBrickSampler> {
+  struct ExaBrickSampler {
     static inline __device__ float getScalar(const int brickID,
                                       const int ix, const int iy, const int iz)
     {
@@ -714,7 +715,11 @@ namespace exa {
       return lp.scalarBuffer[idx];
     }
 
-    static __device__ Sample sampleVolume(const vec3f pos);
+    inline __device__ Sample sampleVolume(const vec3f pos);
+
+    template <bool Shading=true>
+    inline __device__
+    vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
   };
 
   __device__ void addBasisFunctions(float &sumWeightedValues,
@@ -849,6 +854,79 @@ namespace exa {
 
     return sample; // slice to Sample class
   }
+
+  template <typename Func>
+  inline __device__
+  void iterateABRs(const Ray &ray, const Func &func);
+
+  template <bool Shading>
+  inline __device__
+  vec4f ExaBrickSampler::integrateDVR(Ray ray,
+                                      float t0,
+                                      float t1,
+                                      float ils_t0,
+                                      const int numLights)
+  {
+    vec4f pixelColor(0.f);
+
+    auto integrate = [=,&pixelColor](const auto &domainIterationState, float t0, float t1) {
+      const auto& lp = optixLaunchParams;
+      const int leafID = domainIterationState.primID;
+
+      const float global_dt = lp.render.dt;
+
+      const ABR &abr = lp.abrBuffer[leafID];
+      const float dt = global_dt * abr.finestLevelCellWidth;
+
+      int i0 = int(ceilf((t0-dt*ils_t0) / dt));
+      float t_i = (ils_t0 + i0) * dt;
+      while ((t_i-dt) >= t0) t_i = t_i-dt;
+      while (t_i < t0) t_i += dt;
+
+      float t_last = t0;
+      for (;true;t_i += dt)
+      {
+        const float t_next = min(t_i,t1);
+        const float t_sample = 0.5f*(min(t1,t_next)+t_last);
+        const float actual_dt = t_next-t_last;
+        t_last = t_next;
+
+        const vec3f pos = ray.origin + t_sample * ray.direction;
+
+        const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+        const int  childCount = abr.leafListSize;
+        float sumWeightedValues = 0.f;
+        float sumWeights = 0.f;
+        for (int childID=0;childID<childCount;childID++) {
+          const int brickID = childList[childID];
+          addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
+        }
+
+        float value = sumWeightedValues/sumWeights;
+        const range1f xfDomain = lp.transferFunc.domain;
+        value -= xfDomain.lower;
+        value /= xfDomain.upper-xfDomain.lower;
+        vec4f sample = tex2D<float4>(lp.transferFunc.texture,value,.5f);
+
+        sample.w    = 1.f - powf(1.f-sample.w, actual_dt);
+        pixelColor += (1.f-pixelColor.w)*sample.w*vec4f(vec3f(sample), 1.f);
+
+        if (pixelColor.w >= 0.99f) break;
+        if (t_next >= t1) break;
+      }
+
+      if (pixelColor.w >= 0.99f) {
+        pixelColor = vec4f(vec3f(pixelColor)*pixelColor.w,1.f);
+        return false; // stop iteration
+      }
+
+      return true; // go on
+    };
+
+    iterateABRs(ray,integrate);
+    return pixelColor;
+  }
+
 
   // ------------------------------------------------------------------
   // ABR domain iterator
