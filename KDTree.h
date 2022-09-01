@@ -32,6 +32,10 @@ namespace exa {
 
     static KDTree::SP load(const std::string fileName);
 
+    void setLeaves(const std::vector<owl::box3f> &leaves);
+
+    void setModelBounds(const owl::box3f &bounds);
+
     bool initGPU(int deviceID=0);
 
     KDTreeTraversable deviceTraversable;
@@ -39,8 +43,8 @@ namespace exa {
   private:
 
     std::vector<KDTreeNode> nodes;
-    std::vector<owl::box3f> domains;
     std::vector<PrimRef>    primRefs;
+    owl::box3f              modelBounds;
 
     int deviceID;
   };

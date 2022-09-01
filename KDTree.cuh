@@ -139,8 +139,8 @@ namespace exa {
 
   struct KDTreeTraversable {
     KDTreeNode *nodes;
-    owl::box3f *domains;
     PrimRef    *primRefs;
+    owl::box3f  modelBounds;
   };
 
   struct KDTreeHitRec {
@@ -181,7 +181,7 @@ namespace exa {
       };
       typedef StackEntry Stack[32];
 
-      box3f bbox = tree.domains[0];
+      box3f bbox = tree.modelBounds;
 
       vec3f invDir = 1.f/ray.direction;
 

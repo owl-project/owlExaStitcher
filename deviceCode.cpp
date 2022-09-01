@@ -1643,17 +1643,17 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     if      (lp.shadeMode==SHADE_MODE_DEFAULT)  renderFrame_SelectSpaceSkippingMethod<I, S, Default >();
-    else if (lp.shadeMode==SHADE_MODE_GRIDLETS) renderFrame_SelectSpaceSkippingMethod<I, S, Gridlets>();
-    else if (lp.shadeMode==SHADE_MODE_TEASER)   renderFrame_SelectSpaceSkippingMethod<I, S, Teaser  >();   
+    //else if (lp.shadeMode==SHADE_MODE_GRIDLETS) renderFrame_SelectSpaceSkippingMethod<I, S, Gridlets>();
+    //else if (lp.shadeMode==SHADE_MODE_TEASER)   renderFrame_SelectSpaceSkippingMethod<I, S, Teaser  >();   
   }
 
   template<Integrator I>
   inline __device__ void renderFrame_SelectSampler()
   {
     auto& lp = optixLaunchParams;
-    if      (lp.sampler==EXA_STITCH_SAMPLER) renderFrame_SelectShadeMode<I, ExaStitchSampler>();
+    /*if      (lp.sampler==EXA_STITCH_SAMPLER) renderFrame_SelectShadeMode<I, ExaStitchSampler>();
     else if (lp.sampler==AMR_CELL_SAMPLER)   renderFrame_SelectShadeMode<I, AMRCellSampler  >();      
-    else if (lp.sampler==EXA_BRICK_SAMPLER)  renderFrame_SelectShadeMode<I, ExaBrickSampler>();
+    else*/ if (lp.sampler==EXA_BRICK_SAMPLER)  renderFrame_SelectShadeMode<I, ExaBrickSampler>();
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
@@ -1661,8 +1661,8 @@ namespace exa {
     auto& lp = optixLaunchParams;
     
     if (lp.integrator==PATH_TRACING_INTEGRATOR)      renderFrame_SelectSampler<PathTracer>();
-    else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
-    else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
+    //else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
+    //else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
 
 #if 0
     // Path tracing

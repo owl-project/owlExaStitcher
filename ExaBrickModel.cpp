@@ -101,14 +101,6 @@ namespace exa {
 
 
     // -------------------------------------------------------
-    // kd tree, if passed in the constructor
-    // -------------------------------------------------------
-
-    if (!kdTreeFileName.empty()) {
-      result->kdTree = KDTree::load(kdTreeFileName);
-    }
-
-    // -------------------------------------------------------
     // Global modelBounds and valueRange
     // -------------------------------------------------------
 
@@ -120,6 +112,20 @@ namespace exa {
     for (size_t i=0; i<abrs.value.size(); ++i) {
       const ABR &abr = abrs.value[i];
       valueRange.extend(abr.valueRange);
+    }
+
+    // -------------------------------------------------------
+    // kd tree, if passed in the constructor
+    // -------------------------------------------------------
+
+    if (!kdTreeFileName.empty()) {
+      result->kdTree = KDTree::load(kdTreeFileName);
+      std::vector<box3f> leaves;
+      for (auto b : bricks) {
+        leaves.push_back(b.getBounds());
+      }
+      result->kdTree->setLeaves(leaves);
+      result->kdTree->setModelBounds(modelBounds);
     }
 
     return result;

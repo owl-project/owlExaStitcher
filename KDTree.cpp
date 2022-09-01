@@ -28,7 +28,6 @@ namespace exa {
   KDTree::KDTree()
   {
     deviceTraversable.nodes    = nullptr;
-    deviceTraversable.domains  = nullptr;
     deviceTraversable.primRefs = nullptr;
   }
 
@@ -41,7 +40,6 @@ namespace exa {
       cudaSetDevice(deviceID);
 
     cudaFree(deviceTraversable.nodes);
-    cudaFree(deviceTraversable.domains);
     cudaFree(deviceTraversable.primRefs);
 
     if (prevDeviceID != deviceID)
@@ -61,6 +59,18 @@ namespace exa {
     return result;
   }
 
+  void KDTree::setLeaves(const std::vector<box3f> &leaves)
+  {
+    for (uint32_t i=0; leaves.size(); ++i) {
+      primRefs.push_back({i,leaves[i]});
+    }
+  }
+
+  void KDTree::setModelBounds(const box3f &bounds)
+  {
+    modelBounds = bounds;
+  }
+
   bool KDTree::initGPU(int deviceID)
   {
     if (nodes.empty())
@@ -76,12 +86,10 @@ namespace exa {
 
     if (deviceTraversable.nodes != nullptr) {
       cudaFree(deviceTraversable.nodes);
-      cudaFree(deviceTraversable.domains);
       cudaFree(deviceTraversable.primRefs);
     }
 
     cudaMalloc(&deviceTraversable.nodes,nodes.size()*sizeof(nodes[0]));
-    cudaMalloc(&deviceTraversable.domains,domains.size()*sizeof(domains[0]));
     cudaMalloc(&deviceTraversable.primRefs,primRefs.size()*sizeof(primRefs[0]));
 
     cudaMemcpy(deviceTraversable.nodes,
@@ -89,15 +97,12 @@ namespace exa {
                nodes.size()*sizeof(nodes[0]),
                cudaMemcpyHostToDevice);
 
-    cudaMemcpy(deviceTraversable.domains,
-               domains.data(),
-               domains.size()*sizeof(domains[0]),
-               cudaMemcpyHostToDevice);
-
     cudaMemcpy(deviceTraversable.primRefs,
                primRefs.data(),
                primRefs.size()*sizeof(primRefs[0]),
                cudaMemcpyHostToDevice);
+
+    deviceTraversable.modelBounds = modelBounds;
 
     if (prevDeviceID != deviceID)
       cudaSetDevice(prevDeviceID);
