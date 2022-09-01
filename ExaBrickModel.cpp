@@ -22,7 +22,8 @@
 namespace exa {
 
   ExaBrickModel::SP ExaBrickModel::load(const std::string brickFileName,
-                                        const std::string scalarFileName)
+                                        const std::string scalarFileName,
+                                        const std::string kdTreeFileName)
   {
     ExaBrickModel::SP result = std::make_shared<ExaBrickModel>();
 
@@ -98,6 +99,14 @@ namespace exa {
                    bricks.size(),
                    scalars.data());
 
+
+    // -------------------------------------------------------
+    // kd tree, if passed in the constructor
+    // -------------------------------------------------------
+
+    if (!kdTreeFileName.empty()) {
+      result->kdTree = KDTree::load(kdTreeFileName);
+    }
 
     // -------------------------------------------------------
     // Global modelBounds and valueRange

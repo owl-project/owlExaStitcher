@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 #include "KDTree.cuh"
 
@@ -29,16 +30,13 @@ namespace exa {
     KDTree();
    ~KDTree();
 
-    // Build kd-tree from host pointer to boxes
-    // Boxes may *NOT* overlap!
-    static KDTree::SP build(uint32_t numBoxes, const owl::box3f *boxes);
+    static KDTree::SP load(const std::string fileName);
 
     bool initGPU(int deviceID=0);
 
     KDTreeTraversable deviceTraversable;
 
   private:
-    void doSplit(size_t nodeID);
 
     std::vector<KDTreeNode> nodes;
     std::vector<owl::box3f> domains;
