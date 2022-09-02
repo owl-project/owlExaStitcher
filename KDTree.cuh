@@ -24,29 +24,112 @@
 namespace exa {
 
   struct KDTreeNode {
-    int first, last;
-    float splitPlane;
-    int splitAxis;
+    struct index_range {
+      unsigned first;
+      unsigned last;
+    };
 
-    inline __both__ int get_child(int id) const
+    __both__
+    inline bool is_inner() const
     {
-      return first+id;
+      return axis >> 30 != 3;
     }
 
-    inline __both__ bool is_leaf() const
+    __both__
+    inline bool is_leaf() const
     {
-      return first<0;
+      return axis >> 30 == 3;
     }
 
-    inline __both__ int first_prim() const
+    __both__
+    inline int get_split() const
     {
-      return ~first;
+      assert(is_inner());
+      return split;
     }
 
-    inline __both__ int num_prims() const
+    __both__
+    inline int get_max_level() const
     {
-      return last - first_prim();
+      assert(is_inner());
+      return max_level;
     }
+
+    __both__
+    inline unsigned get_axis()
+    {
+      assert(is_inner());
+      return unsigned(axis >> 30);
+    }
+
+    __both__
+    inline unsigned get_child(unsigned i = 0) const
+    {
+      assert(is_inner());
+      return (first_child & 0x3FFFFFFF) + i;
+    }
+
+    __both__
+    inline index_range get_indices() const
+    {
+      assert(is_leaf());
+      return { first_prim, first_prim + (num_prims & 0x3FFFFFFF) };
+    }
+
+    __both__
+    inline unsigned get_first_primitive() const
+    {
+      assert(is_leaf());
+      return first_prim;
+    }
+
+    __both__
+    inline unsigned get_num_primitives() const
+    {
+      assert(is_leaf());
+      return num_prims & 0x3FFFFFFF;
+    }
+
+    __both__
+    inline void set_inner(unsigned axis, int split, int max_level)
+    {
+      assert(/*axis >= 0 &&*/ axis < 3);
+      this->axis = axis << 30;
+      this->split = split;
+      this->max_level = max_level;
+    }
+
+    __both__
+    inline void set_leaf(unsigned first_primitive_index, unsigned count)
+    {
+      axis = 3 << 30;
+      first_prim = first_primitive_index;
+      num_prims |= count;
+    }
+
+    __both__
+    inline void set_first_child(unsigned index)
+    {
+      first_child |= index;
+    }
+
+    union { 
+      int split;
+      unsigned first_prim;
+    };
+
+    union {
+      // AA--.----.----.----
+      unsigned axis;
+
+      // --NP.NPNP.NPNP.NPNP
+      unsigned num_prims;
+
+      // --FC.FCFC.FCFC.FCFC
+      unsigned first_child;
+    };
+
+    int max_level;
   };
 
   struct PrimRef {
@@ -56,8 +139,8 @@ namespace exa {
 
   struct KDTreeTraversable {
     KDTreeNode *nodes;
-    owl::box3f *domains;
     PrimRef    *primRefs;
+    owl::box3f  modelBounds;
   };
 
   struct KDTreeHitRec {
@@ -98,7 +181,7 @@ namespace exa {
       };
       typedef StackEntry Stack[32];
 
-      box3f bbox = tree.domains[0];
+      box3f bbox = tree.modelBounds;
 
       vec3f invDir = 1.f/ray.direction;
 
@@ -121,10 +204,12 @@ namespace exa {
         KDTreeNode node = tree.nodes[se.nodeID];
 
         while (!node.is_leaf()) {
-          unsigned nearChild = signbit(ray.direction[node.splitAxis]);
+          unsigned splitAxis = node.get_axis();
+          int splitPlane = node.get_split();
+          unsigned nearChild = signbit(ray.direction[splitAxis]);
           unsigned farChild  = 1^nearChild;
 
-          float d = (node.splitPlane - ray.origin[node.splitAxis]) * invDir[node.splitAxis];
+          float d = (splitPlane - ray.origin[splitAxis]) * invDir[splitAxis];
 
           if (d <= se.tnear) {
             se.nodeID = node.get_child(farChild);
@@ -142,7 +227,7 @@ namespace exa {
         KDTreeHitRec hitRec = {false,FLT_MAX};
         isect(ray,
               prd,
-              tree.primRefs[node.first_prim()].primID,
+              tree.primRefs[node.get_first_primitive()].primID,
               se.tnear,
               se.tfar,
               hitRec);

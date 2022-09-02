@@ -21,6 +21,7 @@
 #include <cuda_runtime.h>
 
 #include <owl/owl.h>
+#include "owl/common/math/AffineSpace.h"
 #include "owl/common/math/box.h"
 #include "owl/common/math/random.h"
 
@@ -197,6 +198,7 @@ namespace exa {
     int      *abrLeafListBuffer;
     float    *abrMaxOpacities;
     float    *exaBrickMaxOpacities;
+    affine3f  voxelSpaceTransform;
 
     struct {
       cudaTextureObject_t texture;

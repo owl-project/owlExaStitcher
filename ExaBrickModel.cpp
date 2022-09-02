@@ -21,7 +21,8 @@
 namespace exa {
 
   ExaBrickModel::SP ExaBrickModel::load(const std::string brickFileName,
-                                        const std::string scalarFileName)
+                                        const std::string scalarFileName,
+                                        const std::string kdTreeFileName)
   {
     ExaBrickModel::SP result = std::make_shared<ExaBrickModel>();
 
@@ -110,6 +111,20 @@ namespace exa {
     for (size_t i=0; i<abrs.value.size(); ++i) {
       const ABR &abr = abrs.value[i];
       valueRange.extend(abr.valueRange);
+    }
+
+    // -------------------------------------------------------
+    // kd tree, if passed in the constructor
+    // -------------------------------------------------------
+
+    if (!kdTreeFileName.empty()) {
+      result->kdTree = KDTree::load(kdTreeFileName);
+      std::vector<box3f> leaves;
+      for (auto b : bricks) {
+        leaves.push_back(b.getBounds());
+      }
+      result->kdTree->setLeaves(leaves);
+      result->kdTree->setModelBounds(modelBounds);
     }
 
     return result;

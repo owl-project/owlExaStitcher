@@ -19,6 +19,7 @@
 #include <vector>
 #include "ABRs.h"
 #include "deviceCode.h"
+#include "KDTree.h"
 #include "Model.h"
 
 #include "KDTree.h"
@@ -29,11 +30,13 @@ namespace exa {
     typedef std::shared_ptr<ExaBrickModel> SP;
 
     static ExaBrickModel::SP load(const std::string brickFileName,
-                                  const std::string scalarFileName);
+                                  const std::string scalarFileName,
+                                  const std::string kdTreeFileName = "");
 
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
     ABRs                  abrs;
+    KDTree::SP            kdTree; // optional kd-tree over bricks
 
     // owl
     OWLGeomType abrGeomType;
