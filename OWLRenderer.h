@@ -34,6 +34,7 @@ namespace exa {
                 const std::string exaBrickFileName = "",
                 const std::string meshFileName = "",
                 const std::string scalarFileName = "",
+                const std::string kdtreeFileName = "",
                 const vec3i numMCs = {128,128,128});
 
    ~OWLRenderer();

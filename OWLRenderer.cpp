@@ -116,6 +116,7 @@ namespace exa {
                            const std::string exaBrickFileName,
                            const std::string meshFileName,
                            const std::string scalarFileName,
+                           const std::string kdtreeFileName,
                            const vec3i numMCs)
   {
     // ==================================================================
@@ -123,7 +124,7 @@ namespace exa {
     // ==================================================================
 
     exaStitchModel = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
-    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName);
+    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
     amrCellModel = AMRCellModel::load(amrCellFileName,scalarFileName);
 
     modelBounds.extend(exaStitchModel->modelBounds);
@@ -199,10 +200,6 @@ namespace exa {
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
-    setTraversalMode(MC_DDA_TRAVERSAL);
-    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
-    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
-
     // ==================================================================
     // Upload to GPU
     // ==================================================================
@@ -212,12 +209,6 @@ namespace exa {
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
-      }
-      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->extTlas); 
-      }
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
@@ -225,12 +216,17 @@ namespace exa {
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
       owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
-      setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
-      // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
     }
+
+    setTraversalMode(MC_DDA_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
+    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
+
+    setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
+    // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
 
     // ==================================================================
     // mesh geom
@@ -537,17 +533,41 @@ namespace exa {
   
   void OWLRenderer::setSamplerModeExaBrick(int mode)
   {
+    printf("setSamplerModeExaBrick %d\n", (int)mode);
     owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
-    if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
-    else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas);
+    if (exaBrickModel) {
+      if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
+        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
+      else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
+        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas);
+    }
   }
 
   void OWLRenderer::setTraversalMode(TraversalMode mode)
   {
+    printf("setTraversalMode %d\n", (int)mode);
     traversalMode = mode;
     owlParamsSet1i(lp,"traversalMode",(int)mode);
+    if (exaBrickModel) {
+      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
+      }
+      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->extTlas); 
+      }
+    }
+
+    if (owl,xf.colorMapBuffer) {
+      range1f r{
+      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+      };
+      if (useDDA(traversalMode)) {
+        grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      } else if (exaBrickModel) {
+        exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      }
+    }
   }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)
