@@ -17,7 +17,6 @@
 #include <fstream>
 #include <owl/common/parallel/parallel_for.h>
 #include "ExaBrickModel.h"
-#include "KDTree.h"
 
 namespace exa {
 
@@ -227,6 +226,14 @@ namespace exa {
       extTlas = owlInstanceGroupCreate(context, 1);
       owlInstanceGroupSetChild(extTlas, 0, extBlas);
       owlGroupBuildAccel(extTlas);
+
+      // 3. build KD tree over exabricks
+      // std::vector<box3f> bounds(bricks.size());
+      // owl::parallel_for(bricks.size(), [&](size_t i) {
+      //   bounds[i] = bricks[i].getDomain();
+      // });
+      // kdtree = KDTree::build(bounds.size(),bounds.data());
+      // if (!kdtree->initGPU()) throw std::runtime_error("kd-tree failed");
 
       return true;
     }

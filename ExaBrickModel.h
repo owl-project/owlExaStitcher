@@ -21,6 +21,8 @@
 #include "deviceCode.h"
 #include "Model.h"
 
+#include "KDTree.h"
+
 namespace exa {
 
   struct ExaBrickModel : Model {
@@ -49,6 +51,8 @@ namespace exa {
 
     OWLBuffer   abrMaxOpacities;
     OWLBuffer   brickMaxOpacities;
+
+    KDTree::SP kdtree;
 
     bool initGPU(OWLContext, OWLModule module);
 

@@ -822,8 +822,7 @@ namespace exa {
     }
   };
 
-  template<int SampleMode>
-  struct ExaBrickSampler : DefaultMarcher<ExaBrickSampler<SampleMode>> {
+  struct ExaBrickSampler : DefaultMarcher<ExaBrickSampler> {
     inline __device__ Sample sampleVolume(const vec3f pos)
     {
       auto& lp = optixLaunchParams;
@@ -834,11 +833,11 @@ namespace exa {
       ray.tmin = 0.f;
       ray.tmax = 0.f;
 
-      ExaBrickSamplePRD<SampleMode> sample;
-      owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+      if (lp.samplerModeExaBrick == EXA_BRICK_SAMPLER_ABR_BVH) {
+        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH> sample;
+        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
                     OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-      
-      if constexpr (SampleMode == EXA_BRICK_SAMPLER_ABR_BVH) {
+
         if (sample.primID < 0) return {0,0,0.f};
         float sumWeightedValues = 0.f;
         float sumWeights = 0.f;
@@ -852,6 +851,10 @@ namespace exa {
         return {sample.primID,-1,sumWeightedValues/sumWeights};
       }
       else {
+        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH> sample;
+        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
         if (sample.sumWeights <= 0) return {0,0,0.f};
         return {0,-1,sample.sumWeightedValues/sample.sumWeights};
       }
@@ -1599,10 +1602,7 @@ namespace exa {
     }
 
     else if (lp.sampler==EXA_BRICK_SAMPLER) {
-      if (lp.samplerModeExaBrick==EXA_BRICK_SAMPLER_ABR_BVH)
-        renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler<EXA_BRICK_SAMPLER_ABR_BVH>, Default>();
-      else if (lp.samplerModeExaBrick==EXA_BRICK_SAMPLER_EXT_BVH)
-        renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler<EXA_BRICK_SAMPLER_EXT_BVH>, Default>();
+      renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler, Default>();
     }
 
     // else if (lp.sampler==AMR_CELL_SAMPLER) renderFrame_SelectSpaceSkippingMethod<I, AMRCellSampler , Default>();  
