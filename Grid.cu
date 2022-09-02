@@ -17,35 +17,36 @@
 #include "deviceCode.h"
 #include "Grid.h"
 #include "Grid.cuh"
+#include "atomicOp.cuh"
 
 using namespace owl;
 
 namespace exa {
 
-  // Lifted from https://github.com/treecode/Bonsai/blob/master/runtime/profiling/derived_atomic_functions.h
-  __device__ __forceinline__ float atomicMin(float *address, float val)
-  {
-      int ret = __float_as_int(*address);
-      while(val < __int_as_float(ret))
-      {
-          int old = ret;
-          if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
-              break;
-      }
-      return __int_as_float(ret);
-  }
+  // // Lifted from https://github.com/treecode/Bonsai/blob/master/runtime/profiling/derived_atomic_functions.h
+  // __device__ __forceinline__ float atomicMin(float *address, float val)
+  // {
+  //     int ret = __float_as_int(*address);
+  //     while(val < __int_as_float(ret))
+  //     {
+  //         int old = ret;
+  //         if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+  //             break;
+  //     }
+  //     return __int_as_float(ret);
+  // }
   
-  __device__ __forceinline__ float atomicMax(float *address, float val)
-  {
-      int ret = __float_as_int(*address);
-      while(val > __int_as_float(ret))
-      {
-          int old = ret;
-          if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
-              break;
-      }
-      return __int_as_float(ret);
-  }
+  // __device__ __forceinline__ float atomicMax(float *address, float val)
+  // {
+  //     int ret = __float_as_int(*address);
+  //     while(val > __int_as_float(ret))
+  //     {
+  //         int old = ret;
+  //         if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+  //             break;
+  //     }
+  //     return __int_as_float(ret);
+  // }
 
 
   inline int __both__ iDivUp(int a, int b)
@@ -352,6 +353,9 @@ namespace exa {
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
       initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
+
+      // pre-allocating max-opacity buffer
+      maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numMCs, nullptr);
     }
 
     // Add contrib from uelems
@@ -472,16 +476,8 @@ namespace exa {
 
   void Grid::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
   {
-    if (maxOpacities) {
-      owlBufferDestroy(maxOpacities);
-    }
-
     size_t numMCs = dims.x*size_t(dims.y)*dims.z;
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
-
-    maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT,
-                                         numMCs,
-                                         nullptr);
 
     size_t numThreads = 1024;
     computeMaxOpacitiesGPU<<<iDivUp(numMCs, numThreads), numThreads>>>(

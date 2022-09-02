@@ -54,6 +54,8 @@ namespace exa {
      { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
+     { "exaBrickMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickMaxOpacities)},
+     { "voxelSpaceTransform", OWL_AFFINE3F, OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -205,11 +207,21 @@ namespace exa {
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->tlas);
+#if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas); // add options to config
+#else
+      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas); // add options to config
+#endif
+      if (useDDA)
+        owlParamsSetGroup(lp,"majorantBVH",0);
+      else
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
       owlParamsSetBuffer(lp,"abrLeafListBuffer", exaBrickModel->abrLeafListBuffer);
+      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
+      owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
@@ -402,13 +414,10 @@ namespace exa {
     };
     if (useDDA) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
-      owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
     }
-    
+
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
       xf.colorMapTexture = 0;
@@ -469,11 +478,8 @@ namespace exa {
     if (xf.colorMapBuffer) {
       if (useDDA) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-        owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-        owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->maxOpacities);
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->tlas);
       }
     }
   }
@@ -571,6 +577,7 @@ namespace exa {
                    grid.dims.y,
                    grid.dims.z);
     owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
+    owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
   }
 
   void OWLRenderer::setNumMCs(const vec3i numMCs)

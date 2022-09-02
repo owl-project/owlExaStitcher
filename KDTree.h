@@ -16,53 +16,37 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
-#include "ABRs.h"
-#include "deviceCode.h"
-#include "KDTree.h"
-#include "Model.h"
+#include "KDTree.cuh"
 
 namespace exa {
 
-  struct ExaBrickModel : Model {
-    typedef std::shared_ptr<ExaBrickModel> SP;
 
-    static ExaBrickModel::SP load(const std::string brickFileName,
-                                  const std::string scalarFileName,
-                                  const std::string kdTreeFileName = "");
+  struct KDTree
+  {
+    typedef std::shared_ptr<KDTree> SP;
 
-    std::vector<ExaBrick> bricks;
-    std::vector<float>    scalars;
-    ABRs                  abrs;
-    KDTree::SP            kdTree; // optional kd-tree over bricks
+    KDTree();
+   ~KDTree();
 
-    // owl
-    OWLGeomType abrGeomType;
-    OWLGroup    abrBlas;
-    OWLGroup    abrTlas;
+    static KDTree::SP load(const std::string fileName);
 
-    OWLGeomType extGeomType;
-    OWLGroup    extBlas;
-    OWLGroup    extTlas;
+    void setLeaves(const std::vector<owl::box3f> &leaves);
 
-    OWLBuffer   abrBuffer;
-    OWLBuffer   brickBuffer;
-    OWLBuffer   scalarBuffer;
-    OWLBuffer   abrLeafListBuffer;
+    void setModelBounds(const owl::box3f &bounds);
 
-    OWLBuffer   abrMaxOpacities;
-    OWLBuffer   brickMaxOpacities;
+    bool initGPU(int deviceID=0);
 
-    bool initGPU(OWLContext, OWLModule module);
+    KDTreeTraversable deviceTraversable;
 
-    // Compute per-ABR max opacities on the GPU
-    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+  private:
 
-    // Statistics
-    void memStats(size_t &bricksBytes,
-                  size_t &scalarsBytes,
-                  size_t &abrsBytes,
-                  size_t &abrLeafListBytes);
+    std::vector<KDTreeNode> nodes;
+    std::vector<PrimRef>    primRefs;
+    owl::box3f              modelBounds;
+
+    int deviceID;
   };
 
 } // ::exa
