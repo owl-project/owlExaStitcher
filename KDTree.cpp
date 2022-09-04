@@ -61,7 +61,7 @@ namespace exa {
 
   void KDTree::setLeaves(const std::vector<box3f> &leaves)
   {
-    for (uint32_t i=0; leaves.size(); ++i) {
+    for (uint32_t i=0; i < leaves.size(); ++i) {
       primRefs.push_back({i,leaves[i]});
     }
   }

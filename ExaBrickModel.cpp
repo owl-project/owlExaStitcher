@@ -118,13 +118,13 @@ namespace exa {
     // -------------------------------------------------------
 
     if (!kdTreeFileName.empty()) {
-      result->kdTree = KDTree::load(kdTreeFileName);
-      std::vector<box3f> leaves;
-      for (auto b : bricks) {
-        leaves.push_back(b.getBounds());
+      result->kdtree = KDTree::load(kdTreeFileName);
+      std::vector<box3f> leaves(bricks.size());
+      for (uint64_t i = 0; i < bricks.size(); ++i) {
+        leaves[i] = bricks[i].getBounds();
       }
-      result->kdTree->setLeaves(leaves);
-      result->kdTree->setModelBounds(modelBounds);
+      result->kdtree->setLeaves(leaves);
+      result->kdtree->setModelBounds(modelBounds);
     }
 
     return result;
@@ -243,12 +243,7 @@ namespace exa {
       owlGroupBuildAccel(extTlas);
 
       // 3. build KD tree over exabricks
-      // std::vector<box3f> bounds(bricks.size());
-      // owl::parallel_for(bricks.size(), [&](size_t i) {
-      //   bounds[i] = bricks[i].getDomain();
-      // });
-      // kdtree = KDTree::build(bounds.size(),bounds.data());
-      // if (!kdtree->initGPU()) throw std::runtime_error("kd-tree failed");
+      kdtree->initGPU();
 
       return true;
     }

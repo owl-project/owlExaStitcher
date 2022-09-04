@@ -18,7 +18,7 @@ void isect(const owl::Ray &ray, PRD &prd, int primID, float tmin, float tmax, KD
   printf("%i, (%f,%f)\n",primID,tmin,tmax);
 
   hitRec.hit = true;
-  hitRec.t   = tmin;
+  hitRec.t   = tmin; // tmin or tmax ??
 }
 
 __global__ void test(KDTreeTraversable tree)

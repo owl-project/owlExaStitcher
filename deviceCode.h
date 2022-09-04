@@ -25,6 +25,8 @@
 #include "owl/common/math/box.h"
 #include "owl/common/math/random.h"
 
+#include "KDTree.cuh"
+
 using namespace owl;
 using namespace owl::common;
 
@@ -188,6 +190,8 @@ namespace exa {
     OptixTraversableHandle sampleBVH{};
     OptixTraversableHandle meshBVH{};
     OptixTraversableHandle majorantBVH{};
+    KDTreeTraversable kdtree;
+
     Gridlet  *gridletBuffer{};
     box3f      modelBounds{};
 

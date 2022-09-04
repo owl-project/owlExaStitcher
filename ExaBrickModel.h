@@ -36,7 +36,7 @@ namespace exa {
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
     ABRs                  abrs;
-    KDTree::SP            kdTree; // optional kd-tree over bricks
+    KDTree::SP            kdtree; // optional kd-tree over bricks
 
     // owl
     OWLGeomType abrGeomType;
@@ -54,8 +54,6 @@ namespace exa {
 
     OWLBuffer   abrMaxOpacities;
     OWLBuffer   brickMaxOpacities;
-
-    KDTree::SP kdtree;
 
     bool initGPU(OWLContext, OWLModule module);
 

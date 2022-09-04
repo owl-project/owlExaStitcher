@@ -916,12 +916,14 @@ namespace exa {
     QObject::connect(&traversalModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         renderer.setTraversalMode((TraversalMode)item);
+        renderer.resetAccum();
       });
 
     // Sampling Mode  select
     QObject::connect(&samplingModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         renderer.setSamplerModeExaBrick(item);
+        renderer.resetAccum();
       });
 
     // Light pos editing enabled

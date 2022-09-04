@@ -634,7 +634,7 @@ namespace exa {
                  optixGetRayTmin(),
                  optixGetRayTmax());
     const ExaBrick &brick = self.exaBrickBuffer[leafID];
-    const box3f bounds = brick.getDomain();
+    const box3f bounds = brick.getBounds();
 
     float t0 = ray.tmin, t1 = ray.tmax;
     if (!intersect(ray,bounds,t0,t1))
@@ -938,6 +938,23 @@ namespace exa {
   // ABR domain iterator
   // ------------------------------------------------------------------
 
+  // Isect program for non-zero length rays
+  __device__ void ExaBrickIsectKdTree(const Ray &ray, ExaBrickPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
+  {
+    const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
+    const box3f bounds = brick.getBounds();
+
+    float t0 = 1e30f, t1 = -1e30f;
+    if (intersect(ray,bounds,t0,t1)) {
+      hitRec.hit = true;
+      hitRec.t = min(t1, tmax);
+
+      prd.t0 = max(t0, tmin);
+      prd.t1 = min(t1, tmax);
+      prd.leafID = primID;
+    }
+  }
+
   template<TraversalMode Mode>
   struct ExaBrickIterationState {
     int primID;
@@ -954,8 +971,11 @@ namespace exa {
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       Ray newRay = ray;
       newRay.tmin = alreadyIntegratedDistance;
-      owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+      if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
+        kd::traceRay(optixLaunchParams.kdtree,newRay,prd,ExaBrickIsectKdTree);
+      else
+        owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
@@ -970,17 +990,22 @@ namespace exa {
   template<TraversalMode Mode>
   __device__ float getMajorant(const ExaBrickIterationState<Mode> &state);
 
-  template<>
-  inline __device__
+  template<> inline __device__
   float getMajorant(const ExaBrickIterationState<EXABRICK_ARB_TRAVERSAL> &state)
   {
     const auto& lp = optixLaunchParams;
     return lp.abrMaxOpacities[state.primID];
   }
 
-  template<>
-  inline __device__
+  template<> inline __device__
   float getMajorant(const ExaBrickIterationState<EXABRICK_BVH_TRAVERSAL> &state)
+  {
+    const auto& lp = optixLaunchParams;
+    return lp.exaBrickMaxOpacities[state.primID];
+  }
+
+  template<> inline __device__
+  float getMajorant(const ExaBrickIterationState<EXABRICK_KDTREE_TRAVERSAL> &state)
   {
     const auto& lp = optixLaunchParams;
     return lp.exaBrickMaxOpacities[state.primID];
@@ -1168,6 +1193,8 @@ namespace exa {
         iterateExaBrick<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
       else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
         iterateExaBrick<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
+        iterateExaBrick<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
     }
 
   }

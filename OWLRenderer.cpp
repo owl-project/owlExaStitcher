@@ -47,6 +47,10 @@ namespace exa {
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
+     { "kdtree.nodes",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.nodes)},
+     { "kdtree.primRefs",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.primRefs)},
+     { "kdtree.modelBounds.lower",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.lower)},
+     { "kdtree.modelBounds.upper",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.upper)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
@@ -216,14 +220,27 @@ namespace exa {
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
       owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
+      // setup kdtree traversable
+      owlParamsSetPointer(lp,"kdtree.nodes",exaBrickModel->kdtree->deviceTraversable.nodes);
+      owlParamsSetPointer(lp,"kdtree.primRefs",exaBrickModel->kdtree->deviceTraversable.primRefs);
+      owlParamsSet3f(lp,"kdtree.modelBounds.lower",
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.x,
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.y,
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.z);
+      owlParamsSet3f(lp,"kdtree.modelBounds.upper",
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.x,
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.y,
+                      exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.z);
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
     }
 
     setTraversalMode(MC_DDA_TRAVERSAL);
+    // setTraversalMode(MC_BVH_TRAVERSAL);
     // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
     // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
+    // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
 
     setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
     // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
@@ -549,10 +566,13 @@ namespace exa {
     traversalMode = mode;
     owlParamsSet1i(lp,"traversalMode",(int)mode);
     if (exaBrickModel) {
-      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
+      if (traversalMode == EXABRICK_ARB_TRAVERSAL) 
+      { 
         owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
       }
-      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
+      else if (traversalMode == EXABRICK_BVH_TRAVERSAL || 
+               traversalMode == EXABRICK_KDTREE_TRAVERSAL) 
+      { 
         owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->extTlas); 
       }
     }
