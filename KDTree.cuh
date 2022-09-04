@@ -233,7 +233,7 @@ namespace exa {
               hitRec);
 
         if (hitRec.hit)
-          t = max(t,hitRec.t);
+          break;
 
         if (se.tfar <= t)
           break;
