@@ -25,6 +25,14 @@ namespace exa {
   }
 
   __device__ inline
+  owl::vec3i gridIndex(const size_t index, const owl::vec3i grid)
+  {
+    const auto stride_y = (size_t)grid.x;
+    const auto stride_z = (size_t)grid.y * (size_t)grid.x;
+    return  owl::vec3i(index % stride_y, (index % stride_z) / stride_y, index / stride_z);
+  }
+
+  __device__ inline
   vec3i projectOnGrid(const owl::vec3f V,
                       const owl::vec3i dims,
                       const owl::box3f worldBounds)

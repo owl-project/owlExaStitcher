@@ -68,8 +68,6 @@ namespace exa {
     EXABRICK_KDTREE_TRAVERSAL = 4,
   };
 
-  __both__ inline bool useDDA(TraversalMode m) { return m == MC_DDA_TRAVERSAL || m == MC_BVH_TRAVERSAL; }
-
   struct RayGen {
   };
 
@@ -166,6 +164,8 @@ namespace exa {
 
   struct MacroCellGeom {
     vec3i dims;
+    vec3f spacing;
+    vec3f origin;
   };
 
   struct ExaBrickGeom {

@@ -224,13 +224,16 @@ namespace exa {
 #endif
   }
 
-
   struct Sample {
     int primID;
     int cellID;
     float value;
   };
 
+  struct SpatialPartitionPRD {
+    float t0, t1;
+    int   leafID;
+  };
 
   // ------------------------------------------------------------------
   // Gridlet user geometry
@@ -534,11 +537,6 @@ namespace exa {
     }
   }
 
-  struct ExaBrickPRD {
-    float t0, t1;
-    int   leafID;
-  };
-
   template<int SamplerMode>
   struct ExaBrickSamplePRD;
 
@@ -585,7 +583,7 @@ namespace exa {
       return;
 
     if (optixReportIntersection(t0, 0)) {
-      ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
       prd.t0 = t0;
       prd.t1 = t1;
       prd.leafID = leafID;
@@ -669,12 +667,61 @@ namespace exa {
       return;
 
     if (optixReportIntersection(t0, 0)) {
-      ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
       prd.t0 = t0;
       prd.t1 = t1;
       prd.leafID = leafID;
     }
   }
+
+  // ------------------------------------------------------------------
+  // Macro Cell Grids
+  // ------------------------------------------------------------------
+
+  OPTIX_CLOSEST_HIT_PROGRAM(MacroCellGeomCH)()
+  {
+  }
+
+  OPTIX_BOUNDS_PROGRAM(MacroCellGeomBounds)(const void* geomData,
+                                              box3f& result,
+                                              int leafID)
+  {
+    const MacroCellGeom &self = *(const MacroCellGeom *)geomData;
+    const auto index = gridIndex(leafID, self.dims);
+    result.lower = self.spacing * vec3f(index) + self.origin;
+    result.upper = self.spacing + result.lower;
+
+    // printf("bounds (%f,%f,%f) (%f,%f,%f)\n", 
+    //        result.lower.x,result.lower.y,result.lower.z,
+    //        result.upper.x,result.upper.y,result.upper.z);
+  }
+
+  OPTIX_INTERSECT_PROGRAM(MacroCellGeomIsect)() // for non-zero length rays
+  {
+    const MacroCellGeom &self = owl::getProgramData<MacroCellGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+
+    const auto index = gridIndex(leafID, self.dims);
+    box3f bounds;
+    bounds.lower = self.spacing * vec3f(index) + self.origin;
+    bounds.upper = self.spacing + bounds.lower;
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!intersect(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.leafID = leafID;
+    }
+  }
+
 
   // ------------------------------------------------------------------
   // Triangle meshes
@@ -938,7 +985,7 @@ namespace exa {
       return true; // go on
     };
 
-    iterateExaBrick<EXABRICK_ARB_TRAVERSAL>(ray,integrate);
+    iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,integrate);
     return pixelColor;
   }
 
@@ -948,7 +995,7 @@ namespace exa {
   // ------------------------------------------------------------------
 
   // Isect program for non-zero length rays
-  __device__ void ExaBrickIsectKdTree(const Ray &ray, ExaBrickPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
+  __device__ void ExaBrickKdTreeIsect(const Ray &ray, SpatialPartitionPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
   {
     const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
     const box3f bounds = brick.getBounds(); // use strict domain
@@ -964,31 +1011,31 @@ namespace exa {
   }
 
   template<TraversalMode Mode>
-  struct ExaBrickIterationState {
+  struct SPIterationState {
     int primID;
   };
 
   template <TraversalMode Mode, typename Func>
   inline __device__
-  void iterateExaBrick(const Ray &ray, const Func &func)
+  void iterateSpatialPartitions(const Ray &ray, const Func &func)
   {
     float alreadyIntegratedDistance = ray.tmin;
     while (1) {
-      ExaBrickPRD prd;
+      SpatialPartitionPRD prd;
       prd.leafID = -1;
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       Ray newRay = ray;
       newRay.tmin = alreadyIntegratedDistance;
 
       if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
-        kd::traceRay(optixLaunchParams.kdtree, newRay, prd, ExaBrickIsectKdTree);
+        kd::traceRay(optixLaunchParams.kdtree, newRay, prd, ExaBrickKdTreeIsect);
       else
         owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
 
-      if (!func(ExaBrickIterationState<Mode>{prd.leafID},prd.t0,prd.t1))
+      if (!func(SPIterationState<Mode>{prd.leafID},prd.t0,prd.t1))
         return;
 
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
@@ -996,27 +1043,26 @@ namespace exa {
   }
 
   template<TraversalMode Mode>
-  __device__ float getMajorant(const ExaBrickIterationState<Mode> &state);
+  __device__ float getMajorant(const SPIterationState<Mode> &state);
 
   template<> inline __device__
-  float getMajorant(const ExaBrickIterationState<EXABRICK_ARB_TRAVERSAL> &state)
-  {
-    const auto& lp = optixLaunchParams;
-    return lp.abrMaxOpacities[state.primID];
+  float getMajorant(const SPIterationState<MC_BVH_TRAVERSAL> &state) {
+    return optixLaunchParams.grid.maxOpacities[state.primID];
   }
 
   template<> inline __device__
-  float getMajorant(const ExaBrickIterationState<EXABRICK_BVH_TRAVERSAL> &state)
-  {
-    const auto& lp = optixLaunchParams;
-    return lp.exaBrickMaxOpacities[state.primID];
+  float getMajorant(const SPIterationState<EXABRICK_ARB_TRAVERSAL> &state) {
+    return optixLaunchParams.abrMaxOpacities[state.primID];
   }
 
   template<> inline __device__
-  float getMajorant(const ExaBrickIterationState<EXABRICK_KDTREE_TRAVERSAL> &state)
-  {
-    const auto& lp = optixLaunchParams;
-    return lp.exaBrickMaxOpacities[state.primID];
+  float getMajorant(const SPIterationState<EXABRICK_BVH_TRAVERSAL> &state) {
+    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
+  }
+
+  template<> inline __device__
+  float getMajorant(const SPIterationState<EXABRICK_KDTREE_TRAVERSAL> &state) {
+    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
   }
 
   // ------------------------------------------------------------------
@@ -1197,12 +1243,14 @@ namespace exa {
     if constexpr (useDDA)
       dda3(ray,lp.grid.dims,lp.modelBounds,woodcockFunc);
     else {
-      if (lp.traversalMode == EXABRICK_ARB_TRAVERSAL) 
-        iterateExaBrick<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
+      if (lp.traversalMode == MC_BVH_TRAVERSAL)
+        iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_ARB_TRAVERSAL) 
+        iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
       else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
-        iterateExaBrick<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
+        iterateSpatialPartitions<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
       else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
-        iterateExaBrick<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
+        iterateSpatialPartitions<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
     }
 
   }
@@ -1692,7 +1740,7 @@ namespace exa {
   inline void __device__ renderFrame_SelectSpaceSkippingMethod()
   {
     auto& lp = optixLaunchParams;
-    if (useDDA((TraversalMode)lp.traversalMode)) renderFrame_Impl<I,Shade,true>(S{});
+    if (lp.traversalMode == MC_DDA_TRAVERSAL) renderFrame_Impl<I,Shade,true>(S{});
     else renderFrame_Impl<I,Shade,false>(S{});
   }
 

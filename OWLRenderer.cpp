@@ -432,7 +432,7 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    if (useDDA(traversalMode)) {
+    if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -496,7 +496,7 @@ namespace exa {
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
     if (xf.colorMapBuffer) {
-      if (useDDA(traversalMode)) {
+      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -566,9 +566,13 @@ namespace exa {
   void OWLRenderer::setTraversalMode(TraversalMode mode)
   {
     printf("setTraversalMode %d\n", (int)mode);
+
     traversalMode = mode;
-    owlParamsSet1i(lp,"traversalMode",(int)mode);
-    if (exaBrickModel) {
+    owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
+    if (traversalMode == MC_BVH_TRAVERSAL) {
+      owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
+    }
+    else if (exaBrickModel) {
       if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
         owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
       }
@@ -582,7 +586,7 @@ namespace exa {
       xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
       xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
       };
-      if (useDDA(traversalMode)) {
+      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -618,7 +622,7 @@ namespace exa {
 
   void OWLRenderer::buildGrid()
   {
-    grid.build(owl,
+    grid.build(owl, module,
                exaStitchModel->vertexBuffer,
                exaStitchModel->indexBuffer,
                exaStitchModel->gridletBuffer,
