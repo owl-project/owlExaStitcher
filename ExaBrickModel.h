@@ -22,6 +22,8 @@
 #include "KDTree.h"
 #include "Model.h"
 
+#include "KDTree.h"
+
 namespace exa {
 
   struct ExaBrickModel : Model {
@@ -29,12 +31,12 @@ namespace exa {
 
     static ExaBrickModel::SP load(const std::string brickFileName,
                                   const std::string scalarFileName,
-                                  const std::string kdTreeFileName = "");
+                                  const std::string kdTreeFileName);
 
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
     ABRs                  abrs;
-    KDTree::SP            kdTree; // optional kd-tree over bricks
+    KDTree::SP            kdtree; // optional kd-tree over bricks
 
     // owl
     OWLGeomType abrGeomType;
@@ -44,6 +46,10 @@ namespace exa {
     OWLGeomType extGeomType;
     OWLGroup    extBlas;
     OWLGroup    extTlas;
+
+    OWLGeomType brickGeomType;
+    OWLGroup    brickBlas;
+    OWLGroup    brickTlas;
 
     OWLBuffer   abrBuffer;
     OWLBuffer   brickBuffer;

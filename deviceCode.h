@@ -25,6 +25,8 @@
 #include "owl/common/math/box.h"
 #include "owl/common/math/random.h"
 
+#include "KDTree.cuh"
+
 using namespace owl;
 using namespace owl::common;
 
@@ -47,7 +49,6 @@ enum RayTypeDecl {
 
 #define EXA_BRICK_SAMPLER_ABR_BVH 0
 #define EXA_BRICK_SAMPLER_EXT_BVH 1
-#define EXA_BRICK_SAMPLER_STRATEGY EXA_BRICK_SAMPLER_ABR_BVH
 
 #define PATH_TRACING_INTEGRATOR 0
 #define DIRECT_LIGHT_INTEGRATOR 1
@@ -58,6 +59,15 @@ enum RayTypeDecl {
 #define SHADE_MODE_TEASER   2
 
 namespace exa {
+
+  enum TraversalMode {
+    MC_DDA_TRAVERSAL = 0,
+    MC_BVH_TRAVERSAL = 1,
+    EXABRICK_ARB_TRAVERSAL = 2,
+    EXABRICK_BVH_TRAVERSAL = 3,
+    EXABRICK_KDTREE_TRAVERSAL = 4,
+  };
+
   struct RayGen {
   };
 
@@ -152,15 +162,14 @@ namespace exa {
     float   finestLevelCellWidth;
   };
 
-  // struct ExaBrickGeom {
-  //   ABR *abrBuffer;
-  // };
-
-  struct ExaBrickABRGeom {
-    ABR *abrBuffer;
+  struct MacroCellGeom {
+    vec3i dims;
+    vec3f spacing;
+    vec3f origin;
   };
 
-  struct ExaBrickExtGeom {
+  struct ExaBrickGeom {
+    ABR *abrBuffer;
     ExaBrick *exaBrickBuffer;
   };
 
@@ -172,9 +181,14 @@ namespace exa {
     int       integrator{};
     int       shadeMode{};
     int       sampler{};
+    int       samplerModeExaBrick{};
+    int       traversalMode{};
+
     OptixTraversableHandle sampleBVH{};
     OptixTraversableHandle meshBVH{};
     OptixTraversableHandle majorantBVH{};
+    KDTreeTraversable kdtree;
+
     Gridlet  *gridletBuffer{};
     box3f      modelBounds{};
 

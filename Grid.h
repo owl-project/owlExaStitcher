@@ -25,7 +25,7 @@ namespace exa {
   struct Grid
   {
     //
-    void build(OWLContext       owl,
+    void build(OWLContext       owl, OWLModule module,
                OWLBuffer        vertices,       /* umesh verts; w is value */
                OWLBuffer        indices,        /* umesh indices */
                OWLBuffer        gridlets,       /* gridlet buffer */
@@ -50,6 +50,12 @@ namespace exa {
 
     // World bounds the grid spans
     owl::box3f worldBounds;
+
+    // MC BVH
+    OWLGeomType geomType;
+    OWLGroup    blas;
+    OWLGroup    tlas;
+
   };
 
 } // ::exa

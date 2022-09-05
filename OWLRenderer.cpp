@@ -42,9 +42,15 @@ namespace exa {
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
+     { "samplerModeExaBrick", OWL_INT, OWL_OFFSETOF(LaunchParams,samplerModeExaBrick)},
+     { "traversalMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,traversalMode)},
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
+     { "kdtree.nodes",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.nodes)},
+     { "kdtree.primRefs",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.primRefs)},
+     { "kdtree.modelBounds.lower",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.lower)},
+     { "kdtree.modelBounds.upper",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.upper)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
      { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
@@ -114,6 +120,7 @@ namespace exa {
                            const std::string exaBrickFileName,
                            const std::string meshFileName,
                            const std::string scalarFileName,
+                           const std::string kdtreeFileName,
                            const vec3i numMCs)
   {
     // ==================================================================
@@ -121,7 +128,7 @@ namespace exa {
     // ==================================================================
 
     exaStitchModel = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
-    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName);
+    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
     amrCellModel = AMRCellModel::load(amrCellFileName,scalarFileName);
 
     modelBounds.extend(exaStitchModel->modelBounds);
@@ -197,7 +204,6 @@ namespace exa {
     lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
     rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
 
-
     // ==================================================================
     // Upload to GPU
     // ==================================================================
@@ -207,15 +213,6 @@ namespace exa {
       owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
       setSampler(EXA_STITCH_SAMPLER);
     } else if (exaBrickModel->initGPU(owl,module)) {
-#if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas); // add options to config
-#else
-      owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas); // add options to config
-#endif
-      if (useDDA)
-        owlParamsSetGroup(lp,"majorantBVH",0);
-      else
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas);
       owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
       owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
       owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
@@ -223,10 +220,33 @@ namespace exa {
       owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
       owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
       setSampler(EXA_BRICK_SAMPLER);
+      // setup kdtree traversable
+      if (exaBrickModel->kdtree) {
+        printf("setting up kd-tree traversable\n");
+        owlParamsSetPointer(lp,"kdtree.nodes",exaBrickModel->kdtree->deviceTraversable.nodes);
+        owlParamsSetPointer(lp,"kdtree.primRefs",exaBrickModel->kdtree->deviceTraversable.primRefs);
+        owlParamsSet3f(lp,"kdtree.modelBounds.lower",
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.x,
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.y,
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.z);
+        owlParamsSet3f(lp,"kdtree.modelBounds.upper",
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.x,
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.y,
+                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.z);
+      }
     } else if (amrCellModel->initGPU(owl,module)) {
       owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
       setSampler(AMR_CELL_SAMPLER);
     }
+
+    setTraversalMode(MC_DDA_TRAVERSAL);
+    // setTraversalMode(MC_BVH_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
+    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
+    // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
+
+    setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
+    // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
 
     // ==================================================================
     // mesh geom
@@ -412,7 +432,7 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    if (useDDA) {
+    if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
     } else if (exaBrickModel) {
       exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -476,7 +496,7 @@ namespace exa {
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
     if (xf.colorMapBuffer) {
-      if (useDDA) {
+      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
       } else if (exaBrickModel) {
         exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
@@ -530,6 +550,49 @@ namespace exa {
     owlParamsSet1i(lp,"sampler",sampler);
     accumID = 0;
   }
+  
+  void OWLRenderer::setSamplerModeExaBrick(int mode)
+  {
+    printf("setSamplerModeExaBrick %d\n", (int)mode);
+    owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
+    if (exaBrickModel) {
+      if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
+        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
+      else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
+        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas);
+    }
+  }
+
+  void OWLRenderer::setTraversalMode(TraversalMode mode)
+  {
+    printf("setTraversalMode %d\n", (int)mode);
+
+    traversalMode = mode;
+    owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
+    if (traversalMode == MC_BVH_TRAVERSAL) {
+      owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
+    }
+    else if (exaBrickModel) {
+      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
+      }
+      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->brickTlas); 
+      }
+    }
+
+    if (owl,xf.colorMapBuffer) {
+      range1f r{
+      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+      };
+      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
+        grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      } else if (exaBrickModel) {
+        exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      }
+    }
+  }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)
   {
@@ -559,7 +622,7 @@ namespace exa {
 
   void OWLRenderer::buildGrid()
   {
-    grid.build(owl,
+    grid.build(owl, module,
                exaStitchModel->vertexBuffer,
                exaStitchModel->indexBuffer,
                exaStitchModel->gridletBuffer,

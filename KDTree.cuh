@@ -191,10 +191,9 @@ namespace exa {
 
       Stack stack;
       unsigned ptr = 0;
+
       // Start at the root
       StackEntry se{0,t0,t1};
-
-      float t = t0;
 
       // while ray not terminated
       while (1) {
@@ -223,19 +222,18 @@ namespace exa {
           node = tree.nodes[se.nodeID];
         }
 
-        // found a leaf
-        KDTreeHitRec hitRec = {false,FLT_MAX};
-        isect(ray,
-              prd,
-              tree.primRefs[node.get_first_primitive()].primID,
-              se.tnear,
-              se.tfar,
-              hitRec);
+        KDTreeHitRec hitRec = {false,FLT_MAX}; // found a leaf
+
+        const auto indices = node.get_indices();
+        for (unsigned int i = indices.first; i < indices.last; ++i) {
+          isect(ray, prd, tree.primRefs[i].primID,
+                se.tnear, se.tfar, hitRec);
+
+          if (hitRec.hit)
+            break;
+        }
 
         if (hitRec.hit)
-          t = max(t,hitRec.t);
-
-        if (se.tfar <= t)
           break;
 
         if (ptr == 0)

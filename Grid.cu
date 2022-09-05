@@ -329,7 +329,7 @@ namespace exa {
     }
   }
 
-  void Grid::build(OWLContext  owl,
+  void Grid::build(OWLContext  owl, OWLModule module,
                    OWLBuffer   vertices,
                    OWLBuffer   indices,
                    OWLBuffer   gridlets,
@@ -438,6 +438,35 @@ namespace exa {
       double tlast = getCurrentTime();
       std::cout << tlast-tfirst << '\n';
     }
+
+    // build BVH
+    OWLVarDecl geomVars[]
+    = {
+       { "dims", OWL_INT3, OWL_OFFSETOF(MacroCellGeom,dims) },
+       { "spacing", OWL_FLOAT3, OWL_OFFSETOF(MacroCellGeom,spacing) },
+       { "origin", OWL_FLOAT3, OWL_OFFSETOF(MacroCellGeom,origin) },
+       { nullptr /* sentinel to mark end of list */ }
+    };
+
+    const vec3f spacing(worldBounds.size() / vec3f(dims));
+
+    geomType = owlGeomTypeCreate(owl, OWL_GEOM_USER, sizeof(MacroCellGeom), geomVars, -1);
+    owlGeomTypeSetBoundsProg   (geomType, module, "MacroCellGeomBounds");
+    owlGeomTypeSetIntersectProg(geomType, RADIANCE_RAY_TYPE, module, "MacroCellGeomIsect");
+    owlGeomTypeSetClosestHit   (geomType, RADIANCE_RAY_TYPE, module, "MacroCellGeomCH");
+    OWLGeom geom = owlGeomCreate(owl, geomType);
+    owlGeomSetPrimCount(geom, size_t(dims.x)*size_t(dims.y)*size_t(dims.z));
+    owlGeomSet3i(geom,"dims", dims.x, dims.y, dims.z);
+    owlGeomSet3f(geom,"spacing", spacing.x, spacing.y, spacing.z);
+    owlGeomSet3f(geom,"origin", worldBounds.lower.x, worldBounds.lower.y, worldBounds.lower.z);
+
+    owlBuildPrograms(owl);
+
+    blas = owlUserGeomGroupCreate(owl, 1, &geom);
+    owlGroupBuildAccel(blas);
+    tlas = owlInstanceGroupCreate(owl, 1);
+    owlInstanceGroupSetChild(tlas, 0, blas);
+    owlGroupBuildAccel(tlas);
   }
 
   __global__ void computeMaxOpacitiesGPU(float         *maxOpacities,

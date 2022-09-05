@@ -45,7 +45,7 @@ namespace exa {
     void lightPosChanged(owl::vec3f);
   private:
     owl::vec3f pos{ 0.f };
-    bool active_;
+    bool active_{false};
     float scale = 3.f;
     float view[16];
     float proj[16];

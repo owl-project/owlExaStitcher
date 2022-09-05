@@ -17,7 +17,6 @@
 #include <fstream>
 #include <owl/common/parallel/parallel_for.h>
 #include "ExaBrickModel.h"
-#include "KDTree.h"
 
 namespace exa {
 
@@ -119,13 +118,13 @@ namespace exa {
     // -------------------------------------------------------
 
     if (!kdTreeFileName.empty()) {
-      result->kdTree = KDTree::load(kdTreeFileName);
-      std::vector<box3f> leaves;
-      for (auto b : bricks) {
-        leaves.push_back(b.getBounds());
+      result->kdtree = KDTree::load(kdTreeFileName);
+      std::vector<box3f> leaves(bricks.size());
+      for (uint64_t i = 0; i < bricks.size(); ++i) {
+        leaves[i] = bricks[i].getBounds();
       }
-      result->kdTree->setLeaves(leaves);
-      result->kdTree->setModelBounds(modelBounds);
+      result->kdtree->setLeaves(leaves);
+      result->kdtree->setModelBounds(modelBounds);
     }
 
     return result;
@@ -133,15 +132,10 @@ namespace exa {
 
   bool ExaBrickModel::initGPU(OWLContext context, OWLModule module)
   {
-    OWLVarDecl abrGeomVars[]
+    OWLVarDecl geomVars[]
     = {
-       { "abrBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickABRGeom,abrBuffer)},
-       { nullptr /* sentinel to mark end of list */ }
-    };
-
-    OWLVarDecl extGeomVars[]
-    = {
-       { "exaBrickBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickExtGeom,exaBrickBuffer)},
+       { "abrBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,abrBuffer)},
+       { "exaBrickBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,exaBrickBuffer)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -150,75 +144,47 @@ namespace exa {
     // ==================================================================
 
     if (!abrs.value.empty() && !bricks.empty()) {
-      // ABR geometry //
 
-      abrGeomType = owlGeomTypeCreate(context,
-                                   OWL_GEOM_USER,
-                                   sizeof(ExaBrickABRGeom),
-                                   abrGeomVars, -1);
-      owlGeomTypeSetBoundsProg(abrGeomType, module, "ExaBrickABRGeomBounds");
-      owlGeomTypeSetIntersectProg(abrGeomType,
-                                  RADIANCE_RAY_TYPE,
-                                  module,
-                                  "ExaBrickABRGeomIsect");
-      owlGeomTypeSetClosestHit(abrGeomType,
-                               RADIANCE_RAY_TYPE,
-                               module,
-                               "ExaBrickGeomCH");
-      owlGeomTypeSetIntersectProg(abrGeomType,
-                                  SAMPLING_RAY_TYPE,
-                                  module,
-                                  "ExaBrickABRGeomSamplingIsect");
-      owlGeomTypeSetClosestHit(abrGeomType,
-                               SAMPLING_RAY_TYPE,
-                               module,
-                               "ExaBrickGeomCH");
-
-      OWLGeom abrGeom = owlGeomCreate(context, abrGeomType);
-      owlGeomSetPrimCount(abrGeom, abrs.value.size());
-
-      // extended brick geometry //
-
-      extGeomType = owlGeomTypeCreate(context,
-                                   OWL_GEOM_USER,
-                                   sizeof(ExaBrickExtGeom),
-                                   extGeomVars, -1);
-      owlGeomTypeSetBoundsProg(extGeomType, module, "ExaBrickExtGeomBounds");
-      owlGeomTypeSetIntersectProg(extGeomType,
-                                  SAMPLING_RAY_TYPE,
-                                  module,
-                                  "ExaBrickExtGeomSamplingIsect");
-      owlGeomTypeSetClosestHit(extGeomType,
-                               SAMPLING_RAY_TYPE,
-                               module,
-                               "ExaBrickGeomCH");
-
-      OWLGeom extGeom = owlGeomCreate(context, extGeomType);
-      owlGeomSetPrimCount(extGeom, bricks.size());
-
-      // finalize //
-
-      abrBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(ABR),
-                                        abrs.value.size(),
-                                        abrs.value.data());
-
-      brickBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(ExaBrick),
-                                          bricks.size(),
-                                          bricks.data());
-
-      scalarBuffer = owlDeviceBufferCreate(context, OWL_FLOAT,
-                                           scalars.size(),
-                                           scalars.data());
-
-      abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_INT,
-                                                abrs.leafList.size(),
-                                                abrs.leafList.data());
-
-      abrMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
+      abrBuffer         = owlDeviceBufferCreate(context, OWL_USER_TYPE(ABR), abrs.value.size(), abrs.value.data());
+      brickBuffer       = owlDeviceBufferCreate(context, OWL_USER_TYPE(ExaBrick), bricks.size(), bricks.data());
+      scalarBuffer      = owlDeviceBufferCreate(context, OWL_FLOAT, scalars.size(), scalars.data());
+      abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_INT, abrs.leafList.size(), abrs.leafList.data());
+      abrMaxOpacities   = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
       brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
 
-      owlGeomSetBuffer(abrGeom,"abrBuffer",abrBuffer);
-      owlGeomSetBuffer(extGeom,"exaBrickBuffer",brickBuffer);
+      // ABR geometry //
+      abrGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
+      owlGeomTypeSetBoundsProg   (abrGeomType, module, "ExaBrickABRGeomBounds");
+      owlGeomTypeSetIntersectProg(abrGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickABRGeomIsect");
+      owlGeomTypeSetClosestHit   (abrGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickGeomCH");
+      owlGeomTypeSetIntersectProg(abrGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickABRGeomSamplingIsect");
+      owlGeomTypeSetClosestHit   (abrGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickGeomCH");
+      OWLGeom abrGeom = owlGeomCreate(context, abrGeomType);
+      owlGeomSetPrimCount(abrGeom, abrs.value.size());
+      owlGeomSetBuffer(abrGeom,"abrBuffer", abrBuffer);
+      owlGeomSetBuffer(abrGeom,"exaBrickBuffer", brickBuffer);
+
+      // extended brick geometry //
+      extGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
+      owlGeomTypeSetBoundsProg   (extGeomType, module, "ExaBrickExtGeomBounds");
+      owlGeomTypeSetIntersectProg(extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickExtGeomSamplingIsect");
+      owlGeomTypeSetClosestHit   (extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickGeomCH");
+      OWLGeom extGeom = owlGeomCreate(context, extGeomType);
+      owlGeomSetPrimCount(extGeom, bricks.size());
+      owlGeomSetBuffer(extGeom,"abrBuffer", abrBuffer);
+      owlGeomSetBuffer(extGeom,"exaBrickBuffer", brickBuffer);
+
+      // brick geometry //
+      brickGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
+      owlGeomTypeSetBoundsProg   (brickGeomType, module, "ExaBrickBrickGeomBounds");
+      owlGeomTypeSetIntersectProg(brickGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickBrickGeomIsect");
+      owlGeomTypeSetClosestHit   (brickGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickGeomCH");
+      OWLGeom brickGeom = owlGeomCreate(context, brickGeomType);
+      owlGeomSetPrimCount(brickGeom, bricks.size());
+      owlGeomSetBuffer(brickGeom,"abrBuffer", abrBuffer);
+      owlGeomSetBuffer(brickGeom,"exaBrickBuffer", brickBuffer);
+
+      // finalize //
       owlBuildPrograms(context);
 
       // 1. ABR geometry 
@@ -234,6 +200,16 @@ namespace exa {
       extTlas = owlInstanceGroupCreate(context, 1);
       owlInstanceGroupSetChild(extTlas, 0, extBlas);
       owlGroupBuildAccel(extTlas);
+
+      // 3. brick geometry
+      brickBlas = owlUserGeomGroupCreate(context, 1, &brickGeom);
+      owlGroupBuildAccel(brickBlas);
+      brickTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(brickTlas, 0, brickBlas);
+      owlGroupBuildAccel(brickTlas);
+
+      // 4. build KD tree over exabricks
+      if (kdtree) kdtree->initGPU();
 
       return true;
     }

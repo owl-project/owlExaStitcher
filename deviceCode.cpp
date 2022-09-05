@@ -224,13 +224,16 @@ namespace exa {
 #endif
   }
 
-
   struct Sample {
     int primID;
     int cellID;
     float value;
   };
 
+  struct SpatialPartitionPRD {
+    float t0, t1;
+    int   leafID;
+  };
 
   // ------------------------------------------------------------------
   // Gridlet user geometry
@@ -435,21 +438,117 @@ namespace exa {
   // ------------------------------------------------------------------
   // ExaBrick user geom (for eval!)
   // ------------------------------------------------------------------
-  __device__ void addBasisFunctions(float &sumWeightedValues,
-                                    float &sumWeights,
-                                    const int brickID,
-                                    const vec3f pos);
 
-  struct ExaBrickPRD {
-    float t0, t1;
-    int   leafID;
+  inline __device__ float ExaBrick_getScalar(const int brickID,
+                                    const int ix, const int iy, const int iz)
+  {
+    auto& lp = optixLaunchParams;
+    const ExaBrick &brick = lp.exaBrickBuffer[brickID];
+    const int idx
+      = brick.begin
+      + ix
+      + iy * brick.size.x
+      + iz * brick.size.x*brick.size.y;
+    return lp.scalarBuffer[idx];
+  }
+  
+  inline __device__ void ExaBrick_addBasisFunctions(float &sumWeightedValues,
+                                             float &sumWeights,
+                                             const int brickID,
+                                             const vec3f pos)
+  {
+    const ExaBrick &brick    = optixLaunchParams.exaBrickBuffer[brickID];
+    const float cellWidth = (1<<brick.level);
+    //const float invCellWidth = 1.f/cellWidth;
+    const vec3f localPos = (pos - vec3f(brick.lower)) / vec3f(cellWidth) - vec3f(0.5f);
+#if 0
+    const vec3i idx_hi   = vec3i(localPos+vec3f(1.f)); // +1 to emulate 'floor()'
+    const vec3i idx_lo   = idx_hi - vec3i(1);
+#else
+    vec3i idx_lo   = vec3i(floorf(localPos.x),floorf(localPos.y),floorf(localPos.z));
+    idx_lo = max(vec3i(-1), idx_lo);
+    const vec3i idx_hi   = idx_lo + vec3i(1);
+#endif
+    const vec3f frac     = localPos - vec3f(idx_lo);
+    const vec3f neg_frac = vec3f(1.f) - frac;
+
+    // #define INV_CELL_WIDTH invCellWidth
+    #define INV_CELL_WIDTH 1.f
+    if (idx_lo.z >= 0 && idx_lo.z < brick.size.z) {
+      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_lo.x,idx_lo.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(neg_frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_hi.x,idx_lo.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(neg_frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+      if (idx_hi.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_lo.x,idx_hi.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_hi.x,idx_hi.y,idx_lo.z);
+          const float weight = (neg_frac.z)*(frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+    }
+      
+    if (idx_hi.z < brick.size.z) {
+      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_lo.x,idx_lo.y,idx_hi.z);
+          const float weight = (frac.z)*(neg_frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_hi.x,idx_lo.y,idx_hi.z);
+          const float weight = (frac.z)*(neg_frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+      if (idx_hi.y < brick.size.y) {
+        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_lo.x,idx_hi.y,idx_hi.z);
+          const float weight = (frac.z)*(frac.y)*(neg_frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+        if (idx_hi.x < brick.size.x) {
+          const float scalar = ExaBrick_getScalar(brickID,idx_hi.x,idx_hi.y,idx_hi.z);
+          const float weight = (frac.z)*(frac.y)*(frac.x);
+          sumWeights += weight;
+          sumWeightedValues += weight*scalar;
+        }
+      }
+    }
+  }
+
+  template<int SamplerMode>
+  struct ExaBrickSamplePRD;
+
+  template<> 
+  struct ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH> {
+    int primID = -1;
   };
-
-  struct ExaBrickSamplePRD : Sample {
+  
+  template<> 
+  struct ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH> {
     float sumWeightedValues = 0.f;
     float sumWeights = 0.f;
-    ExaBrickSamplePRD() = default;
-    __device__ ExaBrickSamplePRD(int primID, int cellID, float value) : Sample{primID, cellID, value} {}
   };
 
   OPTIX_CLOSEST_HIT_PROGRAM(ExaBrickGeomCH)()
@@ -462,7 +561,7 @@ namespace exa {
                                            box3f& result,
                                            int leafID)
   {
-    const ExaBrickABRGeom &self = *(const ExaBrickABRGeom *)geomData;
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
     const ABR &abr = self.abrBuffer[leafID];
     result = abr.domain;
   }
@@ -470,7 +569,7 @@ namespace exa {
   // Isect program for non-zero length rays
   OPTIX_INTERSECT_PROGRAM(ExaBrickABRGeomIsect)()
   {
-    const ExaBrickABRGeom &self = owl::getProgramData<ExaBrickABRGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -484,7 +583,7 @@ namespace exa {
       return;
 
     if (optixReportIntersection(t0, 0)) {
-      ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
       prd.t0 = t0;
       prd.t1 = t1;
       prd.leafID = leafID;
@@ -494,7 +593,7 @@ namespace exa {
   // Isect program for sampling rays with zero length
   OPTIX_INTERSECT_PROGRAM(ExaBrickABRGeomSamplingIsect)()
   {
-    const ExaBrickABRGeom &self = owl::getProgramData<ExaBrickABRGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -507,7 +606,7 @@ namespace exa {
       return;
 
     if (optixReportIntersection(0.f, 0)) {
-      Sample& sample = owl::getPRD<Sample>();
+      auto& sample = owl::getPRD<ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH>>();
       sample.primID = leafID;
     }
   }
@@ -518,15 +617,14 @@ namespace exa {
                                               box3f& result,
                                               int leafID)
   {
-    const ExaBrickExtGeom &self = *(const ExaBrickExtGeom *)geomData;
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
     const ExaBrick &brick = self.exaBrickBuffer[leafID];
     result = brick.getDomain();
   }
 
-  // Isect program for sampling rays with zero length
-  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)()
+  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)() // sampling rays with zero length
   {
-    const ExaBrickExtGeom &self = owl::getProgramData<ExaBrickExtGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -537,13 +635,93 @@ namespace exa {
 
     if (!bounds.contains(ray.origin))
       return;
-    else {
-      ExaBrickSamplePRD& sample = owl::getPRD<ExaBrickSamplePRD>();
-      addBasisFunctions(sample.sumWeightedValues, sample.sumWeights, leafID, ray.origin);
 
-      sample.primID = 0;
+    auto& sample = owl::getPRD<ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH>>();
+    ExaBrick_addBasisFunctions(sample.sumWeightedValues, sample.sumWeights, leafID, ray.origin);
+  }
+
+  // ExaBricks //
+
+  OPTIX_BOUNDS_PROGRAM(ExaBrickBrickGeomBounds)(const void* geomData,
+                                              box3f& result,
+                                              int leafID)
+  {
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
+    const ExaBrick &brick = self.exaBrickBuffer[leafID];
+    result = brick.getBounds();
+  }
+
+  OPTIX_INTERSECT_PROGRAM(ExaBrickBrickGeomIsect)() // for non-zero length rays
+  {
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+    const ExaBrick &brick = self.exaBrickBuffer[leafID];
+    const box3f bounds = brick.getBounds(); // use strict domain here
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!intersect(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.leafID = leafID;
     }
   }
+
+  // ------------------------------------------------------------------
+  // Macro Cell Grids
+  // ------------------------------------------------------------------
+
+  OPTIX_CLOSEST_HIT_PROGRAM(MacroCellGeomCH)()
+  {
+  }
+
+  OPTIX_BOUNDS_PROGRAM(MacroCellGeomBounds)(const void* geomData,
+                                              box3f& result,
+                                              int leafID)
+  {
+    const MacroCellGeom &self = *(const MacroCellGeom *)geomData;
+    const auto index = gridIndex(leafID, self.dims);
+    result.lower = self.spacing * vec3f(index) + self.origin;
+    result.upper = self.spacing + result.lower;
+
+    // printf("bounds (%f,%f,%f) (%f,%f,%f)\n", 
+    //        result.lower.x,result.lower.y,result.lower.z,
+    //        result.upper.x,result.upper.y,result.upper.z);
+  }
+
+  OPTIX_INTERSECT_PROGRAM(MacroCellGeomIsect)() // for non-zero length rays
+  {
+    const MacroCellGeom &self = owl::getProgramData<MacroCellGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+
+    const auto index = gridIndex(leafID, self.dims);
+    box3f bounds;
+    bounds.lower = self.spacing * vec3f(index) + self.origin;
+    bounds.upper = self.spacing + bounds.lower;
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!intersect(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      SpatialPartitionPRD& prd = owl::getPRD<SpatialPartitionPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.leafID = leafID;
+    }
+  }
+
 
   // ------------------------------------------------------------------
   // Triangle meshes
@@ -701,163 +879,47 @@ namespace exa {
   };
 
   struct ExaBrickSampler {
-    static inline __device__ float getScalar(const int brickID,
-                                      const int ix, const int iy, const int iz)
+    inline __device__ Sample sampleVolume(const vec3f pos)
     {
       auto& lp = optixLaunchParams;
 
-      const ExaBrick &brick = lp.exaBrickBuffer[brickID];
-      const int idx
-        = brick.begin
-        + ix
-        + iy * brick.size.x
-        + iz * brick.size.x*brick.size.y;
-      return lp.scalarBuffer[idx];
-    }
+      SamplingRay ray;
+      ray.origin = pos;
+      ray.direction = vec3f(1.f);
+      ray.tmin = 0.f;
+      ray.tmax = 0.f;
 
-    inline __device__ Sample sampleVolume(const vec3f pos);
+      if (lp.samplerModeExaBrick == EXA_BRICK_SAMPLER_ABR_BVH) {
+        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH> sample;
+        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+        if (sample.primID < 0) return {0,0,0.f};
+        float sumWeightedValues = 0.f;
+        float sumWeights = 0.f;
+        const ABR &abr = lp.abrBuffer[sample.primID];
+        const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+        const int  childCount = abr.leafListSize;
+        for (int childID=0;childID<childCount;childID++) {
+          const int brickID = childList[childID];
+          ExaBrick_addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
+        }
+        return {sample.primID,-1,sumWeightedValues/sumWeights};
+      }
+      else {
+        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH> sample;
+        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+        if (sample.sumWeights <= 0) return {0,0,0.f};
+        return {0,-1,sample.sumWeightedValues/sample.sumWeights};
+      }
+    }
 
     template <bool Shading=true>
     inline __device__
     vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
   };
-
-  __device__ void addBasisFunctions(float &sumWeightedValues,
-                                    float &sumWeights,
-                                    const int brickID,
-                                    const vec3f pos)
-  {
-    const ExaBrick &brick    = optixLaunchParams.exaBrickBuffer[brickID];
-    const float cellWidth = (1<<brick.level);
-    //const float invCellWidth = 1.f/cellWidth;
-    const vec3f localPos = (pos - vec3f(brick.lower)) / vec3f(cellWidth) - vec3f(0.5f);
-#if 0
-    const vec3i idx_hi   = vec3i(localPos+vec3f(1.f)); // +1 to emulate 'floor()'
-    const vec3i idx_lo   = idx_hi - vec3i(1);
-#else
-    vec3i idx_lo   = vec3i(floorf(localPos.x),floorf(localPos.y),floorf(localPos.z));
-    idx_lo = max(vec3i(-1), idx_lo);
-    const vec3i idx_hi   = idx_lo + vec3i(1);
-#endif
-    const vec3f frac     = localPos - vec3f(idx_lo);
-    const vec3f neg_frac = vec3f(1.f) - frac;
-
-    // #define INV_CELL_WIDTH invCellWidth
-#define INV_CELL_WIDTH 1.f
-    if (idx_lo.z >= 0 && idx_lo.z < brick.size.z) {
-      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
-        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_lo.z);
-          const float weight = (neg_frac.z)*(neg_frac.y)*(neg_frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-        if (idx_hi.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_lo.z);
-          const float weight = (neg_frac.z)*(neg_frac.y)*(frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-      }
-      if (idx_hi.y < brick.size.y) {
-        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_lo.z);
-          const float weight = (neg_frac.z)*(frac.y)*(neg_frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-        if (idx_hi.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_lo.z);
-          const float weight = (neg_frac.z)*(frac.y)*(frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-      }
-    }
-
-    if (idx_hi.z < brick.size.z) {
-      if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
-        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_lo.y,idx_hi.z);
-          const float weight = (frac.z)*(neg_frac.y)*(neg_frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-        if (idx_hi.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_lo.y,idx_hi.z);
-          const float weight = (frac.z)*(neg_frac.y)*(frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-      }
-      if (idx_hi.y < brick.size.y) {
-        if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_lo.x,idx_hi.y,idx_hi.z);
-          const float weight = (frac.z)*(frac.y)*(neg_frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-        if (idx_hi.x < brick.size.x) {
-          const float scalar = ExaBrickSampler::getScalar(brickID,idx_hi.x,idx_hi.y,idx_hi.z);
-          const float weight = (frac.z)*(frac.y)*(frac.x);
-          sumWeights += weight;
-          sumWeightedValues += weight*scalar;
-        }
-      }
-    }
-  }
-
-  __device__ Sample ExaBrickSampler::sampleVolume(const vec3f pos)
-  {
-    auto& lp = optixLaunchParams;
-
-    SamplingRay ray;
-    ray.origin = pos;
-    ray.direction = vec3f(1.f);
-    ray.tmin = 0.f;
-    ray.tmax = 0.f;
-
-#if EXA_BRICK_SAMPLER_STRATEGY == EXA_BRICK_SAMPLER_ABR_BVH
-    Sample sample{-1,-1,0.f};
-    owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-        OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-
-    if (sample.primID < 0) return {0,0,0.f};
-    const ABR &abr = lp.abrBuffer[sample.primID];
-    const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
-    const int  childCount = abr.leafListSize;
-    float sumWeightedValues = 0.f;
-    float sumWeights = 0.f;
-    for (int childID=0;childID<childCount;childID++) {
-      const int brickID = childList[childID];
-      addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
-    }
-    sample.value = sumWeightedValues/sumWeights;
-
-    // const float opacity = tex2D<float4>(lp.transferFunc.texture, sample.value, .5f).w;
-    // if (opacity > lp.abrMaxOpacities[sample.primID]) printf("abr majorant is wrong: %f > %f\n", opacity, lp.abrMaxOpacities[sample.primID]);
-    // for (int childID=0;childID<childCount;childID++) {
-    //   const int brickID = childList[childID];
-    //   if (opacity > lp.exaBrickMaxOpacities[brickID]) printf("ext majorant is wrong: %f > %f\n", opacity, lp.exaBrickMaxOpacities[brickID]);
-    // }
-#else
-    ExaBrickSamplePRD sample(-1,-1,0.f);
-    sample.sumWeightedValues = 0.f;
-    sample.sumWeights = 0.f;
-
-    owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-        OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-
-    if (sample.primID < 0) return {0,0,0.f};
-    sample.value = sample.sumWeightedValues/sample.sumWeights;
-#endif
-
-    return sample; // slice to Sample class
-  }
-
-  template <typename Func>
-  inline __device__
-  void iterateABRs(const Ray &ray, const Func &func);
 
   template <bool Shading>
   inline __device__
@@ -899,7 +961,7 @@ namespace exa {
         float sumWeights = 0.f;
         for (int childID=0;childID<childCount;childID++) {
           const int brickID = childList[childID];
-          addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
+          ExaBrick_addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
         }
 
         float value = sumWeightedValues/sumWeights;
@@ -923,7 +985,7 @@ namespace exa {
       return true; // go on
     };
 
-    iterateABRs(ray,integrate);
+    iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,integrate);
     return pixelColor;
   }
 
@@ -932,39 +994,75 @@ namespace exa {
   // ABR domain iterator
   // ------------------------------------------------------------------
 
-  struct ABRIterationState {
+  // Isect program for non-zero length rays
+  __device__ void ExaBrickKdTreeIsect(const Ray &ray, SpatialPartitionPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
+  {
+    const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
+    const box3f bounds = brick.getBounds(); // use strict domain
+
+    float t0 = 1e30f, t1 = -1e30f;
+    if (intersect(ray,bounds,t0,t1)) {
+      prd.t0 = max(t0, tmin);
+      prd.t1 = min(t1, tmax);
+      prd.leafID = primID;
+      hitRec.hit = true;
+      hitRec.t = prd.t0;
+    }
+  }
+
+  template<TraversalMode Mode>
+  struct SPIterationState {
     int primID;
   };
 
-  template <typename Func>
+  template <TraversalMode Mode, typename Func>
   inline __device__
-  void iterateABRs(const Ray &ray, const Func &func)
+  void iterateSpatialPartitions(const Ray &ray, const Func &func)
   {
     float alreadyIntegratedDistance = ray.tmin;
     while (1) {
-      ExaBrickPRD prd;
+      SpatialPartitionPRD prd;
       prd.leafID = -1;
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       Ray newRay = ray;
       newRay.tmin = alreadyIntegratedDistance;
-      owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+      if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
+        kd::traceRay(optixLaunchParams.kdtree, newRay, prd, ExaBrickKdTreeIsect);
+      else
+        owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
 
-      if (!func(ABRIterationState{prd.leafID},prd.t0,prd.t1))
+      if (!func(SPIterationState<Mode>{prd.leafID},prd.t0,prd.t1))
         return;
 
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
     }
   }
 
-  inline __device__
-  float getMajorant(const ABRIterationState &abrIterationState)
-  {
-    const auto& lp = optixLaunchParams;
-    return lp.abrMaxOpacities[abrIterationState.primID];
+  template<TraversalMode Mode>
+  __device__ float getMajorant(const SPIterationState<Mode> &state);
+
+  template<> inline __device__
+  float getMajorant(const SPIterationState<MC_BVH_TRAVERSAL> &state) {
+    return optixLaunchParams.grid.maxOpacities[state.primID];
+  }
+
+  template<> inline __device__
+  float getMajorant(const SPIterationState<EXABRICK_ARB_TRAVERSAL> &state) {
+    return optixLaunchParams.abrMaxOpacities[state.primID];
+  }
+
+  template<> inline __device__
+  float getMajorant(const SPIterationState<EXABRICK_BVH_TRAVERSAL> &state) {
+    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
+  }
+
+  template<> inline __device__
+  float getMajorant(const SPIterationState<EXABRICK_KDTREE_TRAVERSAL> &state) {
+    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
   }
 
   // ------------------------------------------------------------------
@@ -1144,8 +1242,16 @@ namespace exa {
 
     if constexpr (useDDA)
       dda3(ray,lp.grid.dims,lp.modelBounds,woodcockFunc);
-    else
-      iterateABRs(ray,woodcockFunc);
+    else {
+      if (lp.traversalMode == MC_BVH_TRAVERSAL)
+        iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_ARB_TRAVERSAL) 
+        iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
+        iterateSpatialPartitions<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
+        iterateSpatialPartitions<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
+    }
 
   }
 
@@ -1634,26 +1740,31 @@ namespace exa {
   inline void __device__ renderFrame_SelectSpaceSkippingMethod()
   {
     auto& lp = optixLaunchParams;
-    if (lp.majorantBVH==0) renderFrame_Impl<I,Shade,true>(S{});
+    if (lp.traversalMode == MC_DDA_TRAVERSAL) renderFrame_Impl<I,Shade,true>(S{});
     else renderFrame_Impl<I,Shade,false>(S{});
-  }
-
-  template<Integrator I, typename S>
-  inline void __device__ renderFrame_SelectShadeMode()
-  {
-    auto& lp = optixLaunchParams;
-    if      (lp.shadeMode==SHADE_MODE_DEFAULT)  renderFrame_SelectSpaceSkippingMethod<I, S, Default >();
-    //else if (lp.shadeMode==SHADE_MODE_GRIDLETS) renderFrame_SelectSpaceSkippingMethod<I, S, Gridlets>();
-    //else if (lp.shadeMode==SHADE_MODE_TEASER)   renderFrame_SelectSpaceSkippingMethod<I, S, Teaser  >();   
   }
 
   template<Integrator I>
   inline __device__ void renderFrame_SelectSampler()
   {
     auto& lp = optixLaunchParams;
-    /*if      (lp.sampler==EXA_STITCH_SAMPLER) renderFrame_SelectShadeMode<I, ExaStitchSampler>();
-    else if (lp.sampler==AMR_CELL_SAMPLER)   renderFrame_SelectShadeMode<I, AMRCellSampler  >();      
-    else*/ if (lp.sampler==EXA_BRICK_SAMPLER)  renderFrame_SelectShadeMode<I, ExaBrickSampler>();
+
+    // if (lp.sampler == EXA_STITCH_SAMPLER) {
+    //   if (lp.shadeMode == SHADE_MODE_DEFAULT)
+    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Default>();
+    //   else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
+    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Gridlets>();
+    //   else if (lp.shadeMode == SHADE_MODE_TEASER)
+    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Teaser>();
+    // }
+
+    if (lp.sampler==EXA_BRICK_SAMPLER) {
+      return renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler, Default>();
+    }
+
+    // if (lp.sampler==AMR_CELL_SAMPLER) {
+    //   return renderFrame_SelectSpaceSkippingMethod<I, AMRCellSampler, Default>();
+    // }
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
@@ -1661,8 +1772,8 @@ namespace exa {
     auto& lp = optixLaunchParams;
     
     if (lp.integrator==PATH_TRACING_INTEGRATOR)      renderFrame_SelectSampler<PathTracer>();
-    //else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
-    //else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
+    else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
+    else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
 
 #if 0
     // Path tracing

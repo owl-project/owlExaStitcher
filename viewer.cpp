@@ -40,6 +40,7 @@ namespace exa {
     std::string gridsFileName = "";
     std::string amrCellFileName = "";
     std::string exaBrickFileName = "";
+    std::string kdtreeFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
@@ -548,6 +549,9 @@ namespace exa {
       else if (arg == "-bricks") {
         cmdline.exaBrickFileName = argv[++i];
       }
+      else if (arg == "-kdtree") {
+        cmdline.kdtreeFileName = argv[++i];
+      }
       else if (arg == "-mesh") {
         cmdline.meshFileName = argv[++i];
       }
@@ -629,6 +633,7 @@ namespace exa {
                          cmdline.exaBrickFileName,
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
+                         cmdline.kdtreeFileName,
                          cmdline.numMCs);
 
     const box3f modelBounds = renderer.modelBounds;
@@ -735,6 +740,29 @@ namespace exa {
     shadeModeLayout.addWidget(&shadeModeLabel);
     shadeModeLayout.addWidget(&shadeModeSelection);
 
+    // Traversal Type
+    QHBoxLayout traversalModeLayout;
+    QLabel traversalModeLabel("Traversal Mode: ");
+    QComboBox traversalModeSelection;
+    traversalModeSelection.addItem("MC + DDA");
+    traversalModeSelection.addItem("MC + BVH");
+    traversalModeSelection.addItem("ARB BVH");
+    traversalModeSelection.addItem("Extended Brick BVH");
+    traversalModeSelection.addItem("Extended Brick KD-Tree");
+    traversalModeSelection.setCurrentIndex(MC_DDA_TRAVERSAL);
+    traversalModeLayout.addWidget(&traversalModeLabel);
+    traversalModeLayout.addWidget(&traversalModeSelection);
+
+    // Sampling Type
+    QHBoxLayout samplingModeLayout;
+    QLabel samplingModeLabel("Sampling Mode: ");
+    QComboBox samplingModeSelection;
+    samplingModeSelection.addItem("ABR BVH");
+    samplingModeSelection.addItem("Extended Brick BVH");
+    samplingModeSelection.setCurrentIndex(EXA_BRICK_SAMPLER_ABR_BVH);
+    samplingModeLayout.addWidget(&samplingModeLabel);
+    samplingModeLayout.addWidget(&samplingModeSelection);
+
     // Light source
     QHBoxLayout light0Layout;
     QCheckBox light0Enabled("Enable Light");
@@ -748,6 +776,8 @@ namespace exa {
     QVBoxLayout settingsvlayout(renderSettingsBox);
     settingsvlayout.addLayout(&rendererTypeLayout);
     settingsvlayout.addLayout(&shadeModeLayout);
+    settingsvlayout.addLayout(&traversalModeLayout);
+    settingsvlayout.addLayout(&samplingModeLayout);
     settingsvlayout.addLayout(&light0Layout);
 
     // ==================================================================
@@ -880,6 +910,20 @@ namespace exa {
     QObject::connect(&shadeModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         renderer.setShadeMode(item);
+      });
+
+    // Traversal Mode  select
+    QObject::connect(&traversalModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+      [&](int item) {
+        renderer.setTraversalMode((TraversalMode)item);
+        renderer.resetAccum();
+      });
+
+    // Sampling Mode  select
+    QObject::connect(&samplingModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+      [&](int item) {
+        renderer.setSamplerModeExaBrick(item);
+        renderer.resetAccum();
       });
 
     // Light pos editing enabled
