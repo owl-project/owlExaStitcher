@@ -950,7 +950,7 @@ namespace exa {
       prd.t1 = min(t1, tmax);
       prd.leafID = primID;
       hitRec.hit = true;
-      hitRec.t = tmin;
+      hitRec.t = prd.t0;
     }
   }
 
@@ -972,7 +972,7 @@ namespace exa {
       newRay.tmin = alreadyIntegratedDistance;
 
       if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
-        kd::traceRay(optixLaunchParams.kdtree,newRay,prd,ExaBrickIsectKdTree);
+        kd::traceRay(optixLaunchParams.kdtree, newRay, prd, ExaBrickIsectKdTree);
       else
         owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 

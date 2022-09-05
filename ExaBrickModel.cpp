@@ -243,7 +243,7 @@ namespace exa {
       owlGroupBuildAccel(extTlas);
 
       // 3. build KD tree over exabricks
-      kdtree->initGPU();
+      if (kdtree) kdtree->initGPU();
 
       return true;
     }
