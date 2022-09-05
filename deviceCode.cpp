@@ -921,6 +921,10 @@ namespace exa {
     vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
   };
 
+  template <TraversalMode Mode, typename Func>
+  inline __device__
+  void iterateSpatialPartitions(const Ray &ray, const Func &func);
+
   template <bool Shading>
   inline __device__
   vec4f ExaBrickSampler::integrateDVR(Ray ray,
