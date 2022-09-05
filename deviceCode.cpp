@@ -563,7 +563,7 @@ namespace exa {
                                            box3f& result,
                                            int leafID)
   {
-    const ExaBrickABRGeom &self = *(const ExaBrickABRGeom *)geomData;
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
     const ABR &abr = self.abrBuffer[leafID];
     result = abr.domain;
   }
@@ -571,7 +571,7 @@ namespace exa {
   // Isect program for non-zero length rays
   OPTIX_INTERSECT_PROGRAM(ExaBrickABRGeomIsect)()
   {
-    const ExaBrickABRGeom &self = owl::getProgramData<ExaBrickABRGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -595,7 +595,7 @@ namespace exa {
   // Isect program for sampling rays with zero length
   OPTIX_INTERSECT_PROGRAM(ExaBrickABRGeomSamplingIsect)()
   {
-    const ExaBrickABRGeom &self = owl::getProgramData<ExaBrickABRGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -619,39 +619,14 @@ namespace exa {
                                               box3f& result,
                                               int leafID)
   {
-    const ExaBrickExtGeom &self = *(const ExaBrickExtGeom *)geomData;
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
     const ExaBrick &brick = self.exaBrickBuffer[leafID];
     result = brick.getDomain();
   }
 
-  // Isect program for non-zero length rays
-  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomIsect)()
+  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)() // sampling rays with zero length
   {
-    const ExaBrickExtGeom &self = owl::getProgramData<ExaBrickExtGeom>();
-    int leafID = optixGetPrimitiveIndex();
-    owl::Ray ray(optixGetObjectRayOrigin(),
-                 optixGetObjectRayDirection(),
-                 optixGetRayTmin(),
-                 optixGetRayTmax());
-    const ExaBrick &brick = self.exaBrickBuffer[leafID];
-    const box3f bounds = brick.getBounds();
-
-    float t0 = ray.tmin, t1 = ray.tmax;
-    if (!intersect(ray,bounds,t0,t1))
-      return;
-
-    if (optixReportIntersection(t0, 0)) {
-      ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
-      prd.t0 = t0;
-      prd.t1 = t1;
-      prd.leafID = leafID;
-    }
-  }
-
-  // Isect program for sampling rays with zero length
-  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)()
-  {
-    const ExaBrickExtGeom &self = owl::getProgramData<ExaBrickExtGeom>();
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
     int leafID = optixGetPrimitiveIndex();
     owl::Ray ray(optixGetObjectRayOrigin(),
                  optixGetObjectRayDirection(),
@@ -665,6 +640,40 @@ namespace exa {
 
     auto& sample = owl::getPRD<ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH>>();
     ExaBrick_addBasisFunctions(sample.sumWeightedValues, sample.sumWeights, leafID, ray.origin);
+  }
+
+  // ExaBricks //
+
+  OPTIX_BOUNDS_PROGRAM(ExaBrickBrickGeomBounds)(const void* geomData,
+                                              box3f& result,
+                                              int leafID)
+  {
+    const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
+    const ExaBrick &brick = self.exaBrickBuffer[leafID];
+    result = brick.getBounds();
+  }
+
+  OPTIX_INTERSECT_PROGRAM(ExaBrickBrickGeomIsect)() // for non-zero length rays
+  {
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+    const ExaBrick &brick = self.exaBrickBuffer[leafID];
+    const box3f bounds = brick.getBounds(); // use strict domain here
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!intersect(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      ExaBrickPRD& prd = owl::getPRD<ExaBrickPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.leafID = leafID;
+    }
   }
 
   // ------------------------------------------------------------------
@@ -942,7 +951,7 @@ namespace exa {
   __device__ void ExaBrickIsectKdTree(const Ray &ray, ExaBrickPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
   {
     const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
-    const box3f bounds = brick.getBounds();
+    const box3f bounds = brick.getBounds(); // use strict domain
 
     float t0 = 1e30f, t1 = -1e30f;
     if (intersect(ray,bounds,t0,t1)) {

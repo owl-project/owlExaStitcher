@@ -47,6 +47,10 @@ namespace exa {
     OWLGroup    extBlas;
     OWLGroup    extTlas;
 
+    OWLGeomType brickGeomType;
+    OWLGroup    brickBlas;
+    OWLGroup    brickTlas;
+
     OWLBuffer   abrBuffer;
     OWLBuffer   brickBuffer;
     OWLBuffer   scalarBuffer;

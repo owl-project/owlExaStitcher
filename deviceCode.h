@@ -164,15 +164,12 @@ namespace exa {
     float   finestLevelCellWidth;
   };
 
-  // struct ExaBrickGeom {
-  //   ABR *abrBuffer;
-  // };
-
-  struct ExaBrickABRGeom {
-    ABR *abrBuffer;
+  struct MacroCellGeom {
+    vec3i dims;
   };
 
-  struct ExaBrickExtGeom {
+  struct ExaBrickGeom {
+    ABR *abrBuffer;
     ExaBrick *exaBrickBuffer;
   };
 

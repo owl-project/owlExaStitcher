@@ -573,7 +573,7 @@ namespace exa {
         owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
       }
       else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->extTlas); 
+        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->brickTlas); 
       }
     }
 
