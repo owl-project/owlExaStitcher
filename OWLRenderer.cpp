@@ -555,7 +555,7 @@ namespace exa {
   {
     printf("setSamplerModeExaBrick %d\n", (int)mode);
     owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
-    if (exaBrickModel) {
+    if (exaBrickModel->abrTlas || exaBrickModel->extTlas) {
       if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
         owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
       else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
