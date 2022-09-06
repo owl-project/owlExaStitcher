@@ -1773,6 +1773,7 @@ namespace exa {
 
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
   {
+    const vec2i pixelIndex = owl::getLaunchIndex();
     auto& lp = optixLaunchParams;
     
     if (lp.integrator==PATH_TRACING_INTEGRATOR)      renderFrame_SelectSampler<PathTracer>();

@@ -101,3 +101,18 @@ endif()
 
 
 
+# ------------------------------------------------------------------
+# headless viewer
+# ------------------------------------------------------------------
+
+add_executable(exaStitchHeadlessViewer viewer.cpp headless.cpp)
+#link with QT5 only because that's more convenient than ifdef'ing
+#all the relevant parts in the cpp
+qt5_use_modules(exaStitchHeadlessViewer Core)
+target_link_libraries(exaStitchHeadlessViewer witcher)
+target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
+if(EXA_STITCH_CPU)
+  target_compile_options(exaStitchHeadlessViewer PUBLIC -DEXA_STITCH_CPU=1)
+endif()
+# QT_OWL_LINK(exaStitchViewer)
+

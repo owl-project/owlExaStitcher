@@ -26,6 +26,9 @@
 #include "qtOWL/XFEditor.h"
 #include "LightInteractor.h"
 #include "OWLRenderer.h"
+#ifdef HEADLESS
+#include "headless.h"
+#endif
 
 #define DUMP_FRAMES 0
 
@@ -160,8 +163,13 @@ namespace exa {
     }
   }
 
+#ifdef HEADLESS
+  struct Viewer : public Headless {
+    typedef Headless inherited;
+#else
   struct Viewer : public qtOWL::OWLViewer {
     typedef qtOWL::OWLViewer inherited;
+#endif
 
     Q_OBJECT
 
@@ -638,6 +646,28 @@ namespace exa {
 
     const box3f modelBounds = renderer.modelBounds;
 
+    renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
+    renderer.setColorMap(renderer.xf.colorMap);
+
+    for (int i=0; i<CLIP_PLANES_MAX; ++i) {
+      renderer.setClipPlane(i,
+                            cmdline.clipPlanes[i].enabled,
+                            cmdline.clipPlanes[i].N,
+                            cmdline.clipPlanes[i].d);
+    }
+
+    renderer.setType((OWLRenderer::Type)cmdline.rendererType);
+    renderer.setShadeMode(cmdline.shadeMode);
+    if (!cmdline.lights[0].on) {
+      cmdline.lights[0].pos = modelBounds.upper;
+      cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
+    }
+    renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
+
+    if (!cmdline.subImage.empty())
+      renderer.setSubImage(cmdline.subImage,true);
+
+#ifndef HEADLESS
     QApplication app(argc,argv);
     Viewer viewer(&renderer);
 
@@ -663,28 +693,7 @@ namespace exa {
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
     viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
-
-    renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
-    renderer.setColorMap(renderer.xf.colorMap);
-
-    for (int i=0; i<CLIP_PLANES_MAX; ++i) {
-      renderer.setClipPlane(i,
-                            cmdline.clipPlanes[i].enabled,
-                            cmdline.clipPlanes[i].N,
-                            cmdline.clipPlanes[i].d);
-    }
-
-    renderer.setType((OWLRenderer::Type)cmdline.rendererType);
-    renderer.setShadeMode(cmdline.shadeMode);
-    if (!cmdline.lights[0].on) {
-      cmdline.lights[0].pos = modelBounds.upper;
-      cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
-    }
-    renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
     viewer.lightInteractor.setPos(cmdline.lights[0].pos);
-
-    if (!cmdline.subImage.empty())
-      renderer.setSubImage(cmdline.subImage,true);
 
     qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
     range1f valueRange = renderer.valueRange;
@@ -1118,6 +1127,47 @@ namespace exa {
     viewer.show();
 
     app.exec();
+#else
+    Viewer viewer(&renderer);
+
+
+    if (cmdline.camera.vu != vec3f(0.f)) {
+      viewer.setCameraOrientation(/*origin   */cmdline.camera.vp,
+                                  /*lookat   */cmdline.camera.vi,
+                                  /*up-vector*/cmdline.camera.vu,
+                                  /*fovy(deg)*/cmdline.camera.fovy);
+    } else {
+      viewer.setCameraOrientation(/*origin   */
+                                  modelBounds.center()
+                                  + vec3f(-.3f, .7f, +1.f) * modelBounds.span(),
+                                  /*lookat   */modelBounds.center(),
+                                  /*up-vector*/vec3f(0.f, 1.f, 0.f),
+                                  /*fovy(deg)*/70.f);
+    }
+    viewer.setWorldScale(1.1f*length(modelBounds.span()));
+    viewer.resize(cmdline.windowSize);
+    viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
+    viewer.lightInteractor.setPos(cmdline.lights[0].pos);
+
+    if (cmdline.xfFileName != "") {
+      viewer.loadTransferFunction(cmdline.xfFileName);
+      renderer.setColorMap(viewer.xf.colorMap);
+
+      range1f r = viewer.xfRange();
+
+      float lo = min(r.lower,r.upper);
+      float hi = max(r.lower,r.upper);
+      renderer.setRange({lo,hi});
+      renderer.setRelDomain(viewer.xf.relDomain);
+
+      renderer.setOpacityScale(viewer.xf.opacityScale);
+
+      renderer.resetAccum();
+    }
+
+    viewer.run();
+    return 0;
+#endif
   }
 } // ::exa
 

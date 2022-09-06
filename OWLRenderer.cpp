@@ -362,6 +362,8 @@ namespace exa {
     owlParamsSet1i(lp,"subImage.active",0);
     owlParamsSet1i(lp,"subImage.selecting",0);
 
+    owlParamsSet1i(lp,"integrator",0);
+
     owlParamsSet1i(lp,"shadeMode",0);
     owlParamsSet1i(lp,"light0.on",0);
     owlParamsSet1i(lp,"light1.on",0);
