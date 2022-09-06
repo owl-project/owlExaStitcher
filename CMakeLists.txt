@@ -56,10 +56,10 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
 
 # ------------------------------------------------------------------
-# exastitch
+# witcher lib
 # ------------------------------------------------------------------
 
-add_executable(exaStitchViewer
+add_library(witcher
   Grid.cu
   ABRs.cpp
   AMRCellModel.cpp
@@ -71,22 +71,28 @@ add_executable(exaStitchViewer
   KDTree.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
-  viewer.cpp
   )
 if(EXA_STITCH_CPU)
-  target_sources(exaStitchViewer PRIVATE ${embedded_deviceCode})
+  target_sources(witcher PRIVATE ${embedded_deviceCode})
 endif()
 
-target_link_directories(exaStitchViewer PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
+target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
 if(NOT EXA_STITCH_CPU)
-  target_link_libraries(exaStitchViewer embedded_deviceCode)
+  target_link_libraries(witcher embedded_deviceCode)
 endif()
-target_link_libraries(exaStitchViewer
+target_link_libraries(witcher
       owl::owl
       qtOWL
       umesh
       ${OPENGL_LIBRARIES})
+
+# ------------------------------------------------------------------
+# viewer
+# ------------------------------------------------------------------
+
+add_executable(exaStitchViewer viewer.cpp)
 qt5_use_modules(exaStitchViewer Widgets)
+target_link_libraries(exaStitchViewer witcher)
 set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
 if(EXA_STITCH_CPU)
   target_compile_options(exaStitchViewer PUBLIC -DEXA_STITCH_CPU=1)
