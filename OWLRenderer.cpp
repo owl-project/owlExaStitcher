@@ -121,6 +121,8 @@ namespace exa {
                            const std::string meshFileName,
                            const std::string scalarFileName,
                            const std::string kdtreeFileName,
+                           const box3f remap_from,
+                           const box3f remap_to,
                            const vec3i numMCs)
   {
     // ==================================================================
@@ -255,20 +257,22 @@ namespace exa {
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
 
-//const box3f remapTo{{ 1232128.f, 1259072.f, 1238336.f},{ 1270848.f, 1277952.f, 1255296.f}};
-//const box3f remapFrom{{ -1.73575f, -9.44f, -3.73281f},{ 17.6243f, 0.f, 4.74719f}};
+        setVoxelSpaceTransform(remap_from,remap_to);
+        if (xform.remap_from != xform.remap_to) {
+          // TODO: apply this transform to the voxel; for now, we
+          // instead apply the *inverse* transform to the mesh!
+          const box3f remapFrom = xform.remap_to;
+          const box3f remapTo   = xform.remap_from;
 
-        const box3f remapFrom{{-16.f,-16.f,-.1f},{16.f,16.f,16.f}};
-        const box3f remapTo{{0.f,0.f,0.f},{131071.f,131071.f,65535.f}};
+          for (size_t i=0; i<mesh->vertex.size(); ++i) {
+            vec3f &v = mesh->vertex[i];
 
-        for (size_t i=0; i<mesh->vertex.size(); ++i) {
-          vec3f &v = mesh->vertex[i];
+            v -= remapFrom.lower;
+            v /= remapFrom.size();
 
-          v -= remapFrom.lower;
-          v /= remapFrom.size();
-
-          v *= remapTo.size();
-          v += remapTo.lower;
+            v *= remapTo.size();
+            v += remapTo.lower;
+          }
         }
 
         box3f bounds;
@@ -281,7 +285,6 @@ namespace exa {
           bounds.extend(v2);
           bounds.extend(v3);
         }
-        std::cout << bounds << '\n';
         modelBounds.extend(bounds);
       }
 
@@ -619,6 +622,26 @@ namespace exa {
       owlParamsSet1f(lp,"light0.intensity",intensity);
       owlParamsSet1i(lp,"light0.on",(int)on);
     } else assert(0); // TODO!
+    accumID = 0;
+  }
+
+  void OWLRenderer::setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to)
+  {
+    xform.remap_from = remap_from;
+    xform.remap_to   = remap_to;
+
+    affine3f voxelSpaceCoordSys
+      = affine3f::translate(xform.remap_from.lower)
+      * affine3f::scale(remap_from.span());
+
+    affine3f worldSpaceCoordSys
+      = affine3f::translate(xform.remap_to.lower)
+      * affine3f::scale(remap_to.span());
+
+    xform.voxelSpaceTransform
+      = voxelSpaceCoordSys
+      * rcp(worldSpaceCoordSys);
+
     accumID = 0;
   }
 

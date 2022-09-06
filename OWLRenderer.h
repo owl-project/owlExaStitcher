@@ -35,6 +35,8 @@ namespace exa {
                 const std::string meshFileName = "",
                 const std::string scalarFileName = "",
                 const std::string kdtreeFileName = "",
+                const box3f remap_from = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
+                const box3f remap_to = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
                 const vec3i numMCs = {128,128,128});
 
    ~OWLRenderer();
@@ -64,6 +66,8 @@ namespace exa {
     void setSubImageSelection(const box2f si, bool active);
 
     void setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on);
+
+    void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
 
     void setNumMCs(const vec3i numMCs);
     void buildGrid();
@@ -109,6 +113,12 @@ namespace exa {
 
     box3f   modelBounds;
     range1f valueRange;
+
+    struct {
+      box3f remap_from { vec3f(0.f), vec3f(1.f) };
+      box3f remap_to   { vec3f(0.f), vec3f(1.f) };
+      affine3f voxelSpaceTransform;
+    } xform;
 
     bool printMemoryStats = true;
   };

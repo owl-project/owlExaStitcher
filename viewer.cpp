@@ -60,6 +60,10 @@ namespace exa {
       vec3f N{0,0,1};
       float d{1000.f};
     } clipPlanes[CLIP_PLANES_MAX];
+    struct {
+      box3f remap_from { vec3f(0.f), vec3f(1.f) };
+      box3f remap_to   { vec3f(0.f), vec3f(1.f) };
+    } xform;
     int rendererType = 0;
     int shadeMode = 0;
     struct {
@@ -603,6 +607,22 @@ namespace exa {
       else if (arg == "-dt") {
         cmdline.dt = std::stof(argv[++i]);
       }
+      else if (arg == "--remap-from") {
+        cmdline.xform.remap_from.lower.x = std::stof(argv[++i]);
+        cmdline.xform.remap_from.lower.y = std::stof(argv[++i]);
+        cmdline.xform.remap_from.lower.z = std::stof(argv[++i]);
+        cmdline.xform.remap_from.upper.x = std::stof(argv[++i]);
+        cmdline.xform.remap_from.upper.y = std::stof(argv[++i]);
+        cmdline.xform.remap_from.upper.z = std::stof(argv[++i]);
+      }
+      else if (arg == "--remap-to") {
+        cmdline.xform.remap_to.lower.x = std::stof(argv[++i]);
+        cmdline.xform.remap_to.lower.y = std::stof(argv[++i]);
+        cmdline.xform.remap_to.lower.z = std::stof(argv[++i]);
+        cmdline.xform.remap_to.upper.x = std::stof(argv[++i]);
+        cmdline.xform.remap_to.upper.y = std::stof(argv[++i]);
+        cmdline.xform.remap_to.upper.z = std::stof(argv[++i]);
+      }
       else if (arg == "--clip-plane") {
         static int currentPlane = 0;
         int P = currentPlane++;
@@ -642,6 +662,8 @@ namespace exa {
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
                          cmdline.kdtreeFileName,
+                         cmdline.xform.remap_from,
+                         cmdline.xform.remap_to,
                          cmdline.numMCs);
 
     const box3f modelBounds = renderer.modelBounds;
@@ -663,6 +685,7 @@ namespace exa {
       cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
     }
     renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
+
 
     if (!cmdline.subImage.empty())
       renderer.setSubImage(cmdline.subImage,true);
