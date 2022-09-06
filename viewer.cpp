@@ -572,7 +572,7 @@ namespace exa {
         cmdline.subImage.upper.x = std::atof(argv[++i]);
         cmdline.subImage.upper.y = std::atof(argv[++i]);
       }
-      else if (arg == "-fovy") {
+      else if (arg == "-fovy" || arg == "--fov") {
         cmdline.camera.fovy = std::stof(argv[++i]);
       }
       else if (arg == "--camera") {
