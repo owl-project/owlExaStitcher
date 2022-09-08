@@ -110,12 +110,6 @@ namespace exa {
     box3f   modelBounds;
     range1f valueRange;
 
-    struct {
-      box3f remap_from { vec3f(0.f), vec3f(1.f) };
-      box3f remap_to   { vec3f(0.f), vec3f(1.f) };
-      affine3f voxelSpaceTransform;
-    } xform;
-
     bool printMemoryStats = true;
   };
 

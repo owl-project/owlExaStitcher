@@ -14,35 +14,41 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include <memory>
-#include <owl/common/math/AffineSpace.h>
-#include <owl/common/math/box.h>
-#include <owl/owl.h>
-#include "deviceCode.h"
+#include "Model.h"
 
 namespace exa {
 
-  struct Model
+  Model::~Model()
   {
-    typedef std::shared_ptr<Model> SP;
+  }
 
-    virtual ~Model();
+  bool Model::initGPU(OWLContext owl, OWLModule module)
+  {
+    return false;
+  }
 
-    virtual bool initGPU(OWLContext owl, OWLModule module);
+  void Model::setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to)
+  {
+    affine3f voxelSpaceCoordSys
+      = affine3f::translate(remap_from.lower)
+      * affine3f::scale(remap_from.span());
 
-    void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
+    affine3f worldSpaceCoordSys
+      = affine3f::translate(remap_to.lower)
+      * affine3f::scale(remap_to.span());
 
-    /*! return proper WORLD SPACE bounds, AFTER transformign voxel
-      bounds back from voxel space to world space */
-    box3f getBounds() const;
+    voxelSpaceTransform
+      = voxelSpaceCoordSys
+      * rcp(worldSpaceCoordSys);
+  }
 
-    box3f    cellBounds;
-    range1f  valueRange;
-    affine3f voxelSpaceTransform;
-  };
-
+  box3f Model::getBounds() const
+  {
+    box3f bounds = cellBounds;
+    bounds.lower = xfmPoint(rcp(voxelSpaceTransform),bounds.lower);
+    bounds.upper = xfmPoint(rcp(voxelSpaceTransform),bounds.upper);
+    return bounds;
+  }
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

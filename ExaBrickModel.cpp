@@ -29,7 +29,7 @@ namespace exa {
     std::vector<ExaBrick> &bricks = result->bricks;
     std::vector<float> &scalars   = result->scalars;
     ABRs &abrs                    = result->abrs;
-    box3f &modelBounds            = result->modelBounds;
+    box3f &cellBounds             = result->cellBounds;
     range1f &valueRange           = result->valueRange;
 
     // Indices/scalars are later flattened
@@ -100,12 +100,12 @@ namespace exa {
 
 
     // -------------------------------------------------------
-    // Global modelBounds and valueRange
+    // Global cellBounds and valueRange
     // -------------------------------------------------------
 
     for (size_t i=0; i<bricks.size(); ++i) {
       const ExaBrick &brick = bricks[i];
-      modelBounds.extend(brick.getBounds());
+      cellBounds.extend(brick.getBounds());
     }
 
     for (size_t i=0; i<abrs.value.size(); ++i) {
@@ -124,7 +124,7 @@ namespace exa {
         leaves[i] = bricks[i].getBounds();
       }
       result->kdtree->setLeaves(leaves);
-      result->kdtree->setModelBounds(modelBounds);
+      result->kdtree->setModelBounds(cellBounds);
     }
 
     return result;

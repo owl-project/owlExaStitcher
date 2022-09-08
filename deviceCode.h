@@ -190,7 +190,9 @@ namespace exa {
     KDTreeTraversable kdtree;
 
     Gridlet  *gridletBuffer;
-    box3f      modelBounds;
+    box3f      worldSpaceBounds;
+    box3f      voxelSpaceBounds;
+    affine3f   voxelSpaceTransform;
 
     // For ExaBrick benchmark
     ExaBrick *exaBrickBuffer;
@@ -199,7 +201,6 @@ namespace exa {
     int      *abrLeafListBuffer;
     float    *abrMaxOpacities;
     float    *exaBrickMaxOpacities;
-    affine3f  voxelSpaceTransform;
 
     struct {
       cudaTextureObject_t texture;

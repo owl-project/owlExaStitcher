@@ -72,7 +72,7 @@ add_library(witcher
   ExaStitchModel.cpp
   KDTree.cpp
   LightInteractor.cpp
-  KDTree.cpp
+  Model.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
   )

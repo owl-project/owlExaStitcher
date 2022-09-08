@@ -31,7 +31,7 @@ namespace exa {
     std::vector<vec4f> &vertices       = result->vertices;
     std::vector<Gridlet> &gridlets     = result->gridlets;
     std::vector<float> &gridletScalars = result->gridletScalars;
-    box3f &modelBounds                 = result->modelBounds;
+    box3f &cellBounds                  = result->cellBounds;
     range1f &valueRange                = result->valueRange;
 
     // Load scalars
@@ -69,7 +69,7 @@ namespace exa {
                             value);
       }
 
-      modelBounds = box3f();
+      cellBounds = box3f();
       indices.resize(mesh->size()*8,-1);
 
       size_t elem = 0;
@@ -88,7 +88,7 @@ namespace exa {
         for (size_t i=0; i<elems.size(); ++i) {
           for (size_t j=0; j<numVertices; ++j) {
             indices[elem*8+j] = elems[i][j];
-            modelBounds.extend(vec3f(vertices[indices[elem*8+j]]));
+            cellBounds.extend(vec3f(vertices[indices[elem*8+j]]));
             valueRange.lower = std::min(valueRange.lower,vertices[indices[elem*8+j]].w);
             valueRange.upper = std::max(valueRange.upper,vertices[indices[elem*8+j]].w);
           }
@@ -209,8 +209,8 @@ namespace exa {
 
         const box3f bounds = gridlet.getBounds();
 
-        modelBounds.extend(bounds.lower);
-        modelBounds.extend(bounds.upper);
+        cellBounds.extend(bounds.lower);
+        cellBounds.extend(bounds.upper);
       }
     }
 

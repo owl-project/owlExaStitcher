@@ -918,12 +918,12 @@ namespace exa {
 
     template <bool Shading=true>
     inline __device__
-    vec4f integrateDVR(const Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
+    vec4f integrateDVR(Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
   };
 
   template <TraversalMode Mode, typename Func>
   inline __device__
-  void iterateSpatialPartitions(const Ray &ray, const Func &func);
+  void iterateSpatialPartitions(Ray ray, const Func &func);
 
   template <bool Shading>
   inline __device__
@@ -934,6 +934,14 @@ namespace exa {
                                       const int numLights)
   {
     vec4f pixelColor(0.f);
+
+    // first, since we now traverse bricks and sample cells: convert ray to voxel space...
+    ray.origin = xfmPoint(optixLaunchParams.voxelSpaceTransform,ray.origin);
+    ray.direction = xfmVector(optixLaunchParams.voxelSpaceTransform,ray.direction);
+
+    const float dt_scale = length(vec3f(ray.direction));
+    ray.direction = normalize(vec3f(ray.direction));
+    ray.tmin = ray.tmin * dt_scale;
 
     auto integrate = [=,&pixelColor](const auto &domainIterationState, float t0, float t1) {
       const auto& lp = optixLaunchParams;
@@ -1021,20 +1029,22 @@ namespace exa {
 
   template <TraversalMode Mode, typename Func>
   inline __device__
-  void iterateSpatialPartitions(const Ray &ray, const Func &func)
+  void iterateSpatialPartitions(Ray ray, const Func &func)
   {
+    const auto &lp = optixLaunchParams;
+
     float alreadyIntegratedDistance = ray.tmin;
+
     while (1) {
       SpatialPartitionPRD prd;
       prd.leafID = -1;
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
-      Ray newRay = ray;
-      newRay.tmin = alreadyIntegratedDistance;
+      ray.tmin = alreadyIntegratedDistance;
 
       if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
-        kd::traceRay(optixLaunchParams.kdtree, newRay, prd, ExaBrickKdTreeIsect);
+        kd::traceRay(lp.kdtree, ray, prd, ExaBrickKdTreeIsect);
       else
-        owl::traceRay(optixLaunchParams.majorantBVH, newRay, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+        owl::traceRay(lp.majorantBVH, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
@@ -1245,7 +1255,7 @@ namespace exa {
     };
 
     if constexpr (useDDA)
-      dda3(ray,lp.grid.dims,lp.modelBounds,woodcockFunc);
+      dda3(ray,lp.grid.dims,lp.worldSpaceBounds,woodcockFunc);
     else {
       if (lp.traversalMode == MC_BVH_TRAVERSAL)
         iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
@@ -1282,7 +1292,7 @@ namespace exa {
 
     float t00 = 1e30f, t11 = -1e30f;
 
-    intersect(ray,lp.modelBounds,t00,t11);
+    intersect(ray,lp.worldSpaceBounds,t00,t11);
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
       Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
@@ -1408,7 +1418,7 @@ namespace exa {
 
     float t0 = 1e30f, t1 = -1e30f;
 
-    if (intersect(ray,lp.modelBounds,t0,t1)) {
+    if (intersect(ray,lp.worldSpaceBounds,t0,t1)) {
       for (int i=0; i<CLIP_PLANES_MAX; ++i) {
         const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
         Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
@@ -1494,7 +1504,7 @@ namespace exa {
         ray.origin    = pos;
         ray.direction = scatterDir;
 
-        intersect(ray,lp.modelBounds,t0,t1);
+        intersect(ray,lp.worldSpaceBounds,t0,t1);
 
         for (int i=0; i<CLIP_PLANES_MAX; ++i) {
           const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
@@ -1540,7 +1550,7 @@ namespace exa {
 
     float t0 = 1e30f, t1 = -1e30f;
 
-    if (intersect(ray,lp.modelBounds,t0,t1)) {
+    if (intersect(ray,lp.worldSpaceBounds,t0,t1)) {
       for (int i=0; i<CLIP_PLANES_MAX; ++i) {
         const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
         Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};
@@ -1626,7 +1636,7 @@ namespace exa {
 
     float t0 = 1e30f, t1 = -1e30f;
 
-    if (intersect(ray,lp.modelBounds,t0,t1)) {
+    if (intersect(ray,lp.worldSpaceBounds,t0,t1)) {
       for (int i=0; i<CLIP_PLANES_MAX; ++i) {
         const bool clipPlaneEnabled = lp.clipPlanes[i].enabled;
         Plane plane{lp.clipPlanes[i].N,lp.clipPlanes[i].d};

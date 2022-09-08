@@ -27,7 +27,7 @@ namespace exa {
 
     std::vector<AMRCell> &cells = result->cells;
     std::vector<float> &scalars = result->scalars;
-    box3f &modelBounds          = result->modelBounds;
+    box3f &cellBounds           = result->cellBounds;
     range1f &valueRange         = result->valueRange;
 
     std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
@@ -59,8 +59,8 @@ namespace exa {
     for (size_t i=0; i<cells.size(); ++i) {
       box3f bounds(vec3f(cells[i].pos),
                    vec3f(cells[i].pos+vec3i(1<<cells[i].level)));
-      modelBounds.extend(bounds.lower);
-      modelBounds.extend(bounds.upper);
+      cellBounds.extend(bounds.lower);
+      cellBounds.extend(bounds.upper);
       if (i < scalars.size())
         valueRange.extend(scalars[i]);
     }

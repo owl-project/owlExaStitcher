@@ -55,8 +55,11 @@ namespace exa {
      { "kdtree.modelBounds.lower",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.lower)},
      { "kdtree.modelBounds.upper",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.upper)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
-     { "modelBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.lower)},
-     { "modelBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,modelBounds.upper)},
+     { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
+     { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
+     { "voxelSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.lower)},
+     { "voxelSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.upper)},
+     { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      // exa brick buffers (for eval!)
      { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
@@ -64,7 +67,6 @@ namespace exa {
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
      { "exaBrickMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickMaxOpacities)},
-     { "voxelSpaceTransform", OWL_AFFINE3F, OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -146,7 +148,8 @@ namespace exa {
       throw std::runtime_error("Could not load module");
     }
 
-    modelBounds.extend(model->modelBounds);
+    model->setVoxelSpaceTransform(remap_from,remap_to);
+    modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
     // ==================================================================
@@ -273,25 +276,6 @@ namespace exa {
 
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
-
-        setVoxelSpaceTransform(remap_from,remap_to);
-        if (xform.remap_from != xform.remap_to) {
-          // TODO: apply this transform to the voxel; for now, we
-          // instead apply the *inverse* transform to the mesh!
-          const box3f remapFrom = xform.remap_to;
-          const box3f remapTo   = xform.remap_from;
-
-          for (size_t i=0; i<mesh->vertex.size(); ++i) {
-            vec3f &v = mesh->vertex[i];
-
-            v -= remapFrom.lower;
-            v /= remapFrom.size();
-
-            v *= remapTo.size();
-            v += remapTo.lower;
-          }
-        }
-
         box3f bounds;
         for (size_t i=0; i<mesh->index.size(); ++i) {
           const vec3f v1 = mesh->vertex[mesh->index[i].x];
@@ -360,14 +344,23 @@ namespace exa {
     }
 
 
-    owlParamsSet3f(lp,"modelBounds.lower",
+    owlParamsSet3f(lp,"worldSpaceBounds.lower",
                    modelBounds.lower.x,
                    modelBounds.lower.y,
                    modelBounds.lower.z);
-    owlParamsSet3f(lp,"modelBounds.upper",
+    owlParamsSet3f(lp,"worldSpaceBounds.upper",
                    modelBounds.upper.x,
                    modelBounds.upper.y,
                    modelBounds.upper.z);
+
+    owlParamsSet3f(lp,"voxelSpaceBounds.lower",
+                   model->cellBounds.lower.x,
+                   model->cellBounds.lower.y,
+                   model->cellBounds.lower.z);
+    owlParamsSet3f(lp,"voxelSpaceBounds.upper",
+                   model->cellBounds.upper.x,
+                   model->cellBounds.upper.y,
+                   model->cellBounds.upper.z);
 
     setNumMCs(numMCs); // also builds the grid
 
@@ -389,6 +382,8 @@ namespace exa {
     owlParamsSet1i(lp,"light1.on",0);
     owlParamsSet1i(lp,"light2.on",0);
     owlParamsSet1i(lp,"light3.on",0);
+
+    owlParamsSetRaw(lp,"voxelSpaceTransform",&model->voxelSpaceTransform);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -641,26 +636,6 @@ namespace exa {
       owlParamsSet1f(lp,"light0.intensity",intensity);
       owlParamsSet1i(lp,"light0.on",(int)on);
     } else assert(0); // TODO!
-    accumID = 0;
-  }
-
-  void OWLRenderer::setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to)
-  {
-    xform.remap_from = remap_from;
-    xform.remap_to   = remap_to;
-
-    affine3f voxelSpaceCoordSys
-      = affine3f::translate(xform.remap_from.lower)
-      * affine3f::scale(remap_from.span());
-
-    affine3f worldSpaceCoordSys
-      = affine3f::translate(xform.remap_to.lower)
-      * affine3f::scale(remap_to.span());
-
-    xform.voxelSpaceTransform
-      = voxelSpaceCoordSys
-      * rcp(worldSpaceCoordSys);
-
     accumID = 0;
   }
 
