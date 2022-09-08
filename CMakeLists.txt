@@ -10,6 +10,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of static" ON)
 
+option(EXA_STITCH_WITH_EXA_STITCH_SAMPLER "Build includes exa stitch sampler" ON)
+option(EXA_STITCH_WITH_EXA_BRICK_SAMPLER "Build includes exa brick sampler" ON)
+option(EXA_STITCH_WITH_AMR_CELL_SAMPLER "Build includes AMR cell sampler" ON)
+
 option(EXA_STITCH_CPU "Build the project to run on the CPU" OFF)
 if(EXA_STITCH_CPU)
   set(owl_dir ${PROJECT_SOURCE_DIR}/submodules/fakeOwl)
@@ -74,6 +78,18 @@ add_library(witcher
   )
 if(EXA_STITCH_CPU)
   target_sources(witcher PRIVATE ${embedded_deviceCode})
+endif()
+
+if(EXA_STITCH_WITH_EXA_STITCH_SAMPLER)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=1)
+endif()
+
+if(EXA_STITCH_WITH_EXA_BRICK_SAMPLER)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=1)
+endif()
+
+if(EXA_STITCH_WITH_AMR_CELL_SAMPLER)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
 endif()
 
 target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)

@@ -1753,22 +1753,28 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
-    // if (lp.sampler == EXA_STITCH_SAMPLER) {
-    //   if (lp.shadeMode == SHADE_MODE_DEFAULT)
-    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Default>();
-    //   else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
-    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Gridlets>();
-    //   else if (lp.shadeMode == SHADE_MODE_TEASER)
-    //     return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Teaser>();
-    // }
+#ifdef EXA_STITCH_WITH_EXA_STITCH_SAMPLER
+    if (lp.sampler == EXA_STITCH_SAMPLER) {
+      if (lp.shadeMode == SHADE_MODE_DEFAULT)
+        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Default>();
+      else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
+        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Gridlets>();
+      else if (lp.shadeMode == SHADE_MODE_TEASER)
+        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Teaser>();
+    }
+#endif
 
+#ifdef EXA_STITCH_WITH_EXA_BRICK_SAMPLER
     if (lp.sampler==EXA_BRICK_SAMPLER) {
       return renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler, Default>();
     }
+#endif
 
-    // if (lp.sampler==AMR_CELL_SAMPLER) {
-    //   return renderFrame_SelectSpaceSkippingMethod<I, AMRCellSampler, Default>();
-    // }
+#ifdef EXA_STITCH_WITH_AMR_CELL_SAMPLER
+    if (lp.sampler==AMR_CELL_SAMPLER) {
+      return renderFrame_SelectSpaceSkippingMethod<I, AMRCellSampler, Default>();
+    }
+#endif
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame)()
