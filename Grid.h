@@ -19,12 +19,32 @@
 #include <owl/owl.h>
 #include <owl/common/math/box.h>
 #include <owl/common/math/vec.h>
+#include "AMRCellModel.h"
+#include "ExaBrickModel.h"
+#include "ExaStitchModel.h"
 
 namespace exa {
 
   struct Grid
   {
-    //
+    // Build from simple cell model
+    void build(OWLContext       owl,
+               AMRCellModel::SP model,
+               const owl::vec3i numMCs,
+               const owl::box3f bounds);
+
+    // Build from exa brick model
+    void build(OWLContext        owl,
+               ExaBrickModel::SP model,
+               const owl::vec3i  numMCs,
+               const owl::box3f  bounds);
+
+    // Build from exa stitch model
+    void build(OWLContext         owl,
+               ExaStitchModel::SP model,
+               const owl::vec3i   numMCs,
+               const owl::box3f   bounds);
+
     void build(OWLContext       owl, OWLModule module,
                OWLBuffer        vertices,       /* umesh verts; w is value */
                OWLBuffer        indices,        /* umesh indices */
@@ -35,6 +55,9 @@ namespace exa {
                OWLBuffer        abrs,           /* ExaBrick ABRs */
                const owl::vec3i numMCs,
                const owl::box3f bounds);
+
+    // Build a BVH, in case we decide to traverse it with OptiX (bnechmark!)
+    void buildBVH(OWLContext owl, OWLModule module);
 
     //
     void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);

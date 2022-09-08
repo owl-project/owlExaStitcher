@@ -14,6 +14,9 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include "AMRCellModel.h"
+#include "ExaBrickModel.h"
+#include "ExaStitchModel.h"
 #include "OWLRenderer.h"
 #include "TriangleMesh.h"
 
@@ -129,16 +132,22 @@ namespace exa {
     // AMR/UMesh models etc
     // ==================================================================
 
-    exaStitchModel = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
-    exaBrickModel = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
-    amrCellModel = AMRCellModel::load(amrCellFileName,scalarFileName);
+    if (!umeshFileName.empty() || !gridsFileName.empty()) { // only need one of them
+      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
+    }
+    else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
+      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
+    }
+    else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
+      model = AMRCellModel::load(amrCellFileName,scalarFileName);
+    }
 
-    modelBounds.extend(exaStitchModel->modelBounds);
-    modelBounds.extend(exaBrickModel->modelBounds);
-    modelBounds.extend(amrCellModel->modelBounds);
-    valueRange.extend(exaStitchModel->valueRange);
-    valueRange.extend(exaBrickModel->valueRange);
-    valueRange.extend(amrCellModel->valueRange);
+    if (!model) {
+      throw std::runtime_error("Could not load module");
+    }
+
+    modelBounds.extend(model->modelBounds);
+    valueRange.extend(model->valueRange);
 
     // ==================================================================
     // Meshes
@@ -172,10 +181,16 @@ namespace exa {
         meshVertexBytes += mesh->vertex.size()*sizeof(mesh->vertex[0]);
       }
 
-      exaStitchModel->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
-                               emptyScalarsBytes,nonEmptyScalarsBytes);
-      exaBrickModel->memStats(exaBrickBytes,exaScalarBytes,abrBytes,abrLeafListBytes);
-      amrCellModel->memStats(amrCellBytes,amrScalarBytes);
+      if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
+        mod->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
+                      emptyScalarsBytes,nonEmptyScalarsBytes);
+      }
+      else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+        mod->memStats(exaBrickBytes,exaScalarBytes,abrBytes,abrLeafListBytes);
+      }
+      else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
+        mod->memStats(amrCellBytes,amrScalarBytes);
+      }
 
       size_t totalBytes = elemVertexBytes+elemIndexBytes+emptyScalarsBytes+nonEmptyScalarsBytes
                         + gridletBytes+amrCellBytes+amrScalarBytes
@@ -210,35 +225,37 @@ namespace exa {
     // Upload to GPU
     // ==================================================================
 
-    if (exaStitchModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "sampleBVH", exaStitchModel->tlas);
-      owlParamsSetBuffer(lp,"gridletBuffer",exaStitchModel->gridletBuffer);
-      setSampler(EXA_STITCH_SAMPLER);
-    } else if (exaBrickModel->initGPU(owl,module)) {
-      owlParamsSetBuffer(lp,"exaBrickBuffer", exaBrickModel->brickBuffer);
-      owlParamsSetBuffer(lp,"abrBuffer", exaBrickModel->abrBuffer);
-      owlParamsSetBuffer(lp,"scalarBuffer", exaBrickModel->scalarBuffer);
-      owlParamsSetBuffer(lp,"abrLeafListBuffer", exaBrickModel->abrLeafListBuffer);
-      owlParamsSetBuffer(lp,"abrMaxOpacities",exaBrickModel->abrMaxOpacities);
-      owlParamsSetBuffer(lp,"exaBrickMaxOpacities",exaBrickModel->brickMaxOpacities);
-      setSampler(EXA_BRICK_SAMPLER);
-      // setup kdtree traversable
-      if (exaBrickModel->kdtree) {
-        printf("setting up kd-tree traversable\n");
-        owlParamsSetPointer(lp,"kdtree.nodes",exaBrickModel->kdtree->deviceTraversable.nodes);
-        owlParamsSetPointer(lp,"kdtree.primRefs",exaBrickModel->kdtree->deviceTraversable.primRefs);
-        owlParamsSet3f(lp,"kdtree.modelBounds.lower",
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.x,
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.y,
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.lower.z);
-        owlParamsSet3f(lp,"kdtree.modelBounds.upper",
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.x,
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.y,
-                        exaBrickModel->kdtree->deviceTraversable.modelBounds.upper.z);
+    if (model->initGPU(owl,module)) {
+      if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
+        owlParamsSetGroup(lp, "sampleBVH", mod->tlas);
+        owlParamsSetBuffer(lp,"gridletBuffer",mod->gridletBuffer);
+        setSampler(EXA_STITCH_SAMPLER);
+      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+        owlParamsSetBuffer(lp,"exaBrickBuffer", mod->brickBuffer);
+        owlParamsSetBuffer(lp,"abrBuffer", mod->abrBuffer);
+        owlParamsSetBuffer(lp,"scalarBuffer", mod->scalarBuffer);
+        owlParamsSetBuffer(lp,"abrLeafListBuffer", mod->abrLeafListBuffer);
+        owlParamsSetBuffer(lp,"abrMaxOpacities",mod->abrMaxOpacities);
+        owlParamsSetBuffer(lp,"exaBrickMaxOpacities",mod->brickMaxOpacities);
+        setSampler(EXA_BRICK_SAMPLER);
+        // setup kdtree traversable
+        if (mod->kdtree) {
+          printf("setting up kd-tree traversable\n");
+          owlParamsSetPointer(lp,"kdtree.nodes",mod->kdtree->deviceTraversable.nodes);
+          owlParamsSetPointer(lp,"kdtree.primRefs",mod->kdtree->deviceTraversable.primRefs);
+          owlParamsSet3f(lp,"kdtree.modelBounds.lower",
+                          mod->kdtree->deviceTraversable.modelBounds.lower.x,
+                          mod->kdtree->deviceTraversable.modelBounds.lower.y,
+                          mod->kdtree->deviceTraversable.modelBounds.lower.z);
+          owlParamsSet3f(lp,"kdtree.modelBounds.upper",
+                          mod->kdtree->deviceTraversable.modelBounds.upper.x,
+                          mod->kdtree->deviceTraversable.modelBounds.upper.y,
+                          mod->kdtree->deviceTraversable.modelBounds.upper.z);
+        }
+      } else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
+        owlParamsSetGroup(lp, "sampleBVH", mod->tlas);
+        setSampler(AMR_CELL_SAMPLER);
       }
-    } else if (amrCellModel->initGPU(owl,module)) {
-      owlParamsSetGroup(lp, "sampleBVH", amrCellModel->tlas);
-      setSampler(AMR_CELL_SAMPLER);
     }
 
     setTraversalMode(MC_DDA_TRAVERSAL);
@@ -439,8 +456,8 @@ namespace exa {
     };
     if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
       grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-    } else if (exaBrickModel) {
-      exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+      mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
     }
 
     if (xf.colorMapTexture != 0) {
@@ -503,8 +520,8 @@ namespace exa {
     if (xf.colorMapBuffer) {
       if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      } else if (exaBrickModel) {
-        exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+        mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
       }
     }
   }
@@ -560,11 +577,11 @@ namespace exa {
   {
     printf("setSamplerModeExaBrick %d\n", (int)mode);
     owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
-    if (exaBrickModel->abrTlas || exaBrickModel->extTlas) {
+    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
       if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
-        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->abrTlas);
+        owlParamsSetGroup(lp, "sampleBVH", mod->abrTlas);
       else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
-        owlParamsSetGroup(lp, "sampleBVH", exaBrickModel->extTlas);
+        owlParamsSetGroup(lp, "sampleBVH", mod->extTlas);
     }
   }
 
@@ -575,14 +592,16 @@ namespace exa {
     traversalMode = mode;
     owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
     if (traversalMode == MC_BVH_TRAVERSAL) {
+      if (!grid.tlas)
+        grid.buildBVH(owl,module);
       owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
     }
-    else if (exaBrickModel) {
+    else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
       if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->abrTlas); 
+        owlParamsSetGroup(lp,"majorantBVH",mod->abrTlas); 
       }
       else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",exaBrickModel->brickTlas); 
+        owlParamsSetGroup(lp,"majorantBVH",mod->brickTlas); 
       }
     }
 
@@ -593,8 +612,8 @@ namespace exa {
       };
       if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
         grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      } else if (exaBrickModel) {
-        exaBrickModel->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+        mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
       }
     }
   }
@@ -647,16 +666,15 @@ namespace exa {
 
   void OWLRenderer::buildGrid()
   {
-    grid.build(owl, module,
-               exaStitchModel->vertexBuffer,
-               exaStitchModel->indexBuffer,
-               exaStitchModel->gridletBuffer,
-               exaStitchModel->gridletScalarBuffer,
-               amrCellModel->cellBuffer,
-               amrCellModel->scalarBuffer,
-               exaBrickModel->abrBuffer,
-               numMCs,
-               modelBounds);
+    if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
+      grid.build(owl,mod,numMCs,modelBounds);
+    }
+    else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+      grid.build(owl,mod,numMCs,modelBounds);
+    }
+    else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
+      grid.build(owl,mod,numMCs,modelBounds);
+    }
 
     setRange(valueRange);
 

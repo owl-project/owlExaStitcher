@@ -17,10 +17,8 @@
 #pragma once
 
 #include "qtOWL/ColorMaps.h"
-#include "AMRCellModel.h"
-#include "ExaBrickModel.h"
-#include "ExaStitchModel.h"
 #include "Grid.h"
+#include "Model.h"
 
 namespace exa {
 
@@ -93,9 +91,7 @@ namespace exa {
       cudaTextureObject_t colorMapTexture { 0 };
     } xf;
 
-    ExaStitchModel::SP exaStitchModel { 0 };
-    ExaBrickModel::SP exaBrickModel { 0 };
-    AMRCellModel::SP amrCellModel { 0 };
+    Model::SP model { 0 };
     Grid grid;
     vec3i numMCs { 128, 128, 128 };
 

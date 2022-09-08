@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <owl/common/math/box.h>
+#include <owl/owl.h>
 #include "deviceCode.h"
 
 namespace exa {
@@ -25,6 +26,10 @@ namespace exa {
   struct Model
   {
     typedef std::shared_ptr<Model> SP;
+
+    virtual ~Model() {}
+
+    virtual bool initGPU(OWLContext owl, OWLModule module) { return false; }
 
     owl::box3f modelBounds;
     range1f    valueRange;
