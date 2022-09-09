@@ -935,14 +935,6 @@ namespace exa {
   {
     vec4f pixelColor(0.f);
 
-    // first, since we now traverse bricks and sample cells: convert ray to voxel space...
-    ray.origin = xfmPoint(optixLaunchParams.voxelSpaceTransform,ray.origin);
-    ray.direction = xfmVector(optixLaunchParams.voxelSpaceTransform,ray.direction);
-
-    const float dt_scale = length(vec3f(ray.direction));
-    ray.direction = normalize(vec3f(ray.direction));
-    ray.tmin = ray.tmin * dt_scale;
-
     auto integrate = [=,&pixelColor](const auto &domainIterationState, float t0, float t1) {
       const auto& lp = optixLaunchParams;
       const int leafID = domainIterationState.primID;
@@ -1450,6 +1442,14 @@ namespace exa {
           }
         }
 
+        ray.origin = xfmPoint(optixLaunchParams.voxelSpaceTransform,ray.origin);
+        ray.direction = xfmVector(optixLaunchParams.voxelSpaceTransform,ray.direction);
+
+        const float dt_scale = length(vec3f(ray.direction));
+        ray.direction = normalize(vec3f(ray.direction));
+        ray.tmin = ray.tmin * dt_scale;
+        ray.tmax = ray.tmax * dt_scale;
+
         vec3f pos;
         vec4f xf = 0.f; // albedo and extinction coefficient
         sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
@@ -1581,6 +1581,14 @@ namespace exa {
         }
       }
 
+      ray.origin = xfmPoint(optixLaunchParams.voxelSpaceTransform,ray.origin);
+      ray.direction = xfmVector(optixLaunchParams.voxelSpaceTransform,ray.direction);
+
+      const float dt_scale = length(vec3f(ray.direction));
+      ray.direction = normalize(vec3f(ray.direction));
+      ray.tmin = ray.tmin * dt_scale;
+      ray.tmax = ray.tmax * dt_scale;
+
       vec3f pos;
       vec4f xf = 0.f; // albedo and extinction coefficient
       sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
@@ -1660,6 +1668,15 @@ namespace exa {
           color = fmaxf(0.f,dot(-ray.direction,meshPRD.Ng));
         }
       }
+
+      // first, since we now traverse bricks and sample cells: convert ray to voxel space...
+      ray.origin = xfmPoint(optixLaunchParams.voxelSpaceTransform,ray.origin);
+      ray.direction = xfmVector(optixLaunchParams.voxelSpaceTransform,ray.direction);
+
+      const float dt_scale = length(vec3f(ray.direction));
+      ray.direction = normalize(vec3f(ray.direction));
+      ray.tmin = ray.tmin * dt_scale;
+      ray.tmax = ray.tmax * dt_scale;
 
       color = over(sampler.integrateDVR(ray,t0,t1,random(),numLights),color);
     }
