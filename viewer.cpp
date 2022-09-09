@@ -778,7 +778,7 @@ namespace exa {
     QComboBox traversalModeSelection;
     traversalModeSelection.addItem("MC + DDA");
     traversalModeSelection.addItem("MC + BVH");
-    traversalModeSelection.addItem("ARB BVH");
+    traversalModeSelection.addItem("ABR BVH");
     traversalModeSelection.addItem("Extended Brick BVH");
     traversalModeSelection.addItem("Extended Brick KD-Tree");
     traversalModeSelection.setCurrentIndex(MC_DDA_TRAVERSAL);

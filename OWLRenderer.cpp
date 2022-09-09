@@ -263,7 +263,7 @@ namespace exa {
 
     setTraversalMode(MC_DDA_TRAVERSAL);
     // setTraversalMode(MC_BVH_TRAVERSAL);
-    // setTraversalMode(EXABRICK_ARB_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ABR_TRAVERSAL);
     // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
     // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
 
@@ -592,7 +592,7 @@ namespace exa {
       owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
     }
     else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      if (traversalMode == EXABRICK_ARB_TRAVERSAL) { 
+      if (traversalMode == EXABRICK_ABR_TRAVERSAL) { 
         owlParamsSetGroup(lp,"majorantBVH",mod->abrTlas); 
       }
       else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 

@@ -989,7 +989,7 @@ namespace exa {
       return true; // go on
     };
 
-    iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,integrate);
+    iterateSpatialPartitions<EXABRICK_ABR_TRAVERSAL>(ray,integrate);
     return pixelColor;
   }
 
@@ -1057,7 +1057,7 @@ namespace exa {
   }
 
   template<> inline __device__
-  float getMajorant(const SPIterationState<EXABRICK_ARB_TRAVERSAL> &state) {
+  float getMajorant(const SPIterationState<EXABRICK_ABR_TRAVERSAL> &state) {
     return optixLaunchParams.abrMaxOpacities[state.primID];
   }
 
@@ -1251,8 +1251,8 @@ namespace exa {
     else {
       if (lp.traversalMode == MC_BVH_TRAVERSAL)
         iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
-      else if (lp.traversalMode == EXABRICK_ARB_TRAVERSAL) 
-        iterateSpatialPartitions<EXABRICK_ARB_TRAVERSAL>(ray,woodcockFunc);
+      else if (lp.traversalMode == EXABRICK_ABR_TRAVERSAL) 
+        iterateSpatialPartitions<EXABRICK_ABR_TRAVERSAL>(ray,woodcockFunc);
       else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
         iterateSpatialPartitions<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
       else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)

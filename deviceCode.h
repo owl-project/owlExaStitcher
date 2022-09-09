@@ -63,7 +63,7 @@ namespace exa {
   enum TraversalMode {
     MC_DDA_TRAVERSAL = 0,
     MC_BVH_TRAVERSAL = 1,
-    EXABRICK_ARB_TRAVERSAL = 2,
+    EXABRICK_ABR_TRAVERSAL = 2,
     EXABRICK_BVH_TRAVERSAL = 3,
     EXABRICK_KDTREE_TRAVERSAL = 4,
   };
