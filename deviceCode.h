@@ -193,6 +193,7 @@ namespace exa {
     box3f      worldSpaceBounds;
     box3f      voxelSpaceBounds;
     affine3f   voxelSpaceTransform;
+    affine3f   lightSpaceTransform;
 
     // For ExaBrick benchmark
     ExaBrick *exaBrickBuffer;

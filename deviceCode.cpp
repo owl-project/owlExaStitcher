@@ -1300,15 +1300,16 @@ namespace exa {
 
     int lightID = uniformSampleOneLight(random,numLights);
 
-    const vec3f lightDir = normalize(lp.lights[lightID].pos-pos);
-    //printf("(%i,%i): %f,%f,%f\n",lp.numLights,lightID,lp.lights[lightID].pos.x,lp.lights[lightID].pos.y,lp.lights[lightID].pos.z);
-
-    const float ld = length(lp.lights[lightID].pos-pos);
+    vec3f lightDir = lp.lights[lightID].pos-pos;
+    const float ld = length(xfmVector(lp.lightSpaceTransform,lightDir));
+    const float ldWorld = length(lightDir);
+    // if (debug()) printf("lightDir: (%f,%f,%f), ld: %f\n",lightDir.x,lightDir.y,lightDir.z,ld);
+    lightDir = normalize(lightDir);
 
     Ray ray;
     ray.origin = pos;
     ray.direction = lightDir;
-    ray.tmax = ld;
+    ray.tmax = ldWorld;
 
     float t00 = 1e30f, t11 = -1e30f;
 

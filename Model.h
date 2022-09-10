@@ -41,6 +41,10 @@ namespace exa {
     box3f    cellBounds;
     range1f  valueRange;
     affine3f voxelSpaceTransform;
+    /*! usually  a transform that scales from voxel space
+      to something smaller. E.g., a transform that scales from
+      voxel space to a  [0,1] coordinate system */
+    affine3f lightSpaceTransform;
   };
 
 } // ::exa

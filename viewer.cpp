@@ -682,7 +682,7 @@ namespace exa {
     renderer.setShadeMode(cmdline.shadeMode);
     if (!cmdline.lights[0].on) {
       cmdline.lights[0].pos = modelBounds.upper;
-      cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
+      cmdline.lights[0].intensity = 3.f;
     }
     renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
 

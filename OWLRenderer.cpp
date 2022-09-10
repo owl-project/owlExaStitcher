@@ -60,6 +60,7 @@ namespace exa {
      { "voxelSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.lower)},
      { "voxelSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
+     { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
      // exa brick buffers (for eval!)
      { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
@@ -149,6 +150,8 @@ namespace exa {
     }
 
     model->setVoxelSpaceTransform(remap_from,remap_to);
+    model->lightSpaceTransform = model->lightSpaceTransform.scale(rcp(model->cellBounds.size()));
+    std::cout << model->lightSpaceTransform << '\n';
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
@@ -384,6 +387,7 @@ namespace exa {
     owlParamsSet1i(lp,"light3.on",0);
 
     owlParamsSetRaw(lp,"voxelSpaceTransform",&model->voxelSpaceTransform);
+    owlParamsSetRaw(lp,"lightSpaceTransform",&model->lightSpaceTransform);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
