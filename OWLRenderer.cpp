@@ -126,20 +126,24 @@ namespace exa {
                            const std::string kdtreeFileName,
                            const box3f remap_from,
                            const box3f remap_to,
-                           const vec3i numMCs)
+                           const vec3i numMCs,
+                           const vec3f mirrorAxis)
   {
     // ==================================================================
     // AMR/UMesh models etc
     // ==================================================================
-
+    this->mirrorAxis = mirrorAxis;
+    bool mirror =  this->mirrorAxis.x != 0.0f || 
+                   this->mirrorAxis.y != 0.0f ||
+                   this->mirrorAxis.z != 0.0f;
     if (!umeshFileName.empty() || !gridsFileName.empty()) { // only need one of them
-      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
+      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName, mirrorAxis);
     }
     else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
-      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
+      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName, mirrorAxis);
     }
     else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
-      model = AMRCellModel::load(amrCellFileName,scalarFileName);
+      model = AMRCellModel::load(amrCellFileName,scalarFileName, mirrorAxis);
     }
 
     if (!model) {
@@ -270,7 +274,19 @@ namespace exa {
     // ==================================================================
     // mesh geom
     // ==================================================================
+    const vec3f mirrorTransform = vec3f(mirrorAxis.x == 0.f ? 1.f : -mirrorAxis.x,
+                                      mirrorAxis.y == 0.f ? 1.f : -mirrorAxis.y,
+                                      mirrorAxis.z == 0.f ? 1.f : -mirrorAxis.z);
+    affine3f transform =
+            affine3f::translate(modelBounds.upper * mirrorAxis)
+            * affine3f::scale(mirrorTransform)
+            * affine3f::translate(-modelBounds.upper * mirrorAxis);
 
+    owl4x3f tfm;
+    tfm.t = owl3f{0.f, transform.p.y, 0.f};
+    tfm.vx = owl3f{1.f, 0.f, 0.f};
+    tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
+    tfm.vz = owl3f{0.f, 0.f, 1.f};
     if (!meshes.empty()) {
       for (auto &mesh : meshes) {
 
@@ -316,7 +332,8 @@ namespace exa {
 
       owlBuildPrograms(owl);
 
-      meshGeom.tlas = owlInstanceGroupCreate(owl, meshes.size());
+      meshGeom.tlas = owlInstanceGroupCreate(owl, mirror ?
+                         meshes.size() * 2 : meshes.size());
 
       for (int meshID=0;meshID<meshes.size();meshID++) {
         auto &mesh = meshes[meshID];
@@ -352,9 +369,19 @@ namespace exa {
         blas = owlTrianglesGeomGroupCreate(owl, 1, &geom);
         owlGroupBuildAccel(blas);
         owlInstanceGroupSetChild(meshGeom.tlas, meshID, blas);
-      }
 
+        if(mirror)
+        {
+          owlInstanceGroupSetChild(meshGeom.tlas, meshes.size() + meshID, blas);
+          owlInstanceGroupSetTransform(meshGeom.tlas, meshes.size() + meshID, &tfm);
+        }
+      }
       owlGroupBuildAccel(meshGeom.tlas);
+
+      //Extend bounds to mirrored model
+      if(mirror)
+        modelBounds.extend(
+          (modelBounds.upper + abs(modelBounds.upper - modelBounds.lower)) * mirrorAxis);
 
       owlParamsSetGroup(lp, "meshBVH", meshGeom.tlas);
     }

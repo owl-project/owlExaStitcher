@@ -21,7 +21,8 @@ namespace exa {
 
 
   AMRCellModel::SP AMRCellModel::load(const std::string cellFileName,
-                                      const std::string scalarFileName)
+                                      const std::string scalarFileName,
+                                      const vec3f mirrorAxis)
   {
     AMRCellModel::SP result = std::make_shared<AMRCellModel>();
 
@@ -29,6 +30,8 @@ namespace exa {
     std::vector<float> &scalars = result->scalars;
     box3f &modelBounds          = result->modelBounds;
     range1f &valueRange         = result->valueRange;
+
+    result->mirrorAxis = mirrorAxis;
 
     std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
     if (scalarFile.good()) {
@@ -103,6 +106,23 @@ namespace exa {
                                            scalars.size(),
                                            scalars.data());
 
+      const vec3f mirrorTransform = vec3f(mirrorAxis.x == 0.f ? 1.f : -mirrorAxis.x,
+                                    mirrorAxis.y == 0.f ? 1.f : -mirrorAxis.y,
+                                    mirrorAxis.z == 0.f ? 1.f : -mirrorAxis.z);                         
+      affine3f transform =
+              affine3f::translate(modelBounds.upper * mirrorAxis)
+              * affine3f::scale(mirrorTransform)
+              * affine3f::translate(-modelBounds.upper * mirrorAxis);
+      owl4x3f tfm;
+      tfm.t = owl3f{0.f, transform.p.y, 0.f};
+      tfm.vx = owl3f{1.f, 0.f, 0.f};
+      tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
+      tfm.vz = owl3f{0.f, 0.f, 1.f};
+
+      bool mirror =  mirrorAxis.x != 0.0f || 
+                   mirrorAxis.y != 0.0f ||
+                   mirrorAxis.z != 0.0f;
+
       owlGeomSetBuffer(geom,"amrCellBuffer",cellBuffer);
       owlGeomSetBuffer(geom,"scalarBuffer",scalarBuffer);
 
@@ -111,8 +131,17 @@ namespace exa {
       blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(blas);
 
-      tlas = owlInstanceGroupCreate(context, 1);
+      tlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
       owlInstanceGroupSetChild(tlas, 0, blas);
+
+      if(mirror)
+      {
+        owlInstanceGroupSetChild(tlas, 1, blas);
+        owlInstanceGroupSetTransform(tlas, 1, &tfm);
+        //Extend bounds to mirrored model
+        modelBounds.extend(
+          (modelBounds.upper + abs(modelBounds.upper - modelBounds.lower)) * mirrorAxis);
+      }
 
       owlGroupBuildAccel(tlas);
       return true;

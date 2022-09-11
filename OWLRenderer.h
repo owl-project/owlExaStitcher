@@ -35,7 +35,8 @@ namespace exa {
                 const std::string kdtreeFileName = "",
                 const box3f remap_from = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
                 const box3f remap_to = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
-                const vec3i numMCs = {128,128,128});
+                const vec3i numMCs = {128,128,128},
+                const vec3f mirrorAxis = {0.f,0.f,0.f});
 
    ~OWLRenderer();
 
@@ -117,6 +118,7 @@ namespace exa {
     } xform;
 
     bool printMemoryStats = true;
+    vec3f mirrorAxis;
   };
 
 } // ::exa

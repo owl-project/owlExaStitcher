@@ -77,6 +77,7 @@ namespace exa {
     int spp = 1;
     int heatMapEnabled = 0;
     float heatMapScale = 1.f;
+    vec3f mirror{0,0,0};
   } cmdline;
   
   void usage(const std::string &err)
@@ -651,6 +652,23 @@ namespace exa {
         cmdline.lights[0].intensity = std::stof(argv[++i]);
         cmdline.lights[0].on = true;
       }
+      else if (arg == "--mirror")
+      {
+        //get next argv
+        const std::string param = argv[++i];
+        if(param.compare(std::string("x")) == 0)
+        {
+          cmdline.mirror = vec3f(1,0,0);
+          printf("mirroring in non-y axes are not tested\n");
+        }
+        else if(param.compare(std::string("y")) == 0)
+          cmdline.mirror = vec3f(0,1,0);
+        else if(param.compare(std::string("z")) == 0)
+        {
+          cmdline.mirror = vec3f(0,0,1);
+          printf("mirroring in non-y axes are not tested\n");
+        }
+      }
       else 
         usage("unknown cmdline arg '"+arg+"'");
     }
@@ -664,7 +682,8 @@ namespace exa {
                          cmdline.kdtreeFileName,
                          cmdline.xform.remap_from,
                          cmdline.xform.remap_to,
-                         cmdline.numMCs);
+                         cmdline.numMCs,
+                         cmdline.mirror);
 
     const box3f modelBounds = renderer.modelBounds;
 
@@ -685,7 +704,6 @@ namespace exa {
       cmdline.lights[0].intensity = (int)powf(length(modelBounds.span()),2.f);
     }
     renderer.setLightSource(0,cmdline.lights[0].pos,cmdline.lights[0].intensity,cmdline.lights[0].on);
-
 
     if (!cmdline.subImage.empty())
       renderer.setSubImage(cmdline.subImage,true);

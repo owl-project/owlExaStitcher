@@ -33,6 +33,7 @@ namespace exa {
 
     owl::box3f modelBounds;
     range1f    valueRange;
+    vec3f      mirrorAxis;
   };
 
 } // ::exa
