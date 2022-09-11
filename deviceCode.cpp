@@ -1682,6 +1682,9 @@ namespace exa {
         }
       }
 
+      ray.tmin = t0;
+      ray.tmax = t1;
+
       color = over(sampler.integrateDVR(ray,t0,t1,random(),numLights),color);
     }
 
