@@ -149,9 +149,15 @@ namespace exa {
       throw std::runtime_error("Could not load module");
     }
 
+    vec3f lightSpaceScale = 1.f;
+    vec3f cellSpaceSize = model->cellBounds.size();
+    while (reduce_max(cellSpaceSize) > 1000.f) {
+      cellSpaceSize /= 1000.f;
+      lightSpaceScale /= 1000.f;
+    }
+
     model->setVoxelSpaceTransform(remap_from,remap_to);
-    model->lightSpaceTransform = model->lightSpaceTransform.scale(rcp(model->cellBounds.size()));
-    std::cout << model->lightSpaceTransform << '\n';
+    model->lightSpaceTransform = model->lightSpaceTransform.scale(lightSpaceScale);
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
