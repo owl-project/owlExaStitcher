@@ -801,8 +801,15 @@ namespace exa {
     light0Enabled.setCheckState(Qt::Unchecked);
     QCheckBox editLightEnabled("Edit Light Pos");
     editLightEnabled.setCheckState(Qt::Unchecked);
+    QLabel light0IntensityLabel("Intensity");
+    QDoubleSpinBox light0IntensityBox;
+    light0IntensityBox.setMinimum(0.);
+    light0IntensityBox.setMaximum(999.);
+    light0IntensityBox.setValue(cmdline.lights[0].intensity);
     light0Layout.addWidget(&light0Enabled);
     light0Layout.addWidget(&editLightEnabled);
+    light0Layout.addWidget(&light0IntensityLabel);
+    light0Layout.addWidget(&light0IntensityBox);
 
     // Add layouts
     QVBoxLayout settingsvlayout(renderSettingsBox);
@@ -962,6 +969,15 @@ namespace exa {
     QObject::connect(&editLightEnabled, qOverload<int>(&QCheckBox::stateChanged),
       [&](int state) {
         viewer.lightInteractor.toggleActive();
+      });
+
+    // Light intensity
+    QObject::connect(&light0IntensityBox, qOverload<double>(&QDoubleSpinBox::valueChanged),
+      [&](double value) {
+        cmdline.lights[0].intensity = value;
+        viewer.renderer->setLightSource(0,cmdline.lights[0].pos,
+                                        cmdline.lights[0].intensity,
+                                        cmdline.lights[0].on);
       });
 
     // Light pos editing toggled via key press
