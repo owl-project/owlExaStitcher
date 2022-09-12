@@ -28,8 +28,7 @@ namespace exa {
 
     static ExaStitchModel::SP load(const std::string umeshFileName,
                                    const std::string gridsFileName,
-                                   const std::string scalarFileName,
-                                   const vec3f mirrorAxis = {0.f,0.f,0.f});
+                                   const std::string scalarFileName);
 
     std::vector<int>     indices;
     std::vector<vec4f>   vertices;

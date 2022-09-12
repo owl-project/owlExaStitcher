@@ -34,6 +34,9 @@ namespace exa {
 
     void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
 
+    /*! only used with exajet */
+    void setMirrorXZ(bool mirror);
+
     /*! return proper WORLD SPACE bounds, AFTER transformign voxel
       bounds back from voxel space to world space */
     box3f getBounds() const;
@@ -45,7 +48,8 @@ namespace exa {
       to something smaller. E.g., a transform that scales from
       voxel space to a  [0,1] coordinate system */
     affine3f lightSpaceTransform;
-    vec3f    mirrorAxis;
+    owl4x3f  mirrorTransform;
+    bool     doMirror = false;
   };
 
 } // ::exa

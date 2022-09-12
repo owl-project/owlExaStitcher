@@ -23,8 +23,7 @@ namespace exa {
 
   ExaStitchModel::SP ExaStitchModel::load(const std::string umeshFileName,
                                           const std::string gridsFileName,
-                                          const std::string scalarFileName,
-                                          const vec3f mirrorAxis)
+                                          const std::string scalarFileName)
   {
     ExaStitchModel::SP result = std::make_shared<ExaStitchModel>();
 
@@ -34,8 +33,6 @@ namespace exa {
     std::vector<float> &gridletScalars = result->gridletScalars;
     box3f &cellBounds                  = result->cellBounds;
     range1f &valueRange                = result->valueRange;
-
-    result->mirrorAxis = mirrorAxis;
 
     // Load scalars
     std::vector<float> scalars;
@@ -321,60 +318,33 @@ namespace exa {
       owlGroupBuildAccel(stitchGeom.blas);
     }
 
-    const vec3f mirrorTransform = vec3f(mirrorAxis.x == 0.f ? 1.f : -mirrorAxis.x,
-                                    mirrorAxis.y == 0.f ? 1.f : -mirrorAxis.y,
-                                    mirrorAxis.z == 0.f ? 1.f : -mirrorAxis.z);
-                                    
-    affine3f transform =
-            affine3f::translate(cellBounds.upper * mirrorAxis)
-            * affine3f::scale(mirrorTransform)
-            * affine3f::translate(-cellBounds.upper * mirrorAxis);
-
-    owl4x3f tfm;
-    tfm.t = owl3f{0.f, transform.p.y, 0.f};
-    tfm.vx = owl3f{1.f, 0.f, 0.f};
-    tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
-    tfm.vz = owl3f{0.f, 0.f, 1.f};
-
-    bool mirror =  mirrorAxis.x != 0.0f || 
-                  mirrorAxis.y != 0.0f ||
-                  mirrorAxis.z != 0.0f;
-
     if (gridletGeom.blas && stitchGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, mirror ? 4 : 2);
+      tlas = owlInstanceGroupCreate(context, doMirror ? 4 : 2);
       owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
       owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(tlas, 2, gridletGeom.blas);
         owlInstanceGroupSetChild(tlas, 3, stitchGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 2, &tfm);
-        owlInstanceGroupSetTransform(tlas, 3, &tfm);
+        owlInstanceGroupSetTransform(tlas, 2, &mirrorTransform);
+        owlInstanceGroupSetTransform(tlas, 3, &mirrorTransform);
       }
     } else if (gridletGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
+      tlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
       owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(tlas, 1, gridletGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 1, &tfm);
+        owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
       }
     } else if (stitchGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
+      tlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
       owlInstanceGroupSetChild(tlas, 0, stitchGeom.blas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 1, &tfm);
+        owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
       }
     } else {
       return false;
     }
-
-    //Extend bounds to mirrored model
-    if(mirror)
-      cellBounds.extend(
-        (cellBounds.upper + abs(cellBounds.upper - cellBounds.lower)) * mirrorAxis);
 
     owlGroupBuildAccel(tlas);
 

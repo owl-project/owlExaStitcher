@@ -42,6 +42,29 @@ namespace exa {
       * rcp(worldSpaceCoordSys);
   }
 
+  /* This function makes assumptions that are only useful
+    for exajet; we eventually want to move mirroring/other
+    scene graph functionalilty out of the model class and
+    make the renderer responsible for performing these */
+  void Model::setMirrorXZ(bool mirror)
+  {
+    doMirror = mirror;
+
+    if (doMirror) {
+      affine3f transform =
+              affine3f::translate(cellBounds.upper)
+              * affine3f::scale(vec3f(1,-1,1))
+              * affine3f::translate(-cellBounds.upper);
+
+      owl4x3f tfm;
+      tfm.t = owl3f{0.f, transform.p.y, 0.f};
+      tfm.vx = owl3f{1.f, 0.f, 0.f};
+      tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
+      tfm.vz = owl3f{0.f, 0.f, 1.f};
+      mirrorTransform = tfm;
+    }
+  }
+
   box3f Model::getBounds() const
   {
     box3f bounds = cellBounds;

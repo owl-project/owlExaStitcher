@@ -31,8 +31,7 @@ namespace exa {
 
     static ExaBrickModel::SP load(const std::string brickFileName,
                                   const std::string scalarFileName,
-                                  const std::string kdTreeFileName,
-                                  const vec3f mirrorAxis = {0.f,0.f,0.f});
+                                  const std::string kdTreeFileName);
 
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;

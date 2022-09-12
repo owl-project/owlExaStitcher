@@ -22,8 +22,7 @@ namespace exa {
 
   ExaBrickModel::SP ExaBrickModel::load(const std::string brickFileName,
                                         const std::string scalarFileName,
-                                        const std::string kdTreeFileName,
-                                        const vec3f mirrorAxis)
+                                        const std::string kdTreeFileName)
   {
     ExaBrickModel::SP result = std::make_shared<ExaBrickModel>();
 
@@ -33,8 +32,6 @@ namespace exa {
     box3f &cellBounds             = result->cellBounds;
     range1f &valueRange           = result->valueRange;
 
-
-    result->mirrorAxis = mirrorAxis;
 
     // Indices/scalars are later flattened
     std::vector<float> orderedScalars;
@@ -191,66 +188,39 @@ namespace exa {
       // finalize //
       owlBuildPrograms(context);
 
-      const vec3f mirrorTransform = vec3f(mirrorAxis.x == 0.f ? 1.f : -mirrorAxis.x,
-                                    mirrorAxis.y == 0.f ? 1.f : -mirrorAxis.y,
-                                    mirrorAxis.z == 0.f ? 1.f : -mirrorAxis.z);
-
-      affine3f transform =
-              affine3f::translate(cellBounds.upper * mirrorAxis)
-              * affine3f::scale(mirrorTransform)
-              * affine3f::translate(-cellBounds.upper * mirrorAxis);
-
-      owl4x3f tfm;
-      tfm.t = owl3f{0.f, transform.p.y, 0.f};
-      tfm.vx = owl3f{1.f, 0.f, 0.f};
-      tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
-      tfm.vz = owl3f{0.f, 0.f, 1.f};
-
-      bool mirror =  mirrorAxis.x != 0.0f || 
-                   mirrorAxis.y != 0.0f ||
-                   mirrorAxis.z != 0.0f;
-
       // 1. ABR geometry 
       abrBlas = owlUserGeomGroupCreate(context, 1, &abrGeom);
       owlGroupBuildAccel(abrBlas);
-      abrTlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
+      abrTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
       owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(abrTlas, 1, abrBlas);
-        owlInstanceGroupSetTransform(abrTlas, 1, &tfm);
+        owlInstanceGroupSetTransform(abrTlas, 1, &mirrorTransform);
       }
       owlGroupBuildAccel(abrTlas);
 
       // 2. extended brick geometry
       extBlas = owlUserGeomGroupCreate(context, 1, &extGeom);
       owlGroupBuildAccel(extBlas);
-      extTlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
+      extTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
       owlInstanceGroupSetChild(extTlas, 0, extBlas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(extTlas, 1, extBlas);
-        owlInstanceGroupSetTransform(extTlas, 1, &tfm);
+        owlInstanceGroupSetTransform(extTlas, 1, &mirrorTransform);
       }
       owlGroupBuildAccel(extTlas);
 
       // 3. brick geometry
       brickBlas = owlUserGeomGroupCreate(context, 1, &brickGeom);
       owlGroupBuildAccel(brickBlas);
-      brickTlas = owlInstanceGroupCreate(context, mirror ? 2 : 1);
+      brickTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
       owlInstanceGroupSetChild(brickTlas, 0, brickBlas);
-      if(mirror)
-      {
+      if (doMirror) {
         owlInstanceGroupSetChild(brickTlas, 1, brickBlas);
-        owlInstanceGroupSetTransform(brickTlas, 1, &tfm);
+        owlInstanceGroupSetTransform(brickTlas, 1, &mirrorTransform);
       }
       owlGroupBuildAccel(brickTlas);
 
-
-     //Extend bounds to mirrored model
-      if(mirror)
-        cellBounds.extend(
-          (cellBounds.upper + abs(cellBounds.upper - cellBounds.lower)) * mirrorAxis);
 
       // 4. build KD tree over exabricks
       if (kdtree) kdtree->initGPU();

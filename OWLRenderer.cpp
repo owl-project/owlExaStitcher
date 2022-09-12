@@ -130,23 +130,20 @@ namespace exa {
                            const box3f remap_from,
                            const box3f remap_to,
                            const vec3i numMCs,
-                           const vec3f mirrorAxis)
+                           const bool mirrorXZ)
   {
     // ==================================================================
     // AMR/UMesh models etc
     // ==================================================================
-    this->mirrorAxis = mirrorAxis;
-    bool mirror =  this->mirrorAxis.x != 0.0f || 
-                   this->mirrorAxis.y != 0.0f ||
-                   this->mirrorAxis.z != 0.0f;
+
     if (!umeshFileName.empty() || !gridsFileName.empty()) { // only need one of them
-      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName, mirrorAxis);
+      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
     }
     else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
-      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName, mirrorAxis);
+      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
     }
     else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
-      model = AMRCellModel::load(amrCellFileName,scalarFileName, mirrorAxis);
+      model = AMRCellModel::load(amrCellFileName,scalarFileName);
     }
 
     if (!model) {
@@ -161,6 +158,7 @@ namespace exa {
     }
 
     model->setVoxelSpaceTransform(remap_from,remap_to);
+    model->setMirrorXZ(mirrorXZ);
     lightSpaceTransform = lightSpaceTransform.scale(lightSpaceScale);
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
@@ -286,20 +284,9 @@ namespace exa {
     // ==================================================================
     // mesh geom
     // ==================================================================
-    const vec3f mirrorTransform = vec3f(mirrorAxis.x == 0.f ? 1.f : -mirrorAxis.x,
-                                      mirrorAxis.y == 0.f ? 1.f : -mirrorAxis.y,
-                                      mirrorAxis.z == 0.f ? 1.f : -mirrorAxis.z);
-    affine3f transform =
-            affine3f::translate(modelBounds.upper * mirrorAxis)
-            * affine3f::scale(mirrorTransform)
-            * affine3f::translate(-modelBounds.upper * mirrorAxis);
 
-    owl4x3f tfm;
-    tfm.t = owl3f{0.f, transform.p.y, 0.f};
-    tfm.vx = owl3f{1.f, 0.f, 0.f};
-    tfm.vy = owl3f{0.f, transform.l.vy.y, 0.f};
-    tfm.vz = owl3f{0.f, 0.f, 1.f};
     if (!meshes.empty()) {
+      box3f meshBounds;
       for (auto &mesh : meshes) {
         box3f bounds;
         for (size_t i=0; i<mesh->index.size(); ++i) {
@@ -311,7 +298,7 @@ namespace exa {
           bounds.extend(v2);
           bounds.extend(v3);
         }
-        modelBounds.extend(bounds);
+        meshBounds.extend(bounds);
       }
 
       meshGeom.geomType = owlGeomTypeCreate(owl,
@@ -325,7 +312,7 @@ namespace exa {
 
       owlBuildPrograms(owl);
 
-      meshGeom.tlas = owlInstanceGroupCreate(owl, mirror ?
+      meshGeom.tlas = owlInstanceGroupCreate(owl, mirrorXZ ?
                          meshes.size() * 2 : meshes.size());
 
       for (int meshID=0;meshID<meshes.size();meshID++) {
@@ -363,18 +350,28 @@ namespace exa {
         owlGroupBuildAccel(blas);
         owlInstanceGroupSetChild(meshGeom.tlas, meshID, blas);
 
-        if(mirror)
-        {
+        modelBounds.extend(meshBounds);
+
+        if (mirrorXZ) {
+          owl4x3f tfm;
+          tfm.t = owl3f{0.f, 0.f, 0.f};
+          tfm.vx = owl3f{1.f, 0.f, 0.f};
+          tfm.vy = owl3f{0.f, -1.f, 0.f};
+          tfm.vz = owl3f{0.f, 0.f, 1.f};
           owlInstanceGroupSetChild(meshGeom.tlas, meshes.size() + meshID, blas);
           owlInstanceGroupSetTransform(meshGeom.tlas, meshes.size() + meshID, &tfm);
+
+          const affine3f &a3f = (const affine3f&)tfm;
+          vec3f lower = xfmPoint(a3f,meshBounds.lower);
+          vec3f upper = xfmPoint(a3f,meshBounds.upper);
+          box3f mirrorBounds{
+            min(lower,upper),
+              max(lower,upper),
+          };
+          modelBounds.extend(mirrorBounds);
         }
       }
       owlGroupBuildAccel(meshGeom.tlas);
-
-      //Extend bounds to mirrored model
-      if(mirror)
-        modelBounds.extend(
-          (modelBounds.upper + abs(modelBounds.upper - modelBounds.lower)) * mirrorAxis);
 
       owlParamsSetGroup(lp, "meshBVH", meshGeom.tlas);
     }
