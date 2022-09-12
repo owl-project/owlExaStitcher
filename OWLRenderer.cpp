@@ -157,7 +157,7 @@ namespace exa {
     }
 
     model->setVoxelSpaceTransform(remap_from,remap_to);
-    model->lightSpaceTransform = model->lightSpaceTransform.scale(lightSpaceScale);
+    lightSpaceTransform = lightSpaceTransform.scale(lightSpaceScale);
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
@@ -384,7 +384,7 @@ namespace exa {
     owlParamsSet1i(lp,"light3.on",0);
 
     owlParamsSetRaw(lp,"voxelSpaceTransform",&model->voxelSpaceTransform);
-    owlParamsSetRaw(lp,"lightSpaceTransform",&model->lightSpaceTransform);
+    owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -637,6 +637,15 @@ namespace exa {
       owlParamsSet1f(lp,"light0.intensity",intensity);
       owlParamsSet1i(lp,"light0.on",(int)on);
     } else assert(0); // TODO!
+    accumID = 0;
+  }
+
+  void OWLRenderer::setLightSpaceTransform(const affine3f xform)
+  {
+    lightSpaceTransform = xform;
+
+    owlParamsSetRaw(lp,"voxelSpaceTransform",&lightSpaceTransform);
+    owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
     accumID = 0;
   }
 

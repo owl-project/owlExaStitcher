@@ -64,8 +64,7 @@ namespace exa {
     void setSubImageSelection(const box2f si, bool active);
 
     void setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on);
-
-    void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
+    void setLightSpaceTransform(const affine3f xform);
 
     void setNumMCs(const vec3i numMCs);
     void buildGrid();
@@ -107,8 +106,9 @@ namespace exa {
 
     void resetAccum() { accumID = 0; }
 
-    box3f   modelBounds;
-    range1f valueRange;
+    box3f    modelBounds;
+    range1f  valueRange;
+    affine3f lightSpaceTransform;
 
     bool printMemoryStats = true;
   };
