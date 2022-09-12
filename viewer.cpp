@@ -806,10 +806,19 @@ namespace exa {
     light0IntensityBox.setMinimum(0.);
     light0IntensityBox.setMaximum(999.);
     light0IntensityBox.setValue(cmdline.lights[0].intensity);
+    QComboBox light0UnitsSelection;
+    light0UnitsSelection.addItem("W");
+    light0UnitsSelection.addItem("KW");
+    light0UnitsSelection.addItem("MW");
+    light0UnitsSelection.addItem("GW");
+    const float lscale = 1.f/viewer.renderer->lightSpaceTransform.l.vx.x;
+    int item = log10(lscale)/3;
+    light0UnitsSelection.setCurrentIndex(item);
     light0Layout.addWidget(&light0Enabled);
     light0Layout.addWidget(&editLightEnabled);
     light0Layout.addWidget(&light0IntensityLabel);
     light0Layout.addWidget(&light0IntensityBox);
+    light0Layout.addWidget(&light0UnitsSelection);
 
     // Add layouts
     QVBoxLayout settingsvlayout(renderSettingsBox);
@@ -978,6 +987,15 @@ namespace exa {
         viewer.renderer->setLightSource(0,cmdline.lights[0].pos,
                                         cmdline.lights[0].intensity,
                                         cmdline.lights[0].on);
+      });
+
+    // Light intensity units
+    QObject::connect(&light0UnitsSelection, qOverload<int>(&QComboBox::currentIndexChanged),
+      [&](int item) {
+        float val = powf(1000.f,float(item));
+        affine3f xform;
+        xform = xform.scale(1.f/vec3f(val));
+        viewer.renderer->setLightSpaceTransform(xform);
       });
 
     // Light pos editing toggled via key press

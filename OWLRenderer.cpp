@@ -643,8 +643,6 @@ namespace exa {
   void OWLRenderer::setLightSpaceTransform(const affine3f xform)
   {
     lightSpaceTransform = xform;
-
-    owlParamsSetRaw(lp,"voxelSpaceTransform",&lightSpaceTransform);
     owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
     accumID = 0;
   }
