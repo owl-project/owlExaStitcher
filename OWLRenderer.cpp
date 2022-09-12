@@ -57,8 +57,6 @@ namespace exa {
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
-     { "voxelSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.lower)},
-     { "voxelSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,voxelSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
      // exa brick buffers (for eval!)
@@ -79,6 +77,8 @@ namespace exa {
      { "render.heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,render.heatMapScale) },
      // grid for DDA/spatially varying majorants
      { "grid.dims",     OWL_INT3,   OWL_OFFSETOF(LaunchParams,grid.dims) },
+     { "grid.bounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.lower)},
+     { "grid.bounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.upper)},
      { "grid.valueRanges", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.valueRanges) },
      { "grid.maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.maxOpacities) },
      // clip planes
@@ -362,15 +362,6 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
 
-    owlParamsSet3f(lp,"voxelSpaceBounds.lower",
-                   model->cellBounds.lower.x,
-                   model->cellBounds.lower.y,
-                   model->cellBounds.lower.z);
-    owlParamsSet3f(lp,"voxelSpaceBounds.upper",
-                   model->cellBounds.upper.x,
-                   model->cellBounds.upper.y,
-                   model->cellBounds.upper.z);
-
     setNumMCs(numMCs); // also builds the grid
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
@@ -651,14 +642,16 @@ namespace exa {
 
   void OWLRenderer::buildGrid()
   {
+    const box3f gridBounds = model->cellBounds;
+
     if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
-      grid.build(owl,mod,numMCs,modelBounds);
+      grid.build(owl,mod,numMCs,gridBounds);
     }
     else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      grid.build(owl,mod,numMCs,modelBounds);
+      grid.build(owl,mod,numMCs,gridBounds);
     }
     else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
-      grid.build(owl,mod,numMCs,modelBounds);
+      grid.build(owl,mod,numMCs,gridBounds);
     }
 
     setRange(valueRange);
@@ -667,6 +660,14 @@ namespace exa {
                    grid.dims.x,
                    grid.dims.y,
                    grid.dims.z);
+    owlParamsSet3f(lp,"grid.bounds.lower",
+                   gridBounds.lower.x,
+                   gridBounds.lower.y,
+                   gridBounds.lower.z);
+    owlParamsSet3f(lp,"grid.bounds.upper",
+                   gridBounds.upper.x,
+                   gridBounds.upper.y,
+                   gridBounds.upper.z);
     owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
     owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
   }

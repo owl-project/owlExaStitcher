@@ -191,7 +191,6 @@ namespace exa {
 
     Gridlet  *gridletBuffer;
     box3f      worldSpaceBounds;
-    box3f      voxelSpaceBounds;
     affine3f   voxelSpaceTransform;
     affine3f   lightSpaceTransform;
 
@@ -228,6 +227,7 @@ namespace exa {
     } render;
     struct {
       vec3i    dims;
+      box3f    bounds;
       range1f *valueRanges;
       float   *maxOpacities;
     } grid;

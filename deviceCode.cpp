@@ -1275,7 +1275,7 @@ namespace exa {
     };
 
     if constexpr (useDDA)
-      dda3(ray,lp.grid.dims,lp.worldSpaceBounds,woodcockFunc);
+      dda3(ray,lp.grid.dims,lp.grid.bounds,woodcockFunc);
     else {
       if (lp.traversalMode == MC_BVH_TRAVERSAL)
         iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
