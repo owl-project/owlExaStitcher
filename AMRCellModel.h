@@ -27,7 +27,8 @@ namespace exa {
     typedef std::shared_ptr<AMRCellModel> SP;
 
     static AMRCellModel::SP load(const std::string cellFileName,
-                                 const std::string scalarFileName);
+                                 const std::string scalarFileName,
+                                 const vec3f mirrorAxis = {0,0,0});
 
     std::vector<AMRCell> cells;
     std::vector<float>   scalars;

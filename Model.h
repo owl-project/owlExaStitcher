@@ -45,6 +45,7 @@ namespace exa {
       to something smaller. E.g., a transform that scales from
       voxel space to a  [0,1] coordinate system */
     affine3f lightSpaceTransform;
+    vec3f    mirrorAxis;
   };
 
 } // ::exa
