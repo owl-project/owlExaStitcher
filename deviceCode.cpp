@@ -1287,6 +1287,13 @@ namespace exa {
         iterateSpatialPartitions<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
     }
 
+    // TODO: instead of transforming this back, keep both the world space
+    // and voxel space rays around, and cmpute pos = ray.ori+t*ray.dir in
+    // world space; I opted not to for the moment b/c it's a it confusing
+    // with the above almbda, and which params it has access to and what
+    // they mean, but eventually, we should do it this way because it's
+    // way cleaner/probably faster
+    pos = xfmPoint(rcp(lp.voxelSpaceTransform),pos);
   }
 
   template <ShadeMode SM, bool useDDA, typename Sampler>
