@@ -377,8 +377,8 @@ namespace exa {
   // ------------------------------------------------------------------
 
   struct BasisPRD {
-    float sumWeights;
-    float sumWeightedValues;
+    float sumWeightedValues = 0.f;
+    float sumWeights = 0.f;
   };
 
   OPTIX_BOUNDS_PROGRAM(AMRCellGeomBounds)(const void* geomData,
@@ -537,20 +537,6 @@ namespace exa {
     }
   }
 
-  template<int SamplerMode>
-  struct ExaBrickSamplePRD;
-
-  template<> 
-  struct ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH> {
-    int primID = -1;
-  };
-  
-  template<> 
-  struct ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH> {
-    float sumWeightedValues = 0.f;
-    float sumWeights = 0.f;
-  };
-
   OPTIX_CLOSEST_HIT_PROGRAM(ExaBrickGeomCH)()
   {
   }
@@ -606,8 +592,17 @@ namespace exa {
       return;
 
     if (optixReportIntersection(0.f, 0)) {
-      auto& sample = owl::getPRD<ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH>>();
-      sample.primID = leafID;
+      auto& sample = owl::getPRD<BasisPRD>();
+      float sumWeightedValues = 0.f;
+      float sumWeights = 0.f;
+      const int *childList  = &optixLaunchParams.abrLeafListBuffer[abr.leafListBegin];
+      const int  childCount = abr.leafListSize;
+      for (int childID=0;childID<childCount;childID++) {
+        const int brickID = childList[childID];
+        ExaBrick_addBasisFunctions(sumWeightedValues, sumWeights, brickID, ray.origin);
+      }
+      sample.sumWeightedValues = sumWeightedValues;
+      sample.sumWeights = sumWeights;
     }
   }
 
@@ -636,7 +631,7 @@ namespace exa {
     if (!bounds.contains(ray.origin))
       return;
 
-    auto& sample = owl::getPRD<ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH>>();
+    auto& sample = owl::getPRD<BasisPRD>();
     ExaBrick_addBasisFunctions(sample.sumWeightedValues, sample.sumWeights, leafID, ray.origin);
   }
 
@@ -898,31 +893,12 @@ namespace exa {
       ray.tmin = 0.f;
       ray.tmax = 0.f;
 
-      if (lp.samplerModeExaBrick == EXA_BRICK_SAMPLER_ABR_BVH) {
-        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_ABR_BVH> sample;
-        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      BasisPRD sample;
+      owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
-        if (sample.primID < 0) return {0,0,0.f};
-        float sumWeightedValues = 0.f;
-        float sumWeights = 0.f;
-        const ABR &abr = lp.abrBuffer[sample.primID];
-        const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
-        const int  childCount = abr.leafListSize;
-        for (int childID=0;childID<childCount;childID++) {
-          const int brickID = childList[childID];
-          ExaBrick_addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
-        }
-        return {sample.primID,-1,sumWeightedValues/sumWeights};
-      }
-      else {
-        ExaBrickSamplePRD<EXA_BRICK_SAMPLER_EXT_BVH> sample;
-        owl::traceRay(optixLaunchParams.sampleBVH, ray, sample,
-                    OPTIX_RAY_FLAG_DISABLE_ANYHIT);
-
-        if (sample.sumWeights <= 0) return {0,0,0.f};
-        return {0,-1,sample.sumWeightedValues/sample.sumWeights};
-      }
+      if (sample.sumWeights <= 0) return {0,0,0.f};
+      return {0,-1,sample.sumWeightedValues/sample.sumWeights};
     }
 
     template <bool Shading=true>
