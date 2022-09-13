@@ -904,9 +904,8 @@ namespace exa {
     vec4f integrateDVR(Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights = 0);
   };
 
-  template <TraversalMode Mode, typename Func>
-  inline __device__
-  void iterateSpatialPartitions(Ray ray, const Func &func);
+  template <typename Traversable, typename Func>
+  void traverse(Traversable traversable, Ray ray, const Func &func);
 
   template <bool Shading>
   inline __device__
@@ -980,13 +979,14 @@ namespace exa {
       return true; // go on
     };
 
-    iterateSpatialPartitions<EXABRICK_ABR_TRAVERSAL>(ray,integrate);
+    // Only implemented for ABR-BVH!
+    traverse(lp.majorantBVH,ray,integrate);
     return pixelColor;
   }
 
 
   // ------------------------------------------------------------------
-  // ABR domain iterator
+  // Spatial domain iterators
   // ------------------------------------------------------------------
 
   // Isect program for non-zero length rays
@@ -1005,12 +1005,10 @@ namespace exa {
     }
   }
 
-  template <TraversalMode Mode, typename Func>
+  template <typename Traversable, typename Func>
   inline __device__
-  void iterateSpatialPartitions(Ray ray, const Func &func)
+  void traverse(Traversable traversable, Ray ray, const Func &func)
   {
-    const auto &lp = optixLaunchParams;
-
     float alreadyIntegratedDistance = ray.tmin;
 
     while (1) {
@@ -1019,10 +1017,10 @@ namespace exa {
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       ray.tmin = alreadyIntegratedDistance;
 
-      if constexpr (Mode == EXABRICK_KDTREE_TRAVERSAL)
-        kd::traceRay(lp.kdtree, ray, prd, ExaBrickKdTreeIsect);
-      else
-        owl::traceRay(lp.majorantBVH, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      if constexpr (std::is_same<Traversable,KDTreeTraversable>::value)
+        kd::traceRay(traversable, ray, prd, ExaBrickKdTreeIsect);
+      else if constexpr (std::is_same<Traversable,OptixTraversableHandle>::value)
+        owl::traceRay(traversable, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
@@ -1033,6 +1031,14 @@ namespace exa {
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
     }
   }
+
+  template <typename Func>
+  inline __device__
+  void traverse(const GridTraversable &grid, Ray ray, const Func &func)
+  {
+    dda3(ray,grid.dims,grid.bounds,func);
+  }
+
 
   // ------------------------------------------------------------------
   // Woodcock path tracer
@@ -1058,16 +1064,17 @@ namespace exa {
     Teaser,   /* paper teaser */
   };
 
-  template <ShadeMode SM, bool useDDA, typename Sampler>
+  template <ShadeMode SM, typename Traversable, typename Sampler>
   inline __device__
-  void sampleInteraction(Ray            ray,
-                         Sampler        sampler,
-                         CollisionType &type,     /* scattering,emission,... */
-                         vec3f         &pos,      /* position of interaction */
-                         float         &Tr,       /* transmission samples [0,1] */
-                         vec3f         &Le,       /* emitted radiance */
-                         vec4f         &xf,
-                         Random        &random)
+  void sampleInteraction(const Traversable &traversable,
+                         Ray                ray,
+                         Sampler            sampler,
+                         CollisionType     &type,     /* scattering,emission,... */
+                         vec3f             &pos,      /* position of interaction */
+                         float             &Tr,       /* transmission samples [0,1] */
+                         vec3f             &Le,       /* emitted radiance */
+                         vec4f             &xf,
+                         Random            &random)
   {
     auto& lp = optixLaunchParams;
 
@@ -1211,18 +1218,7 @@ namespace exa {
       return true;
     };
 
-    if constexpr (useDDA)
-      dda3(ray,lp.grid.dims,lp.grid.bounds,woodcockFunc);
-    else {
-      if (lp.traversalMode == MC_BVH_TRAVERSAL)
-        iterateSpatialPartitions<MC_BVH_TRAVERSAL>(ray,woodcockFunc);
-      else if (lp.traversalMode == EXABRICK_ABR_TRAVERSAL) 
-        iterateSpatialPartitions<EXABRICK_ABR_TRAVERSAL>(ray,woodcockFunc);
-      else if (lp.traversalMode == EXABRICK_BVH_TRAVERSAL)
-        iterateSpatialPartitions<EXABRICK_BVH_TRAVERSAL>(ray,woodcockFunc);
-      else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
-        iterateSpatialPartitions<EXABRICK_KDTREE_TRAVERSAL>(ray,woodcockFunc);
-    }
+    traverse(traversable,ray,woodcockFunc);
 
     // TODO: instead of transforming this back, keep both the world space
     // and voxel space rays around, and cmpute pos = ray.ori+t*ray.dir in
@@ -1233,12 +1229,13 @@ namespace exa {
     pos = xfmPoint(rcp(lp.voxelSpaceTransform),pos);
   }
 
-  template <ShadeMode SM, bool useDDA, typename Sampler>
+  template <ShadeMode SM, typename Traversable, typename Sampler>
   inline __device__
-  vec3f sampleLight(const vec3f    pos,
-                    Sampler        sampler,
-                    Random        &random,
-                    int            numLights)
+  vec3f sampleLight(const Traversable &traversable,
+                    const vec3f        pos,
+                    Sampler            sampler,
+                    Random            &random,
+                    int                numLights)
   {
     auto &lp = optixLaunchParams;
 
@@ -1287,14 +1284,15 @@ namespace exa {
     vec3f newPos;
     float Tr;
     vec4f xf = 0.f; // albedo and extinction coefficient (ignored)
-    sampleInteraction<SM,useDDA>(ray,
-                                 sampler,
-                                 ctype,
-                                 newPos,
-                                 Tr,
-                                 Le,
-                                 xf,
-                                 random);
+    sampleInteraction<SM>(traversable,
+                          ray,
+                          sampler,
+                          ctype,
+                          newPos,
+                          Tr,
+                          Le,
+                          xf,
+                          random);
 
     if (ctype==Boundary && meshPRD.primID >= 0) {
       return max(0.f,dot(meshPRD.Ng,lightDir)) * Tr / (ld*ld) * lp.lights[lightID].intensity;
@@ -1366,13 +1364,14 @@ namespace exa {
   // Multi-scattering path tracing integration function
   // ------------------------------------------------------------------
 
-  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  template <ShadeMode SM, typename Traversable,  typename Sampler>
   inline __device__
-  vec4f pathTracingIntegrate(Ray          ray,
-                             Sampler      sampler,
-                             Random      &random,
-                             const vec4f  bgColor,
-                             int          numLights)
+  vec4f pathTracingIntegrate(const Traversable &traversable,
+                             Ray                ray,
+                             Sampler            sampler,
+                             Random            &random,
+                             const vec4f        bgColor,
+                             int                numLights)
   {
     auto& lp = optixLaunchParams;
 
@@ -1417,7 +1416,7 @@ namespace exa {
 
         vec3f pos;
         vec4f xf = 0.f; // albedo and extinction coefficient
-        sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
+        sampleInteraction<SM>(traversable,ray,sampler,ctype,pos,Tr,Le,xf,random);
 
         // left the volume?
         if (ctype==Boundary && meshPRD.primID < 0)
@@ -1452,7 +1451,7 @@ namespace exa {
         throughput += Le;
 
         if (numLights > 0) {
-          Ld += throughput * sampleLight<SM,useDDA>(pos,sampler,random,numLights);
+          Ld += throughput * sampleLight<SM>(traversable,pos,sampler,random,numLights);
         }
 
         // Sample BRDF or phase function
@@ -1500,13 +1499,14 @@ namespace exa {
   // Single-scattering/direct lighting integration function
   // ------------------------------------------------------------------
 
-  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  template <ShadeMode SM, typename Traversable,  typename Sampler>
   inline __device__
-  vec4f directLightingIntegrate(Ray          ray,
-                                Sampler      sampler,
-                                Random      &random,
-                                const vec4f  bgColor,
-                                int          numLights)
+  vec4f directLightingIntegrate(const Traversable &traversable,
+                                Ray                ray,
+                                Sampler            sampler,
+                                Random            &random,
+                                const vec4f        bgColor,
+                                int                numLights)
   {
     auto& lp = optixLaunchParams;
 
@@ -1548,7 +1548,7 @@ namespace exa {
 
       vec3f pos;
       vec4f xf = 0.f; // albedo and extinction coefficient
-      sampleInteraction<SM,useDDA>(ray,sampler,ctype,pos,Tr,Le,xf,random);
+      sampleInteraction<SM>(traversable,ray,sampler,ctype,pos,Tr,Le,xf,random);
 
       // left the volume?
       if (ctype==Boundary && meshPRD.primID < 0) {
@@ -1564,7 +1564,7 @@ namespace exa {
         }
 
         if (numLights > 0) {
-          throughput *= albedo*sampleLight<SM,useDDA>(pos,sampler,random,numLights);
+          throughput *= albedo*sampleLight<SM>(traversable,pos,sampler,random,numLights);
         } else {
           // Just assume we have a (1,1,1) ambient light
           throughput *= albedo;
@@ -1586,7 +1586,7 @@ namespace exa {
   // Ray marching integration function
   // ------------------------------------------------------------------
 
-  template <ShadeMode SM, bool useDDA,  typename Sampler>
+  template <ShadeMode SM, typename Sampler>
   inline __device__
   vec4f rayMarchingIntegrate(Ray          ray,
                              Sampler      sampler,
@@ -1641,8 +1641,8 @@ namespace exa {
 
   enum Integrator { PathTracer, DirectLighting, RayMarcher };
 
-  template <Integrator I, ShadeMode SM, bool useDDA,  typename Sampler>
-  __device__ inline void renderFrame_Impl(Sampler sampler)
+  template <Integrator I, ShadeMode SM, typename Traversable,  typename Sampler>
+  __device__ inline void renderFrame_Impl(const Traversable &traversable, Sampler sampler)
   {
     auto& lp = optixLaunchParams;
 
@@ -1672,23 +1672,25 @@ namespace exa {
       Ray ray = generateRay(screen);
 
       if constexpr (I==PathTracer) {
-        accumColor += pathTracingIntegrate<SM,useDDA>(ray,
-                                                      sampler,
-                                                      random,
-                                                      bgColor,
-                                                      numLights);
+        accumColor += pathTracingIntegrate<SM>(traversable,
+                                               ray,
+                                               sampler,
+                                               random,
+                                               bgColor,
+                                               numLights);
       } else if constexpr (I==DirectLighting) {
-        accumColor += directLightingIntegrate<SM,useDDA>(ray,
-                                                         sampler,
-                                                         random,
-                                                         bgColor,
-                                                         numLights);
+        accumColor += directLightingIntegrate<SM>(traversable,
+                                                  ray,
+                                                  sampler,
+                                                  random,
+                                                  bgColor,
+                                                  numLights);
       } else if constexpr (I==RayMarcher) {
-        accumColor += rayMarchingIntegrate<SM,useDDA>(ray,
-                                                      sampler,
-                                                      random,
-                                                      bgColor,
-                                                      numLights);
+        accumColor += rayMarchingIntegrate<SM>(ray,
+                                               sampler,
+                                               random,
+                                               bgColor,
+                                               numLights);
       }
 
     }
@@ -1719,11 +1721,15 @@ namespace exa {
   }
 
   template<Integrator I, typename S, ShadeMode Shade>
-  inline void __device__ renderFrame_SelectSpaceSkippingMethod()
+  inline void __device__ renderFrame_SelectAccelType()
   {
     auto& lp = optixLaunchParams;
-    if (lp.traversalMode == MC_DDA_TRAVERSAL) renderFrame_Impl<I,Shade,true>(S{});
-    else renderFrame_Impl<I,Shade,false>(S{});
+    if (lp.traversalMode == MC_DDA_TRAVERSAL)
+      renderFrame_Impl<I,Shade>(lp.grid,S{});
+    else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
+      renderFrame_Impl<I,Shade>(lp.kdtree,S{});
+    else
+      renderFrame_Impl<I,Shade>(lp.majorantBVH,S{});
   }
 
   template<Integrator I>
@@ -1734,23 +1740,23 @@ namespace exa {
 #ifdef EXA_STITCH_WITH_EXA_STITCH_SAMPLER
     if (lp.sampler == EXA_STITCH_SAMPLER) {
       if (lp.shadeMode == SHADE_MODE_DEFAULT)
-        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Default>();
+        return renderFrame_SelectAccelType<I, ExaStitchSampler, Default>();
       else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
-        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Gridlets>();
+        return renderFrame_SelectAccelType<I, ExaStitchSampler, Gridlets>();
       else if (lp.shadeMode == SHADE_MODE_TEASER)
-        return renderFrame_SelectSpaceSkippingMethod<I, ExaStitchSampler, Teaser>();
+        return renderFrame_SelectAccelType<I, ExaStitchSampler, Teaser>();
     }
 #endif
 
 #ifdef EXA_STITCH_WITH_EXA_BRICK_SAMPLER
     if (lp.sampler==EXA_BRICK_SAMPLER) {
-      return renderFrame_SelectSpaceSkippingMethod<I, ExaBrickSampler, Default>();
+      return renderFrame_SelectAccelType<I, ExaBrickSampler, Default>();
     }
 #endif
 
 #ifdef EXA_STITCH_WITH_AMR_CELL_SAMPLER
     if (lp.sampler==AMR_CELL_SAMPLER) {
-      return renderFrame_SelectSpaceSkippingMethod<I, AMRCellSampler, Default>();
+      return renderFrame_SelectAccelType<I, AMRCellSampler, Default>();
     }
 #endif
   }

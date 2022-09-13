@@ -173,6 +173,12 @@ namespace exa {
     ExaBrick *exaBrickBuffer;
   };
 
+  struct GridTraversable {
+    vec3i    dims;
+    box3f    bounds;
+    range1f *valueRanges;
+  };
+
   struct LaunchParams {
     uint32_t *fbPointer;
     float    *fbDepth;
@@ -189,6 +195,7 @@ namespace exa {
     OptixTraversableHandle meshBVH;
     OptixTraversableHandle majorantBVH;
     KDTreeTraversable kdtree;
+    GridTraversable grid;
 
     Gridlet  *gridletBuffer;
     box3f      worldSpaceBounds;
@@ -224,11 +231,6 @@ namespace exa {
       float heatMapScale;
       int   spp;
     } render;
-    struct {
-      vec3i    dims;
-      box3f    bounds;
-      range1f *valueRanges;
-    } grid;
     struct {
       int   enabled;
       vec3f N;
