@@ -183,6 +183,7 @@ namespace exa {
     int       sampler;
     int       samplerModeExaBrick;
     int       traversalMode;
+    float    *maxOpacities;
 
     OptixTraversableHandle sampleBVH;
     OptixTraversableHandle meshBVH;
@@ -199,8 +200,6 @@ namespace exa {
     ABR      *abrBuffer;
     float    *scalarBuffer;
     int      *abrLeafListBuffer;
-    float    *abrMaxOpacities;
-    float    *exaBrickMaxOpacities;
 
     struct {
       cudaTextureObject_t texture;
@@ -229,7 +228,6 @@ namespace exa {
       vec3i    dims;
       box3f    bounds;
       range1f *valueRanges;
-      float   *maxOpacities;
     } grid;
     struct {
       int   enabled;

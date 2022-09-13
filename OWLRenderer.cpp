@@ -47,6 +47,7 @@ namespace exa {
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
      { "samplerModeExaBrick", OWL_INT, OWL_OFFSETOF(LaunchParams,samplerModeExaBrick)},
      { "traversalMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,traversalMode)},
+     { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,maxOpacities) },
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
@@ -64,8 +65,6 @@ namespace exa {
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
      { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
      { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
-     { "abrMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrMaxOpacities)},
-     { "exaBrickMaxOpacities",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickMaxOpacities)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -80,7 +79,6 @@ namespace exa {
      { "grid.bounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.lower)},
      { "grid.bounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.upper)},
      { "grid.valueRanges", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.valueRanges) },
-     { "grid.maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.maxOpacities) },
      // clip planes
      { "clipPlane0.enabled",     OWL_INT,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].enabled) },
      { "clipPlane0.N",     OWL_FLOAT3,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].N) },
@@ -249,8 +247,6 @@ namespace exa {
         owlParamsSetBuffer(lp,"abrBuffer", mod->abrBuffer);
         owlParamsSetBuffer(lp,"scalarBuffer", mod->scalarBuffer);
         owlParamsSetBuffer(lp,"abrLeafListBuffer", mod->abrLeafListBuffer);
-        owlParamsSetBuffer(lp,"abrMaxOpacities",mod->abrMaxOpacities);
-        owlParamsSetBuffer(lp,"exaBrickMaxOpacities",mod->brickMaxOpacities);
         setSampler(EXA_BRICK_SAMPLER);
         // setup kdtree traversable
         if (mod->kdtree) {
@@ -271,15 +267,6 @@ namespace exa {
         setSampler(AMR_CELL_SAMPLER);
       }
     }
-
-    setTraversalMode(MC_DDA_TRAVERSAL);
-    // setTraversalMode(MC_BVH_TRAVERSAL);
-    // setTraversalMode(EXABRICK_ABR_TRAVERSAL);
-    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
-    // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
-
-    setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
-    // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
 
     // ==================================================================
     // mesh geom
@@ -387,6 +374,15 @@ namespace exa {
                    modelBounds.upper.z);
 
     setNumMCs(numMCs); // also builds the grid
+
+    setTraversalMode(MC_DDA_TRAVERSAL);
+    // setTraversalMode(MC_BVH_TRAVERSAL);
+    // setTraversalMode(EXABRICK_ABR_TRAVERSAL);
+    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
+    // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
+
+    setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
+    // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
@@ -615,13 +611,19 @@ namespace exa {
       if (!grid.tlas)
         grid.buildBVH(owl,module);
       owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
+      owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
+    }
+    else if (traversalMode == MC_DDA_TRAVERSAL) {
+      owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
     }
     else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
       if (traversalMode == EXABRICK_ABR_TRAVERSAL) { 
         owlParamsSetGroup(lp,"majorantBVH",mod->abrTlas); 
+        owlParamsSetBuffer(lp,"maxOpacities",mod->abrMaxOpacities);
       }
       else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
         owlParamsSetGroup(lp,"majorantBVH",mod->brickTlas); 
+        owlParamsSetBuffer(lp,"maxOpacities",mod->brickMaxOpacities);
       }
     }
 
@@ -700,7 +702,6 @@ namespace exa {
                    gridBounds.upper.y,
                    gridBounds.upper.z);
     owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
-    owlParamsSetBuffer(lp,"grid.maxOpacities",grid.maxOpacities);
   }
 
   void OWLRenderer::setNumMCs(const vec3i numMCs)

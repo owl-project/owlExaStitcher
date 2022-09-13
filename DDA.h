@@ -17,6 +17,7 @@
 #pragma once
 
 #include <owl/owl.h>
+#include "Grid.cuh"
 
 namespace exa {
 
@@ -73,7 +74,7 @@ namespace exa {
 
     while (1) { // loop over grid cells
       const float t1 = min(reduce_min(tnext),ray.tmax);
-      if (!func(GridIterationState(cellID),t0,t1))
+      if (!func(linearIndex(cellID,gridDims),t0,t1))
         return;
 
 #if 0

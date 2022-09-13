@@ -885,8 +885,6 @@ namespace exa {
   struct ExaBrickSampler {
     inline __device__ Sample sampleVolume(const vec3f pos)
     {
-      auto& lp = optixLaunchParams;
-
       SamplingRay ray;
       ray.origin = pos;
       ray.direction = vec3f(1.f);
@@ -931,9 +929,7 @@ namespace exa {
     ray.tmin = ray.tmin * dt_scale;
     ray.tmax = ray.tmax * dt_scale;
 
-    auto integrate = [=,&pixelColor](const auto &domainIterationState, float t0, float t1) {
-      const int leafID = domainIterationState.primID;
-
+    auto integrate = [=,&pixelColor](const int leafID, float t0, float t1) {
       const float global_dt = lp.render.dt;
 
       const ABR &abr = lp.abrBuffer[leafID];
@@ -1009,11 +1005,6 @@ namespace exa {
     }
   }
 
-  template<TraversalMode Mode>
-  struct SPIterationState {
-    int primID;
-  };
-
   template <TraversalMode Mode, typename Func>
   inline __device__
   void iterateSpatialPartitions(Ray ray, const Func &func)
@@ -1036,34 +1027,11 @@ namespace exa {
       if (prd.leafID < 0)
         return;
 
-      if (!func(SPIterationState<Mode>{prd.leafID},prd.t0,prd.t1))
+      if (!func(prd.leafID,prd.t0,prd.t1))
         return;
 
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
     }
-  }
-
-  template<TraversalMode Mode>
-  __device__ float getMajorant(const SPIterationState<Mode> &state);
-
-  template<> inline __device__
-  float getMajorant(const SPIterationState<MC_BVH_TRAVERSAL> &state) {
-    return optixLaunchParams.grid.maxOpacities[state.primID];
-  }
-
-  template<> inline __device__
-  float getMajorant(const SPIterationState<EXABRICK_ABR_TRAVERSAL> &state) {
-    return optixLaunchParams.abrMaxOpacities[state.primID];
-  }
-
-  template<> inline __device__
-  float getMajorant(const SPIterationState<EXABRICK_BVH_TRAVERSAL> &state) {
-    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
-  }
-
-  template<> inline __device__
-  float getMajorant(const SPIterationState<EXABRICK_KDTREE_TRAVERSAL> &state) {
-    return optixLaunchParams.exaBrickMaxOpacities[state.primID];
   }
 
   // ------------------------------------------------------------------
@@ -1089,13 +1057,6 @@ namespace exa {
     Gridlets, /* show gridlets as checkerboard */
     Teaser,   /* paper teaser */
   };
-
-  inline __device__
-  float getMajorant(const GridIterationState &gridIterationState)
-  {
-    const auto& lp = optixLaunchParams;
-    return lp.grid.maxOpacities[linearIndex(gridIterationState,lp.grid.dims)];
-  }
 
   template <ShadeMode SM, bool useDDA, typename Sampler>
   inline __device__
@@ -1123,8 +1084,8 @@ namespace exa {
     type = Boundary;
     Tr = 1.f;
 
-    auto woodcockFunc = [&](const auto &domainIterationState, float t0, float t1) {
-      const float majorant = getMajorant(domainIterationState);
+    auto woodcockFunc = [&](const int leafID, float t0, float t1) {
+      const float majorant = optixLaunchParams.maxOpacities[leafID];
 
       float t = t0;
 
