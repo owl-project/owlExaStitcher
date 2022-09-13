@@ -785,7 +785,7 @@ namespace exa {
     traversalModeSelection.addItem("ABR BVH");
     traversalModeSelection.addItem("Extended Brick BVH");
     traversalModeSelection.addItem("Extended Brick KD-Tree");
-    traversalModeSelection.setCurrentIndex(MC_DDA_TRAVERSAL);
+    traversalModeSelection.setCurrentIndex(renderer.traversalMode);
     traversalModeLayout.addWidget(&traversalModeLabel);
     traversalModeLayout.addWidget(&traversalModeSelection);
 
@@ -795,7 +795,7 @@ namespace exa {
     QComboBox samplingModeSelection;
     samplingModeSelection.addItem("ABR BVH");
     samplingModeSelection.addItem("Extended Brick BVH");
-    samplingModeSelection.setCurrentIndex(EXA_BRICK_SAMPLER_ABR_BVH);
+    samplingModeSelection.setCurrentIndex(renderer.samplerModeExaBrick);
     samplingModeLayout.addWidget(&samplingModeLabel);
     samplingModeLayout.addWidget(&samplingModeSelection);
 

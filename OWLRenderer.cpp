@@ -575,6 +575,8 @@ namespace exa {
   void OWLRenderer::setSamplerModeExaBrick(int mode)
   {
     printf("setSamplerModeExaBrick %d\n", (int)mode);
+
+    samplerModeExaBrick = mode;
     owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
     if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
       if (mode == EXA_BRICK_SAMPLER_ABR_BVH)

@@ -96,6 +96,7 @@ namespace exa {
     vec3i numMCs { 128, 128, 128 };
 
     TraversalMode traversalMode;
+    int samplerModeExaBrick;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };
