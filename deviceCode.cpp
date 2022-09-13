@@ -905,6 +905,7 @@ namespace exa {
   };
 
   template <typename Traversable, typename Func>
+  inline __device__
   void traverse(Traversable traversable, Ray ray, const Func &func);
 
   template <bool Shading>
