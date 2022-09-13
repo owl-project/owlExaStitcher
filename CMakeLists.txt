@@ -63,7 +63,7 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 # witcher lib
 # ------------------------------------------------------------------
 
-add_library(witcher
+add_library(witcher STATIC
   Grid.cu
   ABRs.cpp
   AMRCellModel.cpp

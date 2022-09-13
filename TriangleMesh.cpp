@@ -60,7 +60,8 @@ namespace exa {
 
   std::vector<TriangleMesh::SP> TriangleMesh::load(const std::string &fileName)
   {
-    std::ifstream in(fileName);std::cout << fileName << '\n';
+    std::ifstream in(fileName, std::ios::binary);
+    std::cout << fileName << '\n';
     if (!in.good())
       throw std::runtime_error("cannot open file");
       

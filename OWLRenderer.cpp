@@ -51,10 +51,7 @@ namespace exa {
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
-     { "kdtree.nodes",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.nodes)},
-     { "kdtree.primRefs",    OWL_RAW_POINTER,  OWL_OFFSETOF(LaunchParams,kdtree.primRefs)},
-     { "kdtree.modelBounds.lower",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.lower)},
-     { "kdtree.modelBounds.upper",    OWL_FLOAT3,  OWL_OFFSETOF(LaunchParams,kdtree.modelBounds.upper)},
+     { "kdtree", OWL_USER_TYPE(KDTreeTraversable),  OWL_OFFSETOF(LaunchParams,kdtree)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
@@ -248,20 +245,6 @@ namespace exa {
         owlParamsSetBuffer(lp,"scalarBuffer", mod->scalarBuffer);
         owlParamsSetBuffer(lp,"abrLeafListBuffer", mod->abrLeafListBuffer);
         setSampler(EXA_BRICK_SAMPLER);
-        // setup kdtree traversable
-        if (mod->kdtree) {
-          printf("setting up kd-tree traversable\n");
-          owlParamsSetPointer(lp,"kdtree.nodes",mod->kdtree->deviceTraversable.nodes);
-          owlParamsSetPointer(lp,"kdtree.primRefs",mod->kdtree->deviceTraversable.primRefs);
-          owlParamsSet3f(lp,"kdtree.modelBounds.lower",
-                          mod->kdtree->deviceTraversable.modelBounds.lower.x,
-                          mod->kdtree->deviceTraversable.modelBounds.lower.y,
-                          mod->kdtree->deviceTraversable.modelBounds.lower.z);
-          owlParamsSet3f(lp,"kdtree.modelBounds.upper",
-                          mod->kdtree->deviceTraversable.modelBounds.upper.x,
-                          mod->kdtree->deviceTraversable.modelBounds.upper.y,
-                          mod->kdtree->deviceTraversable.modelBounds.upper.z);
-        }
       } else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
         owlParamsSetGroup(lp, "sampleBVH", mod->tlas);
         setSampler(AMR_CELL_SAMPLER);
@@ -624,6 +607,10 @@ namespace exa {
       else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
         owlParamsSetGroup(lp,"majorantBVH",mod->brickTlas); 
         owlParamsSetBuffer(lp,"maxOpacities",mod->brickMaxOpacities);
+      }
+      else if (traversalMode == EXABRICK_KDTREE_TRAVERSAL) { 
+        owlParamsSetRaw(lp, "kdtree", &mod->kdtree->deviceTraversable);
+        owlParamsSetBuffer(lp,"maxOpacities", mod->brickMaxOpacities);
       }
     }
 
