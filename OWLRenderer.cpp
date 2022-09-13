@@ -366,7 +366,7 @@ namespace exa {
           vec3f upper = xfmPoint(a3f,meshBounds.upper);
           box3f mirrorBounds{
             min(lower,upper),
-              max(lower,upper),
+            max(lower,upper)
           };
           modelBounds.extend(mirrorBounds);
         }

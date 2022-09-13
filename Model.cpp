@@ -70,6 +70,20 @@ namespace exa {
     box3f bounds = cellBounds;
     bounds.lower = xfmPoint(rcp(voxelSpaceTransform),bounds.lower);
     bounds.upper = xfmPoint(rcp(voxelSpaceTransform),bounds.upper);
+
+    if (doMirror) {
+      const affine3f &tfm = (const affine3f &)mirrorTransform;
+      vec3f lower = xfmPoint(tfm,cellBounds.lower);
+      vec3f upper = xfmPoint(tfm,cellBounds.upper);
+      box3f mirrorBounds{
+        min(lower,upper),
+        max(lower,upper)
+      };
+      mirrorBounds.lower = xfmPoint(rcp(voxelSpaceTransform),mirrorBounds.lower);
+      mirrorBounds.upper = xfmPoint(rcp(voxelSpaceTransform),mirrorBounds.upper);
+      bounds.extend(mirrorBounds);
+    }
+
     return bounds;
   }
 } // ::exa
