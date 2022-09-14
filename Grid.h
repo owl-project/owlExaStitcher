@@ -57,10 +57,12 @@ namespace exa {
                const owl::box3f bounds);
 
     // Build a BVH, in case we decide to traverse it with OptiX (bnechmark!)
-    void buildBVH(OWLContext owl, OWLModule module);
+    bool initGPU(OWLContext owl, OWLModule module);
 
     //
     void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+
+    GridTraversable deviceTraversable;
 
     // min/max value ranges
     OWLBuffer  valueRanges;

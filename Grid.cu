@@ -568,9 +568,9 @@ namespace exa {
     }
   }
 
-  void Grid::buildBVH(OWLContext owl, OWLModule module)
+  bool Grid::initGPU(OWLContext owl, OWLModule module)
   {
-    // build BVH
+    // build BVH (tarversal method a)
     OWLVarDecl geomVars[]
     = {
        { "dims", OWL_INT3, OWL_OFFSETOF(MacroCellGeom,dims) },
@@ -598,6 +598,12 @@ namespace exa {
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlGroupBuildAccel(tlas);
+
+    // init device traversable for DDA (traversal method b)
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+
+    return true;
   }
 
   __global__ void computeMaxOpacitiesGPU(float         *maxOpacities,

@@ -25,6 +25,7 @@
 #include "owl/common/math/box.h"
 #include "owl/common/math/random.h"
 
+#include "Grid.cuh"
 #include "KDTree.cuh"
 
 using namespace owl;
@@ -171,12 +172,6 @@ namespace exa {
   struct ExaBrickGeom {
     ABR *abrBuffer;
     ExaBrick *exaBrickBuffer;
-  };
-
-  struct GridTraversable {
-    vec3i    dims;
-    box3f    bounds;
-    range1f *valueRanges;
   };
 
   struct LaunchParams {

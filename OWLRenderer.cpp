@@ -52,6 +52,7 @@ namespace exa {
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
      { "kdtree", OWL_USER_TYPE(KDTreeTraversable),  OWL_OFFSETOF(LaunchParams,kdtree)},
+     { "grid", OWL_USER_TYPE(GridTraversable),  OWL_OFFSETOF(LaunchParams,grid)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
@@ -71,11 +72,6 @@ namespace exa {
      { "render.spp",           OWL_INT,   OWL_OFFSETOF(LaunchParams,render.spp) },
      { "render.heatMapEnabled", OWL_INT, OWL_OFFSETOF(LaunchParams,render.heatMapEnabled) },
      { "render.heatMapScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,render.heatMapScale) },
-     // grid for DDA/spatially varying majorants
-     { "grid.dims",     OWL_INT3,   OWL_OFFSETOF(LaunchParams,grid.dims) },
-     { "grid.bounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.lower)},
-     { "grid.bounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,grid.bounds.upper)},
-     { "grid.valueRanges", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,grid.valueRanges) },
      // clip planes
      { "clipPlane0.enabled",     OWL_INT,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].enabled) },
      { "clipPlane0.N",     OWL_FLOAT3,   OWL_OFFSETOF(LaunchParams,clipPlanes[0].N) },
@@ -357,6 +353,7 @@ namespace exa {
                    modelBounds.upper.z);
 
     setNumMCs(numMCs); // also builds the grid
+    grid.initGPU(owl,module);
 
     setTraversalMode(MC_DDA_TRAVERSAL);
     // setTraversalMode(MC_BVH_TRAVERSAL);
@@ -593,12 +590,11 @@ namespace exa {
     traversalMode = mode;
     owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
     if (traversalMode == MC_BVH_TRAVERSAL) {
-      if (!grid.tlas)
-        grid.buildBVH(owl,module);
       owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
       owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
     }
     else if (traversalMode == MC_DDA_TRAVERSAL) {
+      owlParamsSetRaw(lp,"grid",&grid.deviceTraversable);
       owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
     }
     else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
@@ -677,20 +673,6 @@ namespace exa {
     }
 
     setRange(valueRange);
-
-    owlParamsSet3i(lp,"grid.dims",
-                   grid.dims.x,
-                   grid.dims.y,
-                   grid.dims.z);
-    owlParamsSet3f(lp,"grid.bounds.lower",
-                   gridBounds.lower.x,
-                   gridBounds.lower.y,
-                   gridBounds.lower.z);
-    owlParamsSet3f(lp,"grid.bounds.upper",
-                   gridBounds.upper.x,
-                   gridBounds.upper.y,
-                   gridBounds.upper.z);
-    owlParamsSetBuffer(lp,"grid.valueRanges",grid.valueRanges);
   }
 
   void OWLRenderer::setNumMCs(const vec3i numMCs)
