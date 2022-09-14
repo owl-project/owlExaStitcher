@@ -51,8 +51,8 @@ namespace exa {
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
-     { "kdtree", OWL_USER_TYPE(KDTreeTraversable),  OWL_OFFSETOF(LaunchParams,kdtree)},
-     { "grid", OWL_USER_TYPE(GridTraversable),  OWL_OFFSETOF(LaunchParams,grid)},
+     { "majorantKDTree", OWL_USER_TYPE(KDTreeTraversableHandle),  OWL_OFFSETOF(LaunchParams,majorantKDTree)},
+     { "majorantGrid", OWL_USER_TYPE(GridTraversableHandle),  OWL_OFFSETOF(LaunchParams,majorantGrid)},
      { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
@@ -594,7 +594,7 @@ namespace exa {
       owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
     }
     else if (traversalMode == MC_DDA_TRAVERSAL) {
-      owlParamsSetRaw(lp,"grid",&grid.deviceTraversable);
+      owlParamsSetRaw(lp,"majorantGrid",&grid.deviceTraversable);
       owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
     }
     else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
@@ -607,7 +607,7 @@ namespace exa {
         owlParamsSetBuffer(lp,"maxOpacities",mod->brickMaxOpacities);
       }
       else if (traversalMode == EXABRICK_KDTREE_TRAVERSAL) { 
-        owlParamsSetRaw(lp, "kdtree", &mod->kdtree->deviceTraversable);
+        owlParamsSetRaw(lp, "majorantKDTree", &mod->kdtree->deviceTraversable);
         owlParamsSetBuffer(lp,"maxOpacities", mod->brickMaxOpacities);
       }
     }

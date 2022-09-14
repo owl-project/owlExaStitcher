@@ -62,7 +62,7 @@ namespace exa {
     //
     void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
 
-    GridTraversable deviceTraversable;
+    GridTraversableHandle deviceTraversable;
 
     // min/max value ranges
     OWLBuffer  valueRanges;

@@ -137,7 +137,7 @@ namespace exa {
     owl::box3f box;
   };
 
-  struct KDTreeTraversable {
+  struct KDTreeTraversableHandle {
     KDTreeNode *nodes;
     PrimRef    *primRefs;
     owl::box3f  modelBounds;
@@ -170,7 +170,7 @@ namespace exa {
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
-    void traceRay(KDTreeTraversable tree, const Ray &ray, PRD &prd, Isect isect) {
+    void traceRay(KDTreeTraversableHandle tree, const Ray &ray, PRD &prd, Isect isect) {
 
       using namespace owl;
 

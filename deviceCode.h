@@ -186,11 +186,11 @@ namespace exa {
     int       traversalMode;
     float    *maxOpacities;
 
-    OptixTraversableHandle sampleBVH;
-    OptixTraversableHandle meshBVH;
-    OptixTraversableHandle majorantBVH;
-    KDTreeTraversable kdtree;
-    GridTraversable grid;
+    OptixTraversableHandle  sampleBVH;
+    OptixTraversableHandle  meshBVH;
+    OptixTraversableHandle  majorantBVH;
+    KDTreeTraversableHandle majorantKDTree;
+    GridTraversableHandle   majorantGrid;
 
     Gridlet  *gridletBuffer;
     box3f      worldSpaceBounds;

@@ -1018,7 +1018,7 @@ namespace exa {
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       ray.tmin = alreadyIntegratedDistance;
 
-      if constexpr (std::is_same<Traversable,KDTreeTraversable>::value)
+      if constexpr (std::is_same<Traversable,KDTreeTraversableHandle>::value)
         kd::traceRay(traversable, ray, prd, ExaBrickKdTreeIsect);
       else if constexpr (std::is_same<Traversable,OptixTraversableHandle>::value)
         owl::traceRay(traversable, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
@@ -1035,7 +1035,7 @@ namespace exa {
 
   template <typename Func>
   inline __device__
-  void traverse(const GridTraversable &grid, Ray ray, const Func &func)
+  void traverse(const GridTraversableHandle &grid, Ray ray, const Func &func)
   {
     dda3(ray,grid.dims,grid.bounds,func);
   }
@@ -1726,9 +1726,9 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     if (lp.traversalMode == MC_DDA_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.grid,S{});
+      renderFrame_Impl<I,Shade>(lp.majorantGrid,S{});
     else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.kdtree,S{});
+      renderFrame_Impl<I,Shade>(lp.majorantKDTree,S{});
     else
       renderFrame_Impl<I,Shade>(lp.majorantBVH,S{});
   }

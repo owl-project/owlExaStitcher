@@ -18,7 +18,7 @@
 
 namespace exa {
 
-  struct GridTraversable {
+  struct GridTraversableHandle {
     owl::vec3i dims;
     owl::box3f bounds;
   };
