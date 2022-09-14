@@ -16,34 +16,39 @@
 
 #pragma once
 
+#include <memory>
 #include <owl/owl.h>
 #include <owl/common/math/box.h>
 #include <owl/common/math/vec.h>
-#include "AMRCellModel.h"
-#include "ExaBrickModel.h"
-#include "ExaStitchModel.h"
+#include "deviceCode.h"
 
 namespace exa {
 
+  class AMRCellModel;
+  class ExaBrickModel;
+  class ExaStitchModel;
+
   struct Grid
   {
+    typedef std::shared_ptr<Grid> SP;
+
     // Build from simple cell model
-    void build(OWLContext       owl,
-               AMRCellModel::SP model,
+    void build(OWLContext owl,
+               std::shared_ptr<AMRCellModel> model,
                const owl::vec3i numMCs,
                const owl::box3f bounds);
 
     // Build from exa brick model
-    void build(OWLContext        owl,
-               ExaBrickModel::SP model,
-               const owl::vec3i  numMCs,
-               const owl::box3f  bounds);
+    void build(OWLContext owl,
+               std::shared_ptr<ExaBrickModel> model,
+               const owl::vec3i numMCs,
+               const owl::box3f bounds);
 
     // Build from exa stitch model
-    void build(OWLContext         owl,
-               ExaStitchModel::SP model,
-               const owl::vec3i   numMCs,
-               const owl::box3f   bounds);
+    void build(OWLContext owl,
+               std::shared_ptr<ExaStitchModel> model,
+               const owl::vec3i  numMCs,
+               const owl::box3f  bounds);
 
     // Build a BVH, in case we decide to traverse it with OptiX (bnechmark!)
     bool initGPU(OWLContext owl, OWLModule module);

@@ -18,6 +18,9 @@
 #include "Grid.h"
 #include "Grid.cuh"
 #include "atomicOp.cuh"
+#include "AMRCellModel.h"
+#include "ExaBrickModel.h"
+#include "ExaStitchModel.h"
 
 using namespace owl;
 
