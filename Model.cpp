@@ -27,6 +27,10 @@ namespace exa {
     return false;
   }
 
+  void Model::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
+  {
+  }
+
   void Model::setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to)
   {
     affine3f voxelSpaceCoordSys

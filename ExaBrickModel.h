@@ -19,24 +19,34 @@
 #include <vector>
 #include "ABRs.h"
 #include "deviceCode.h"
-#include "KDTree.h"
+#include "Grid.h"
 #include "Model.h"
-
-#include "KDTree.h"
 
 namespace exa {
 
-  struct ExaBrickModel : Model {
+  struct ExaBrickModel : Model,
+                         std::enable_shared_from_this<ExaBrickModel>
+  {
     typedef std::shared_ptr<ExaBrickModel> SP;
 
     static ExaBrickModel::SP load(const std::string brickFileName,
                                   const std::string scalarFileName,
                                   const std::string kdTreeFileName);
 
+    // How the volume density is sampled ("sampleBVH")
+    void setSamplingMode(SamplingMode mode);
+
+    // How space is being skipped ("majorantBVH")
+    void setTraversalMode(TraversalMode mode);
+
+    // Set the number of macro cells; the grid is built on initGPU (!)
+    void setNumGridCells(const vec3i numMCs);
+
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
     ABRs                  abrs;
     KDTree::SP            kdtree; // optional kd-tree over bricks
+    Grid::SP              grid;   // optional grid for space skipping
 
     // owl
     OWLGeomType abrGeomType;
@@ -69,6 +79,15 @@ namespace exa {
                   size_t &scalarsBytes,
                   size_t &abrsBytes,
                   size_t &abrLeafListBytes);
+  
+  private:
+
+    SamplingMode samplingMode = EXA_BRICK_SAMPLER_ABR_BVH;
+    TraversalMode traversalMode = EXABRICK_ABR_TRAVERSAL;
+
+    // sets model's accels etc. based on traversal and sampling mode
+    void initBaseModel();
+
   };
 
 } // ::exa

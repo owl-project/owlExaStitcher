@@ -45,7 +45,6 @@ namespace exa {
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
-     { "samplerModeExaBrick", OWL_INT, OWL_OFFSETOF(LaunchParams,samplerModeExaBrick)},
      { "traversalMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,traversalMode)},
      { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,maxOpacities) },
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
@@ -154,6 +153,12 @@ namespace exa {
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
+    // TODO: we of course don't only want to set that for the exabrick model
+    // but for the others as well...
+    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+      mod->setNumGridCells(numMCs);
+    }
+
     // ==================================================================
     // Meshes
     // ==================================================================
@@ -231,8 +236,24 @@ namespace exa {
     // ==================================================================
 
     if (model->initGPU(owl,module)) {
+
+      // Set the BVH that is used for sampling
+      owlParamsSetGroup(lp, "sampleBVH", model->sampleBVH);
+
+      // Set the traversal accel (whatever that _is_)
+      if (model->majorantAccel.bvh) {
+        owlParamsSetGroup(lp,"majorantBVH",model->majorantAccel.bvh);
+      } else if (model->majorantAccel.grid) {
+        owlParamsSetRaw(lp,"majorantGrid",&model->majorantAccel.grid->deviceTraversable);
+      } else if (model->majorantAccel.kdtree) {
+        owlParamsSetRaw(lp,"majorantKDTree",&model->majorantAccel.kdtree->deviceTraversable);
+      } else {
+        fprintf(stderr,"Model's accels not set, forgot to call initGPU?\n");
+      }
+
+      // Set model type-specific data/buffers, and tell the devcie which
+      // sampler mode we use
       if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
-        owlParamsSetGroup(lp, "sampleBVH", mod->tlas);
         owlParamsSetBuffer(lp,"gridletBuffer",mod->gridletBuffer);
         setSampler(EXA_STITCH_SAMPLER);
       } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
@@ -242,7 +263,6 @@ namespace exa {
         owlParamsSetBuffer(lp,"abrLeafListBuffer", mod->abrLeafListBuffer);
         setSampler(EXA_BRICK_SAMPLER);
       } else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
-        owlParamsSetGroup(lp, "sampleBVH", mod->tlas);
         setSampler(AMR_CELL_SAMPLER);
       }
     }
@@ -352,9 +372,6 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
 
-    setNumMCs(numMCs); // also builds the grid
-    grid.initGPU(owl,module);
-
     setTraversalMode(MC_DDA_TRAVERSAL);
     // setTraversalMode(MC_BVH_TRAVERSAL);
     // setTraversalMode(EXABRICK_ABR_TRAVERSAL);
@@ -450,11 +467,8 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
-      grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-    } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-    }
+
+    model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
@@ -513,13 +527,7 @@ namespace exa {
     };
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
-    if (xf.colorMapBuffer) {
-      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
-        grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-        mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      }
-    }
+    model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
@@ -574,13 +582,13 @@ namespace exa {
     printf("setSamplerModeExaBrick %d\n", (int)mode);
 
     samplerModeExaBrick = mode;
-    owlParamsSet1i(lp,"samplerModeExaBrick",(int)mode);
+
     if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      if (mode == EXA_BRICK_SAMPLER_ABR_BVH)
-        owlParamsSetGroup(lp, "sampleBVH", mod->abrTlas);
-      else if (mode == EXA_BRICK_SAMPLER_EXT_BVH)
-        owlParamsSetGroup(lp, "sampleBVH", mod->extTlas);
+      mod->setSamplingMode(mode);
+    } else {
+      fprintf(stderr,"Setting exa sampling mode, but we're not using exabricks\n");
     }
+    owlParamsSetGroup(lp,"sampleBVH",model->sampleBVH);
   }
 
   void OWLRenderer::setTraversalMode(TraversalMode mode)
@@ -588,28 +596,21 @@ namespace exa {
     printf("setTraversalMode %d\n", (int)mode);
 
     traversalMode = mode;
+
     owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
-    if (traversalMode == MC_BVH_TRAVERSAL) {
-      owlParamsSetGroup(lp,"majorantBVH",grid.tlas); 
-      owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
+
+    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+      mod->setTraversalMode(mode);
     }
-    else if (traversalMode == MC_DDA_TRAVERSAL) {
-      owlParamsSetRaw(lp,"majorantGrid",&grid.deviceTraversable);
-      owlParamsSetBuffer(lp,"maxOpacities",grid.maxOpacities);
-    }
-    else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      if (traversalMode == EXABRICK_ABR_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",mod->abrTlas); 
-        owlParamsSetBuffer(lp,"maxOpacities",mod->abrMaxOpacities);
-      }
-      else if (traversalMode == EXABRICK_BVH_TRAVERSAL) { 
-        owlParamsSetGroup(lp,"majorantBVH",mod->brickTlas); 
-        owlParamsSetBuffer(lp,"maxOpacities",mod->brickMaxOpacities);
-      }
-      else if (traversalMode == EXABRICK_KDTREE_TRAVERSAL) { 
-        owlParamsSetRaw(lp, "majorantKDTree", &mod->kdtree->deviceTraversable);
-        owlParamsSetBuffer(lp,"maxOpacities", mod->brickMaxOpacities);
-      }
+
+    if (model->majorantAccel.bvh) {
+      owlParamsSetGroup(lp,"majorantBVH",model->majorantAccel.bvh);
+    } else if (model->majorantAccel.grid) {
+      owlParamsSetRaw(lp,"majorantGrid",&model->majorantAccel.grid->deviceTraversable);
+    } else if (model->majorantAccel.kdtree) {
+      owlParamsSetRaw(lp,"majorantKDTree",&model->majorantAccel.kdtree->deviceTraversable);
+    } else {
+      fprintf(stderr,"Model's accels not set, forgot to call initGPU?\n");
     }
 
     if (owl,xf.colorMapBuffer) {
@@ -617,12 +618,10 @@ namespace exa {
       xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
       xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
       };
-      if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
-        grid.computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-        mod->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-      }
+      model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
     }
+
+    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
   }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)
@@ -658,28 +657,6 @@ namespace exa {
     accumID = 0;
   }
 
-  void OWLRenderer::buildGrid()
-  {
-    const box3f gridBounds = model->cellBounds;
-
-    if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
-      grid.build(owl,mod,numMCs,gridBounds);
-    }
-    else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      grid.build(owl,mod,numMCs,gridBounds);
-    }
-    else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
-      grid.build(owl,mod,numMCs,gridBounds);
-    }
-
-    setRange(valueRange);
-  }
-
-  void OWLRenderer::setNumMCs(const vec3i numMCs)
-  {
-    this->numMCs = numMCs;
-    buildGrid();
-  }
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

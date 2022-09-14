@@ -61,6 +61,8 @@ enum RayTypeDecl {
 
 namespace exa {
 
+  typedef int SamplingMode;
+
   enum TraversalMode {
     MC_DDA_TRAVERSAL = 0,
     MC_BVH_TRAVERSAL = 1,

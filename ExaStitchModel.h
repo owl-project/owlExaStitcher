@@ -22,7 +22,8 @@
 
 namespace exa {
 
-  struct ExaStitchModel : Model
+  struct ExaStitchModel : Model,
+                          std::enable_shared_from_this<ExaStitchModel>
   {
     typedef std::shared_ptr<ExaStitchModel> SP;
 

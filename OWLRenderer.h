@@ -17,7 +17,6 @@
 #pragma once
 
 #include "qtOWL/ColorMaps.h"
-#include "Grid.h"
 #include "Model.h"
 
 namespace exa {
@@ -67,9 +66,6 @@ namespace exa {
     void setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on);
     void setLightSpaceTransform(const affine3f xform);
 
-    void setNumMCs(const vec3i numMCs);
-    void buildGrid();
-
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;
@@ -92,8 +88,6 @@ namespace exa {
     } xf;
 
     Model::SP model { 0 };
-    Grid grid;
-    vec3i numMCs { 128, 128, 128 };
 
     TraversalMode traversalMode;
     int samplerModeExaBrick;
