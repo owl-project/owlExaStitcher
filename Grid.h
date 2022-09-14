@@ -45,17 +45,6 @@ namespace exa {
                const owl::vec3i   numMCs,
                const owl::box3f   bounds);
 
-    void build(OWLContext       owl, OWLModule module,
-               OWLBuffer        vertices,       /* umesh verts; w is value */
-               OWLBuffer        indices,        /* umesh indices */
-               OWLBuffer        gridlets,       /* gridlet buffer */
-               OWLBuffer        gridletScalars, /* scalars referenced by gridlets */
-               OWLBuffer        amrCells,       /* AMR cells */
-               OWLBuffer        amrScalars,     /* scalars used with AMR cells */
-               OWLBuffer        abrs,           /* ExaBrick ABRs */
-               const owl::vec3i numMCs,
-               const owl::box3f bounds);
-
     // Build a BVH, in case we decide to traverse it with OptiX (bnechmark!)
     bool initGPU(OWLContext owl, OWLModule module);
 
