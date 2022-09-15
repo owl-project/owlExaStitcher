@@ -221,9 +221,15 @@ namespace exa {
       }
       owlGroupBuildAccel(brickTlas);
 
-
       // 4. build KD tree over exabricks
-      if (kdtree) kdtree->initGPU();
+      if (kdtree) {
+        kdtree->initGPU();
+        if (doMirror) {
+          kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
+          kdtree->deviceTraversable.mirrorPlane.axis = 1;
+          kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
+        }
+      }
 
       return true;
     }

@@ -20,6 +20,7 @@
 #include <float.h>
 #include <stdint.h>
 #include <owl/common/math/box.h>
+#include <owl/common/math/AffineSpace.h>
 
 namespace exa {
 
@@ -138,9 +139,15 @@ namespace exa {
   };
 
   struct KDTreeTraversable {
-    KDTreeNode *nodes;
-    PrimRef    *primRefs;
-    owl::box3f  modelBounds;
+    KDTreeNode *nodes{ nullptr };
+    PrimRef    *primRefs{ nullptr };
+    owl::box3f modelBounds;
+
+    struct {
+      float offset;
+      int axis = -1;
+    } mirrorPlane;
+    owl::affine3f mirrorInvTransform; // to object space, default is identity
   };
 
   struct KDTreeHitRec {
@@ -170,8 +177,7 @@ namespace exa {
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
-    void traceRay(KDTreeTraversable tree, const Ray &ray, PRD &prd, Isect isect) {
-
+    bool traceRayInternal(const KDTreeTraversable& tree, const Ray &ray, PRD &prd, const Isect& isect) {
       using namespace owl;
 
       struct StackEntry {
@@ -187,7 +193,7 @@ namespace exa {
 
       float t0 = 0.f, t1 = 0.f;
       if (!kd::boxTest(ray,invDir,bbox,t0,t1))
-        return;
+        return false;
 
       Stack stack;
       unsigned ptr = 0;
@@ -229,19 +235,85 @@ namespace exa {
           isect(ray, prd, tree.primRefs[i].primID,
                 se.tnear, se.tfar, hitRec);
 
-          if (hitRec.hit)
-            break;
+          if (hitRec.hit) return true;
         }
-
-        if (hitRec.hit)
-          break;
 
         if (ptr == 0)
           break;
 
         se = stack[--ptr];
       }
+
+      return false;
     }
+
+    template <typename Ray, typename PRD, typename Isect>
+    inline __both__
+    void traceRayMirror(const KDTreeTraversable& tree, Ray ray, PRD &prd, const Isect& isect) {
+      if (tree.mirrorPlane.axis < 0) {
+        traceRayInternal(tree, ray, prd, isect); return;
+      }
+
+      float d;
+      if (tree.mirrorPlane.axis == 0) {
+        d = (tree.mirrorPlane.offset - ray.origin.x) * rcp(ray.direction.x);
+      }
+      else if (tree.mirrorPlane.axis == 1) {
+        d = (tree.mirrorPlane.offset - ray.origin.y) * rcp(ray.direction.y);
+      }
+      else {
+        d = (tree.mirrorPlane.offset - ray.origin.z) * rcp(ray.direction.z);
+      }
+      const float tmin = ray.tmin;
+      const float tmax = ray.tmax;
+
+      unsigned i_near = signbit(ray.direction[tree.mirrorPlane.axis]);
+      unsigned i_far  = 1^i_near;
+
+      // original tree
+      if (d <= ray.tmin) {
+        if (i_far == 1) {
+          ray.origin = xfmPoint(tree.mirrorInvTransform,ray.origin);
+          ray.direction = xfmVector(tree.mirrorInvTransform,ray.direction);
+        }
+        traceRayInternal(tree, ray, prd, isect); return;
+      }
+
+      // mirrored tree
+      if (d >= ray.tmax) {
+        if (i_near == 1) {
+          ray.origin = xfmPoint(tree.mirrorInvTransform,ray.origin);
+          ray.direction = xfmVector(tree.mirrorInvTransform,ray.direction);
+        }
+        traceRayInternal(tree, ray, prd, isect); return;
+      }
+
+      // original tree, then mirrored tree
+      if (i_near == 1) {
+        ray.origin = xfmPoint(tree.mirrorInvTransform,ray.origin);
+        ray.direction = xfmVector(tree.mirrorInvTransform,ray.direction);
+      }
+
+      ray.tmin = tmin;
+      ray.tmax = min(tmax, d);
+      if (traceRayInternal(tree, ray, prd, isect)) return;
+
+      if (i_far == 1) {
+        ray.origin = xfmPoint(tree.mirrorInvTransform,ray.origin);
+        ray.direction = xfmVector(tree.mirrorInvTransform,ray.direction);
+      }
+
+      ray.tmin = max(tmin,d);
+      ray.tmax = tmax;
+      traceRayInternal(tree, ray, prd, isect);
+    }
+
+    template <typename Ray, typename PRD, typename Isect>
+    inline __both__
+    void traceRay(const KDTreeTraversable& tree, const Ray& ray, PRD &prd, const Isect& isect) {
+      traceRayMirror(tree, ray, prd, isect);
+    }
+
   } // ::kd
 } // ::exa
 
