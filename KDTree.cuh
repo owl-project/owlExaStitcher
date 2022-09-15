@@ -295,7 +295,7 @@ namespace exa {
       }
 
       ray.tmin = tmin;
-      ray.tmax = min(tmax, d);
+      ray.tmax = fminf(tmax, d);
       if (traceRayInternal(tree, ray, prd, isect)) return;
 
       if (i_far == 1) {
@@ -303,7 +303,7 @@ namespace exa {
         ray.direction = xfmVector(tree.mirrorInvTransform,ray.direction);
       }
 
-      ray.tmin = max(tmin,d);
+      ray.tmin = fmaxf(tmin,d);
       ray.tmax = tmax;
       traceRayInternal(tree, ray, prd, isect);
     }
