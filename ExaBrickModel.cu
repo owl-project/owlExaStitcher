@@ -74,6 +74,10 @@ namespace exa {
                                           OWLBuffer colorMap,
                                           range1f xfRange)
   {
+    if (grid && grid->dims != vec3i(0)) {
+      grid->computeMaxOpacities(owl,colorMap,xfRange);
+    }
+
     size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 

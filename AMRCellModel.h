@@ -22,7 +22,8 @@
 
 namespace exa {
 
-  struct AMRCellModel : Model
+  struct AMRCellModel : Model,
+                        std::enable_shared_from_this<AMRCellModel>
   {
     typedef std::shared_ptr<AMRCellModel> SP;
 

@@ -38,7 +38,7 @@ namespace exa {
 
     bool initGPU(int deviceID=0);
 
-    KDTreeTraversable deviceTraversable;
+    KDTreeTraversableHandle deviceTraversable;
 
   private:
 

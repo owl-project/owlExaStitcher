@@ -18,6 +18,11 @@
 
 namespace exa {
 
+  struct GridTraversableHandle {
+    owl::vec3i dims;
+    owl::box3f bounds;
+  };
+
   __device__ inline
   size_t linearIndex(const owl::vec3i index, const owl::vec3i dims)
   {
@@ -35,10 +40,11 @@ namespace exa {
   }
 
   __device__ inline
-  vec3i projectOnGrid(const owl::vec3f V,
-                      const owl::vec3i dims,
-                      const owl::box3f worldBounds)
+  owl::vec3i projectOnGrid(const owl::vec3f V,
+                           const owl::vec3i dims,
+                           const owl::box3f worldBounds)
   {
+    using namespace owl;
     const vec3f V01 = (V-worldBounds.lower)/(worldBounds.upper-worldBounds.lower);
     return clamp(vec3i(V01*vec3f(dims)),vec3i(0),dims-vec3i(1));
   }

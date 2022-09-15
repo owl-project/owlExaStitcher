@@ -25,6 +25,7 @@
 #include "owl/common/math/box.h"
 #include "owl/common/math/random.h"
 
+#include "Grid.cuh"
 #include "KDTree.cuh"
 
 using namespace owl;
@@ -59,6 +60,8 @@ enum RayTypeDecl {
 #define SHADE_MODE_TEASER   2
 
 namespace exa {
+
+  typedef int SamplingMode;
 
   enum TraversalMode {
     MC_DDA_TRAVERSAL = 0,
@@ -173,12 +176,6 @@ namespace exa {
     ExaBrick *exaBrickBuffer;
   };
 
-  struct GridTraversable {
-    vec3i    dims;
-    box3f    bounds;
-    range1f *valueRanges;
-  };
-
   struct LaunchParams {
     uint32_t *fbPointer;
     float    *fbDepth;
@@ -191,11 +188,11 @@ namespace exa {
     int       traversalMode;
     float    *maxOpacities;
 
-    OptixTraversableHandle sampleBVH;
-    OptixTraversableHandle meshBVH;
-    OptixTraversableHandle majorantBVH;
-    KDTreeTraversable kdtree;
-    GridTraversable grid;
+    OptixTraversableHandle  sampleBVH;
+    OptixTraversableHandle  meshBVH;
+    OptixTraversableHandle  majorantBVH;
+    KDTreeTraversableHandle majorantKDTree;
+    GridTraversableHandle   majorantGrid;
 
     Gridlet  *gridletBuffer;
     box3f      worldSpaceBounds;

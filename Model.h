@@ -21,6 +21,8 @@
 #include <owl/common/math/box.h>
 #include <owl/owl.h>
 #include "deviceCode.h"
+#include "Grid.h"
+#include "KDTree.h"
 
 namespace exa {
 
@@ -32,6 +34,8 @@ namespace exa {
 
     virtual bool initGPU(OWLContext owl, OWLModule module);
 
+    virtual void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+
     void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
 
     /*! only used with exajet */
@@ -40,6 +44,22 @@ namespace exa {
     /*! return proper WORLD SPACE bounds, AFTER transformign voxel
       bounds back from voxel space to world space */
     box3f getBounds() const;
+
+    /*! BVH used to sample the volume grid */
+    OWLGroup sampleBVH{ 0 };
+
+    /*! the accel used for traversal/space skipping;
+      upon successful initGPU, *either one* of these should
+      not be NULL! */
+    struct {
+      OWLGroup bvh{ 0 };
+      Grid::SP grid{ 0 };
+      KDTree::SP kdtree{ 0 };
+    } majorantAccel;
+
+    /*! majorants/max opacities; these are set by the model classes,
+      e.g., when initGPU is called */
+    OWLBuffer maxOpacities{ 0 };
 
     box3f    cellBounds;
     range1f  valueRange;

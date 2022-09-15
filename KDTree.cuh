@@ -138,7 +138,7 @@ namespace exa {
     owl::box3f box;
   };
 
-  struct KDTreeTraversable {
+  struct KDTreeTraversableHandle {
     KDTreeNode *nodes{ nullptr };
     PrimRef    *primRefs{ nullptr };
     owl::box3f modelBounds;
@@ -177,7 +177,7 @@ namespace exa {
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
-    bool traceRayInternal(const KDTreeTraversable& tree, const Ray &ray, PRD &prd, const Isect& isect) {
+    bool traceRayInternal(const KDTreeTraversableHandle& tree, const Ray &ray, PRD &prd, const Isect& isect) {
       using namespace owl;
 
       struct StackEntry {
@@ -249,7 +249,7 @@ namespace exa {
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
-    void traceRayMirror(const KDTreeTraversable& tree, Ray ray, PRD &prd, const Isect& isect) {
+    void traceRayMirror(const KDTreeTraversableHandle& tree, Ray ray, PRD &prd, const Isect& isect) {
       if (tree.mirrorPlane.axis < 0) {
         traceRayInternal(tree, ray, prd, isect); return;
       }
@@ -310,7 +310,7 @@ namespace exa {
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
-    void traceRay(const KDTreeTraversable& tree, const Ray& ray, PRD &prd, const Isect& isect) {
+    void traceRay(const KDTreeTraversableHandle& tree, const Ray& ray, PRD &prd, const Isect& isect) {
       traceRayMirror(tree, ray, prd, isect);
     }
 

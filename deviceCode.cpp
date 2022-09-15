@@ -1018,7 +1018,7 @@ namespace exa {
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       ray.tmin = alreadyIntegratedDistance;
 
-      if constexpr (std::is_same<Traversable,KDTreeTraversable>::value)
+      if constexpr (std::is_same<Traversable,KDTreeTraversableHandle>::value)
         kd::traceRay(traversable, ray, prd, ExaBrickKdTreeIsect);
       else if constexpr (std::is_same<Traversable,OptixTraversableHandle>::value)
         owl::traceRay(traversable, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
@@ -1035,7 +1035,7 @@ namespace exa {
 
   template <typename Func>
   inline __device__
-  void traverse(const GridTraversable &grid, Ray ray, const Func &func)
+  void traverse(const GridTraversableHandle &grid, Ray ray, const Func &func)
   {
     dda3(ray,grid.dims,grid.bounds,func);
   }
@@ -1726,9 +1726,9 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     if (lp.traversalMode == MC_DDA_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.grid,S{});
+      renderFrame_Impl<I,Shade>(lp.majorantGrid,S{});
     else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.kdtree,S{});
+      renderFrame_Impl<I,Shade>(lp.majorantKDTree,S{});
     else
       renderFrame_Impl<I,Shade>(lp.majorantBVH,S{});
   }
@@ -1770,115 +1770,6 @@ namespace exa {
     if (lp.integrator==PATH_TRACING_INTEGRATOR)      renderFrame_SelectSampler<PathTracer>();
     else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR) renderFrame_SelectSampler<DirectLighting>();
     else if (lp.integrator==RAY_MARCHING_INTEGRATOR) renderFrame_SelectSampler<RayMarcher>();
-
-#if 0
-    // Path tracing
-    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<PathTracer,Default,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_GRIDLETS) {
-      renderFrame_Impl<PathTracer,Gridlets,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_TEASER) {
-      renderFrame_Impl<PathTracer,Teaser,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH==0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<PathTracer,Default,true>(ExaBrickSampler{});
-    }
-
-    if (lp.integrator==PATH_TRACING_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH!=0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      // TODO: switch between these using macros
-      renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
-      //renderFrame_Impl<PathTracer,Default,false>(ExaBrickSampler{});
-    }
-
-    // Direct lighting
-    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<DirectLighting,Default,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_GRIDLETS) {
-      renderFrame_Impl<DirectLighting,Gridlets,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_TEASER) {
-      renderFrame_Impl<DirectLighting,Teaser,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH==0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<DirectLighting,Default,true>(ExaBrickSampler{});
-    }
-
-    if (lp.integrator==DIRECT_LIGHT_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH!=0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      // TODO: switch between these using macros
-      renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
-      //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
-    }
-
-
-    // Ray marcher
-    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<RayMarcher,Default,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_GRIDLETS) {
-      renderFrame_Impl<RayMarcher,Gridlets,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
-        lp.sampler==EXA_STITCH_SAMPLER &&
-        lp.shadeMode==SHADE_MODE_TEASER) {
-      renderFrame_Impl<RayMarcher,Teaser,true>(ExaStitchSampler{});
-    }
-
-    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH==0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      renderFrame_Impl<RayMarcher,Default,true>(ExaBrickSampler{});
-    }
-
-    if (lp.integrator==RAY_MARCHING_INTEGRATOR &&
-        lp.sampler==EXA_BRICK_SAMPLER &&
-        lp.majorantBVH!=0 &&
-        lp.shadeMode==SHADE_MODE_DEFAULT) {
-      // TODO: switch between these using macros
-      renderFrame_Impl<RayMarcher,Default,false>(ExaBrickSampler{});
-      //renderFrame_Impl<DirectLighting,Default,false>(ExaBrickSampler{});
-    }
-#endif
-
   }
 } // ::exa
 

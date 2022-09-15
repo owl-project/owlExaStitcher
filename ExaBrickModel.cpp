@@ -231,10 +231,42 @@ namespace exa {
         }
       }
 
+
+      // 5. build the grid
+      if (grid && grid->dims != vec3i(0)) {
+        grid->build(context,shared_from_this(),grid->dims,cellBounds);
+        // build the BVH, for the "traverse grid with optix" mode
+        grid->initGPU(context,module);
+      }
+
+      initBaseModel();
+
       return true;
     }
 
     return false;
+  }
+
+  void ExaBrickModel::setSamplingMode(SamplingMode mode)
+  {
+    samplingMode = mode;
+    initBaseModel();
+  }
+
+  void ExaBrickModel::setTraversalMode(TraversalMode mode)
+  {
+    traversalMode = mode;
+    initBaseModel();
+  }
+
+  void ExaBrickModel::setNumGridCells(const vec3i numMCs)
+  {
+    if (grid != nullptr) {
+      throw std::runtime_error("must set num grid cells before calling initGPU!");
+    }
+
+    grid = std::make_shared<Grid>();
+    grid->dims = numMCs;
   }
 
   void ExaBrickModel::memStats(size_t &bricksBytes,
@@ -246,6 +278,65 @@ namespace exa {
     scalarsBytes = scalars.empty() ? 0 : scalars.size()*sizeof(scalars[0]);
     abrsBytes = abrs.value.empty() ? 0 : abrs.value.size()*sizeof(abrs.value[0]);
     abrLeafListBytes = abrs.leafList.empty() ? 0 : abrs.leafList.size()*sizeof(abrs.leafList[0]);
+  }
+
+  void ExaBrickModel::initBaseModel()
+  {
+    Model::sampleBVH = NULL;
+    Model::majorantAccel.bvh = NULL;
+    Model::majorantAccel.grid = NULL;
+    Model::majorantAccel.kdtree = NULL;
+
+    // Set the sampling accel
+    switch (samplingMode) {
+      
+      case EXA_BRICK_SAMPLER_ABR_BVH: {
+        Model::sampleBVH = abrTlas;
+        break;
+      }
+
+      case EXA_BRICK_SAMPLER_EXT_BVH: {
+        Model::sampleBVH = extTlas;
+        break;
+      }
+    }
+
+    // Set the majorant traversal accel and majorants buffer
+    switch (traversalMode) {
+    
+      case MC_DDA_TRAVERSAL: {
+        Model::majorantAccel.grid = grid;
+        Model::maxOpacities = grid->maxOpacities;
+        break;
+      }
+
+      case MC_BVH_TRAVERSAL: {
+        Model::majorantAccel.bvh = grid->tlas;
+        Model::maxOpacities = grid->maxOpacities;
+        break;
+      }
+
+      case EXABRICK_ABR_TRAVERSAL: {
+        Model::majorantAccel.bvh = abrTlas;
+        Model::maxOpacities = abrMaxOpacities;
+        break;
+      }
+
+      case EXABRICK_BVH_TRAVERSAL: {
+        Model::majorantAccel.bvh = brickTlas;
+        Model::maxOpacities = brickMaxOpacities;
+        break;
+      }
+
+      case EXABRICK_KDTREE_TRAVERSAL: {
+        Model::majorantAccel.kdtree = kdtree;
+        Model::maxOpacities = brickMaxOpacities;
+        break;
+      }
+
+      default: throw std::runtime_error("wrong traversal mode?!");
+        break;
+    }
   }
 
 } // ::exa

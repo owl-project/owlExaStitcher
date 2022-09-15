@@ -18,6 +18,9 @@
 #include "Grid.h"
 #include "Grid.cuh"
 #include "atomicOp.cuh"
+#include "AMRCellModel.h"
+#include "ExaBrickModel.h"
+#include "ExaStitchModel.h"
 
 using namespace owl;
 
@@ -457,120 +460,9 @@ namespace exa {
     }
   }
 
-  void Grid::build(OWLContext  owl, OWLModule module,
-                   OWLBuffer   vertices,
-                   OWLBuffer   indices,
-                   OWLBuffer   gridlets,
-                   OWLBuffer   gridletScalars,
-                   OWLBuffer   amrCells,
-                   OWLBuffer   amrScalars,
-                   OWLBuffer   abrs,
-                   const vec3i numMCs,
-                   const box3f bounds)
+  bool Grid::initGPU(OWLContext owl, OWLModule module)
   {
-    dims        = numMCs;
-    worldBounds = bounds;
-
-    valueRanges = owlDeviceBufferCreate(owl, OWL_USER_TYPE(range1f),
-                                        dims.x*size_t(dims.y)*dims.z,
-                                        nullptr);
-
-    // Init with small floats
-    {
-      size_t numThreads = 1024;
-      size_t numMCs = dims.x*size_t(dims.y)*dims.z;
-      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
-        ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
-
-      // pre-allocating max-opacity buffer
-      maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numMCs, nullptr);
-    }
-
-    // Add contrib from uelems
-    if (vertices && indices) {
-      size_t numThreads = 1024;
-      size_t numElems = owlBufferSizeInBytes(indices)/sizeof(int[8]);
-      std::cout << "DDA grid: adding " << numElems << " uelems\n";
-      buildGrid<<<iDivUp(numElems, numThreads), numThreads>>>(
-        (range1f *)owlBufferGetPointer(valueRanges,0),
-        (const vec4f *)owlBufferGetPointer(vertices,0),
-        (const int *)owlBufferGetPointer(indices,0),
-        numElems,dims,worldBounds);
-      cudaDeviceSynchronize();
-      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
-    }
-
-    // Add contrib from gridlets
-    if (gridlets) {
-      double tfirst = getCurrentTime();
-      size_t numThreads = 1024;
-      size_t numGridlets = owlBufferSizeInBytes(gridlets)/sizeof(Gridlet);
-      std::cout << "DDA grid: adding " << numGridlets << " gridlets\n";
-      vec3i *maxGridletSize;
-      cudaMalloc(&maxGridletSize,sizeof(vec3i));
-      vec3i init = 0;
-      cudaMemcpy(maxGridletSize,&init,sizeof(init),cudaMemcpyHostToDevice);
-
-      getMaxGridletSize<<<iDivUp(numGridlets, numThreads), numThreads>>>(
-        (const Gridlet *)owlBufferGetPointer(gridlets,0),
-        numGridlets,maxGridletSize);
-
-      vec3i hMaxGridletSize;
-      cudaMemcpy(&hMaxGridletSize,maxGridletSize,sizeof(hMaxGridletSize),
-                 cudaMemcpyDeviceToHost);
-
-      dim3 gridDims(numGridlets,hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z);
-      dim3 blockDims(64,16);
-      dim3 numBlocks(iDivUp(gridDims.x,blockDims.x),
-                     iDivUp(gridDims.y,blockDims.y));
-
-      buildGrid<<<numBlocks, blockDims>>>(
-        (range1f *)owlBufferGetPointer(valueRanges,0),
-        (const Gridlet *)owlBufferGetPointer(gridlets,0),
-        (const float *)owlBufferGetPointer(gridletScalars,0),
-        numGridlets,hMaxGridletSize,dims,worldBounds);
-
-      cudaFree(maxGridletSize);
-      cudaDeviceSynchronize();
-      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
-      double tlast = getCurrentTime();
-      std::cout << tlast-tfirst << '\n';
-    }
-
-    // Add contrib from AMR cells
-    if (amrCells && amrScalars) {
-      size_t numThreads = 1024;
-      size_t numAmrCells = owlBufferSizeInBytes(amrCells)/sizeof(AMRCell);
-      std::cout << "DDA grid: adding " << numAmrCells << " AMR cells (non-dual!)\n";
-      buildGrid<<<iDivUp(numAmrCells, numThreads), numThreads>>>(
-        (range1f *)owlBufferGetPointer(valueRanges,0),
-        (const AMRCell *)owlBufferGetPointer(amrCells,0),
-        (const float *)owlBufferGetPointer(amrScalars,0),
-        numAmrCells,dims,worldBounds);
-      cudaDeviceSynchronize();
-      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
-    }
-
-    // Add contrib from ExaBricks
-    if (abrs) {
-      double tfirst = getCurrentTime();
-      size_t numThreads = 1024;
-      size_t numABRs = owlBufferSizeInBytes(abrs)/sizeof(ABR);
-      std::cout << "DDA grid: adding " << numABRs << " ExaBrick ABRs\n";
-      buildGrid<<<iDivUp(numABRs, numThreads), numThreads>>>(
-        (range1f *)owlBufferGetPointer(valueRanges,0),
-        (const ABR *)owlBufferGetPointer(abrs,0),
-        numABRs,dims,worldBounds);
-
-      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
-      double tlast = getCurrentTime();
-      std::cout << tlast-tfirst << '\n';
-    }
-  }
-
-  void Grid::buildBVH(OWLContext owl, OWLModule module)
-  {
-    // build BVH
+    // build BVH (tarversal method a)
     OWLVarDecl geomVars[]
     = {
        { "dims", OWL_INT3, OWL_OFFSETOF(MacroCellGeom,dims) },
@@ -598,6 +490,12 @@ namespace exa {
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlGroupBuildAccel(tlas);
+
+    // init device traversable for DDA (traversal method b)
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+
+    return true;
   }
 
   __global__ void computeMaxOpacitiesGPU(float         *maxOpacities,
