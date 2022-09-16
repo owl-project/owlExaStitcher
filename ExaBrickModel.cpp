@@ -225,9 +225,13 @@ namespace exa {
       if (kdtree) {
         kdtree->initGPU();
         if (doMirror) {
+#ifdef EXA_STITCH_MIRROR_EXAJET
           kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
           kdtree->deviceTraversable.mirrorPlane.axis = 1;
           kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
+#else
+          std::cerr << "Not compiled with option EXA_STITCH_MIRROR_EXAJET\n";
+#endif
         }
       }
 

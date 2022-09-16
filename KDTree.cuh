@@ -143,11 +143,13 @@ namespace exa {
     PrimRef    *primRefs{ nullptr };
     owl::box3f modelBounds;
 
+#ifdef EXA_STITCH_MIRROR_EXAJET
     struct {
       float offset;
       int axis = -1;
     } mirrorPlane;
     owl::affine3f mirrorInvTransform; // to object space, default is identity
+#endif
   };
 
   struct KDTreeHitRec {
@@ -247,6 +249,7 @@ namespace exa {
       return false;
     }
 
+#ifdef EXA_STITCH_MIRROR_EXAJET
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
     void traceRayMirror(const KDTreeTraversableHandle& tree, Ray ray, PRD &prd, const Isect& isect) {
@@ -307,11 +310,16 @@ namespace exa {
       ray.tmax = tmax;
       traceRayInternal(tree, ray, prd, isect);
     }
+#endif
 
     template <typename Ray, typename PRD, typename Isect>
     inline __both__
     void traceRay(const KDTreeTraversableHandle& tree, const Ray& ray, PRD &prd, const Isect& isect) {
+#ifdef EXA_STITCH_MIRROR_EXAJET
       traceRayMirror(tree, ray, prd, isect);
+#else
+      traceRayInternal(tree, ray, prd, isect);
+#endif
     }
 
   } // ::kd

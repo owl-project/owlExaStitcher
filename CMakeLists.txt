@@ -13,6 +13,7 @@ option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of sta
 option(EXA_STITCH_WITH_EXA_STITCH_SAMPLER "Build includes exa stitch sampler" ON)
 option(EXA_STITCH_WITH_EXA_BRICK_SAMPLER "Build includes exa brick sampler" ON)
 option(EXA_STITCH_WITH_AMR_CELL_SAMPLER "Build includes AMR cell sampler" ON)
+option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)
 
 option(EXA_STITCH_CPU "Build the project to run on the CPU" OFF)
 if(EXA_STITCH_CPU)
@@ -90,6 +91,10 @@ endif()
 
 if(EXA_STITCH_WITH_AMR_CELL_SAMPLER)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
+endif()
+
+if(EXA_STITCH_MIRROR_EXAJET)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
 endif()
 
 target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
