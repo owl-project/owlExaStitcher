@@ -31,7 +31,11 @@ namespace exa {
   static std::string exec(const char* cmd) {
     std::array<char, 128> buffer;
     std::string result;
+#ifdef _WIN32
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
+#else
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+#endif
     if (!pipe) {
       throw std::runtime_error("popen() failed!");
     }
