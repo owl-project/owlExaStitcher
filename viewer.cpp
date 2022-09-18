@@ -1184,6 +1184,7 @@ namespace exa {
     app.exec();
 #else
     Viewer viewer(&renderer);
+    viewer.setOutFileName(cmdline.outFileName);
     viewer.resize(cmdline.windowSize);
 
     if (cmdline.camera.vu != vec3f(0.f)) {

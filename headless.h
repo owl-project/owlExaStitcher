@@ -30,6 +30,8 @@ namespace exa {
 
     ~Headless();
 
+    void setOutFileName(std::string fileName);
+
     void run();
 
     virtual void resize(const owl::vec2i &newSize);
@@ -91,6 +93,8 @@ namespace exa {
     } xf;
 
     owl::interval<float> xfRange();
+
+    std::string outFileName;
   };
 
 } // ::exa

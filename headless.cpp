@@ -49,6 +49,11 @@ namespace exa {
     cudaFree(fbPointer);
   }
 
+  void Headless::setOutFileName(std::string fileName)
+  {
+    outFileName = fileName;
+  }
+
   void Headless::run()
   {
     std::stringstream log;
@@ -100,7 +105,7 @@ namespace exa {
     int frameID=0;
     int screenshotID=10;//-1
     int stopID=50;
-    std::string screenshotFileName = "";
+    std::string screenshotFileName = outFileName.empty() ? "" : outFileName+".png";
 
     log << "\nBechmark:\n";
     log << "FRAME_ID;SEC.\n";
@@ -147,6 +152,10 @@ namespace exa {
     }
 
     std::cout << log.str();
+
+    std::string logFileName = outFileName.empty() ? "benchmark.log" : outFileName+".log";
+    std::ofstream logFile(logFileName);
+    logFile << log.str();
   }
 
   void Headless::resize(const owl::vec2i &newSize)
