@@ -56,6 +56,12 @@ namespace exa {
     std::string screenshotFileName = "";
     while (++frameID) {
 
+      static double lastCameraUpdate = -1.f;
+      if (camera.lastModified != lastCameraUpdate) {
+        cameraChanged();
+        lastCameraUpdate = camera.lastModified;
+      }
+
       double t1 = getCurrentTime();
       render();
       double t2 = getCurrentTime();

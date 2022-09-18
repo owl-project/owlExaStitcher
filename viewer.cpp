@@ -374,7 +374,6 @@ namespace exa {
   {
     // ... tell parent to resize (also resizes the pbo in the wingdow)
     inherited::resize(newSize);
-    cameraChanged();
     renderer->resize(newSize);
     renderer->resetAccum();
   }
@@ -1210,7 +1209,6 @@ namespace exa {
                                   /*fovy(deg)*/70.f);
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
-    viewer.resize(cmdline.windowSize);
     viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
     viewer.lightInteractor.setPos(cmdline.lights[0].pos);
 
