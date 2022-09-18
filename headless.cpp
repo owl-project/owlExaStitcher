@@ -98,9 +98,6 @@ namespace exa {
 
   void Headless::resize(const owl::vec2i &newSize)
   {
-    if (newSize==fbSize)
-      return;
-
     fbSize = newSize;
 
     cudaFree(fbPointer);
