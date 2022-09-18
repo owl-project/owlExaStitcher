@@ -652,10 +652,6 @@ namespace exa {
         cmdline.lights[0].on = true;
       }
       else if (arg == "--mirror") {
-#ifndef EXA_STITCH_MIRROR_EXAJET
-        std::cerr << "Not compiled with option EXA_STITCH_MIRROR_EXAJET; not all modes"
-                  << " support mirroring\n";
-#endif
         cmdline.mirrorXZ = true;
       }
       else 
