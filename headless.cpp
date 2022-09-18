@@ -19,6 +19,7 @@
 #include <QDesktopWidget>
 #include <cuda_runtime.h>
 #include "headless.h"
+#include "Witcher.h"
 
 // #define STB_IMAGE_WRITE_IMPLEMENTATION 1
 #include "stb/stb_image_write.h"
@@ -50,6 +51,52 @@ namespace exa {
 
   void Headless::run()
   {
+    std::stringstream log;
+
+    log << "Benchmark summary:\n";
+    log << "==================\n\n";
+
+    if (1) {
+      log << "Compile options for libwitcher:\n";
+
+      int value = 0;
+      log << "EXA_STITCH_WITH_EXA_STITCH_SAMPLER: ";
+      if (exa::hasOption("EXA_STITCH_WITH_EXA_STITCH_SAMPLER",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+
+      log << "EXA_STITCH_WITH_EXA_BRICK_SAMPLER: ";
+      if (exa::hasOption("EXA_STITCH_WITH_EXA_BRICK_SAMPLER",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+
+      log << "EXA_STITCH_WITH_AMR_CELL_SAMPLER: ";
+      if (exa::hasOption("EXA_STITCH_WITH_AMR_CELL_SAMPLER",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+
+      log << "EXA_STITCH_MIRROR_EXAJET: ";
+      if (exa::hasOption("EXA_STITCH_MIRROR_EXAJET",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+
+      log << "EXA_STITCH_EXA_BRICK_SAMPLER_MODE: ";
+      if (exa::hasOption("EXA_STITCH_EXA_BRICK_SAMPLER_MODE",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+
+      log << "EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE: ";
+      if (exa::hasOption("EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE",&value))
+        log << value << '\n';
+      else
+        log << "undef\n";
+    }
+
     int frameID=0;
     int screenshotID=10;//-1
     int stopID=50;
@@ -94,6 +141,8 @@ namespace exa {
       if (frameID==stopID)
         break;
     }
+
+    std::cout << log.str();
   }
 
   void Headless::resize(const owl::vec2i &newSize)

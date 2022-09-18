@@ -10,11 +10,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
 option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of static" ON)
 
-option(EXA_STITCH_WITH_EXA_STITCH_SAMPLER "Build includes exa stitch sampler" ON)
-option(EXA_STITCH_WITH_EXA_BRICK_SAMPLER "Build includes exa brick sampler" ON)
-option(EXA_STITCH_WITH_AMR_CELL_SAMPLER "Build includes AMR cell sampler" ON)
-option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)
-
 option(EXA_STITCH_CPU "Build the project to run on the CPU" OFF)
 if(EXA_STITCH_CPU)
   set(owl_dir ${PROJECT_SOURCE_DIR}/submodules/fakeOwl)
@@ -76,26 +71,45 @@ add_library(witcher STATIC
   Model.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
+  Witcher.cpp
   )
 if(EXA_STITCH_CPU)
   target_sources(witcher PRIVATE ${embedded_deviceCode})
 endif()
 
+#--- options ----------------------------------------------
+option(EXA_STITCH_WITH_EXA_STITCH_SAMPLER "Build includes exa stitch sampler" ON)
 if(EXA_STITCH_WITH_EXA_STITCH_SAMPLER)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=1)
+  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=1)
 endif()
 
+option(EXA_STITCH_WITH_EXA_BRICK_SAMPLER "Build includes exa brick sampler" ON)
 if(EXA_STITCH_WITH_EXA_BRICK_SAMPLER)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=1)
+  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=1)
 endif()
 
+option(EXA_STITCH_WITH_AMR_CELL_SAMPLER "Build includes AMR cell sampler" ON)
 if(EXA_STITCH_WITH_AMR_CELL_SAMPLER)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
+  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
 endif()
 
+option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)
 if(EXA_STITCH_MIRROR_EXAJET)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
+  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
 endif()
+
+set(EXA_STITCH_EXA_BRICK_SAMPLER_MODE 0 CACHE STRING "ABR-BVH: 0, ext.brick-BVH: 1")
+target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_EXA_BRICK_SAMPLER_MODE=${EXA_STITCH_EXA_BRICK_SAMPLER_MODE})
+target_compile_definitions(witcher PUBLIC -DEXA_STITCH_EXA_BRICK_SAMPLER_MODE=${EXA_STITCH_EXA_BRICK_SAMPLER_MODE})
+
+set(EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE 0 CACHE STRING "ABR+optix: 0, grid+DDA: 1, grid+optix: 2, bricks+kdtree: 3, bricks+optix: 4")
+target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=${EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE})
+target_compile_definitions(witcher PUBLIC -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=${EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE})
+#--- options ----------------------------------------------
 
 target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
 if(NOT EXA_STITCH_CPU)
