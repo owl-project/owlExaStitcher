@@ -28,6 +28,19 @@ using namespace owl;
 
 namespace exa {
 
+  static std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+      throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+      result += buffer.data();
+    }
+    return result;
+  }
+
   Headless::Headless(const std::string &title, const vec2i &initWindowSize)
     : fbSize(initWindowSize)
     , title(title)
@@ -106,6 +119,9 @@ namespace exa {
     int screenshotID=10;//-1
     int stopID=50;
     std::string screenshotFileName = outFileName.empty() ? "" : outFileName+".png";
+
+    log << '\n';
+    log << exec("nvidia-smi");
 
     log << "\nBechmark:\n";
     log << "FRAME_ID;SEC.\n";
