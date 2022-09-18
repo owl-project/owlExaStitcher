@@ -1193,7 +1193,7 @@ namespace exa {
     app.exec();
 #else
     Viewer viewer(&renderer);
-
+    viewer.resize(cmdline.windowSize);
 
     if (cmdline.camera.vu != vec3f(0.f)) {
       viewer.setCameraOrientation(/*origin   */cmdline.camera.vp,

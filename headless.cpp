@@ -105,6 +105,8 @@ namespace exa {
 
     cudaFree(fbPointer);
     cudaMalloc(&fbPointer,fbSize.x*fbSize.y*sizeof(uint32_t));
+
+    setAspect(newSize.x/(float)newSize.y);
   }
 
   void Headless::setTitle(const std::string &s)
