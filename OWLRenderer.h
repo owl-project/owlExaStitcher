@@ -34,8 +34,7 @@ namespace exa {
                 const std::string kdtreeFileName = "",
                 const box3f remap_from = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
                 const box3f remap_to = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
-                const vec3i numMCs = {128,128,128},
-                const bool mirrorXZ = false /*only used for exajet!*/);
+                const vec3i numMCs = {128,128,128});
 
    ~OWLRenderer();
 

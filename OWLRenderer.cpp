@@ -119,8 +119,7 @@ namespace exa {
                            const std::string kdtreeFileName,
                            const box3f remap_from,
                            const box3f remap_to,
-                           const vec3i numMCs,
-                           const bool mirrorXZ)
+                           const vec3i numMCs)
   {
     // ==================================================================
     // AMR/UMesh models etc
@@ -148,7 +147,9 @@ namespace exa {
     }
 
     model->setVoxelSpaceTransform(remap_from,remap_to);
-    model->setMirrorXZ(mirrorXZ);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    model->initMirrorExajet(); // before extending model bounds!
+#endif
     lightSpaceTransform = lightSpaceTransform.scale(lightSpaceScale);
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
@@ -298,8 +299,12 @@ namespace exa {
 
       owlBuildPrograms(owl);
 
-      meshGeom.tlas = owlInstanceGroupCreate(owl, mirrorXZ ?
-                         meshes.size() * 2 : meshes.size());
+#ifdef EXA_STITCH_MIRROR_EXAJET
+
+      meshGeom.tlas = owlInstanceGroupCreate(owl,meshes.size() * 2);
+#else
+      meshGeom.tlas = owlInstanceGroupCreate(owl,meshes.size());
+#endif
 
       for (int meshID=0;meshID<meshes.size();meshID++) {
         auto &mesh = meshes[meshID];
@@ -338,24 +343,24 @@ namespace exa {
 
         modelBounds.extend(meshBounds);
 
-        if (mirrorXZ) {
-          owl4x3f tfm;
-          tfm.t = owl3f{0.f, 0.f, 0.f};
-          tfm.vx = owl3f{1.f, 0.f, 0.f};
-          tfm.vy = owl3f{0.f, -1.f, 0.f};
-          tfm.vz = owl3f{0.f, 0.f, 1.f};
-          owlInstanceGroupSetChild(meshGeom.tlas, meshes.size() + meshID, blas);
-          owlInstanceGroupSetTransform(meshGeom.tlas, meshes.size() + meshID, &tfm);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+        owl4x3f tfm;
+        tfm.t = owl3f{0.f, 0.f, 0.f};
+        tfm.vx = owl3f{1.f, 0.f, 0.f};
+        tfm.vy = owl3f{0.f, -1.f, 0.f};
+        tfm.vz = owl3f{0.f, 0.f, 1.f};
+        owlInstanceGroupSetChild(meshGeom.tlas, meshes.size() + meshID, blas);
+        owlInstanceGroupSetTransform(meshGeom.tlas, meshes.size() + meshID, &tfm);
 
-          const affine3f &a3f = (const affine3f&)tfm;
-          vec3f lower = xfmPoint(a3f,meshBounds.lower);
-          vec3f upper = xfmPoint(a3f,meshBounds.upper);
-          box3f mirrorBounds{
-            min(lower,upper),
-            max(lower,upper)
-          };
-          modelBounds.extend(mirrorBounds);
-        }
+        const affine3f &a3f = (const affine3f&)tfm;
+        vec3f lower = xfmPoint(a3f,meshBounds.lower);
+        vec3f upper = xfmPoint(a3f,meshBounds.upper);
+        box3f mirrorBounds{
+          min(lower,upper),
+          max(lower,upper)
+        };
+        modelBounds.extend(mirrorBounds);
+#endif
       }
       owlGroupBuildAccel(meshGeom.tlas);
 

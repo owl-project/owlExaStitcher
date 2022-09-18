@@ -191,48 +191,56 @@ namespace exa {
       // 1. ABR geometry 
       abrBlas = owlUserGeomGroupCreate(context, 1, &abrGeom);
       owlGroupBuildAccel(abrBlas);
-      abrTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      abrTlas = owlInstanceGroupCreate(context, 2);
+#else
+      abrTlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(abrTlas, 1, abrBlas);
-        owlInstanceGroupSetTransform(abrTlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(abrTlas, 1, abrBlas);
+      owlInstanceGroupSetTransform(abrTlas, 1, &mirrorTransform);
+#endif
       owlGroupBuildAccel(abrTlas);
 
       // 2. extended brick geometry
       extBlas = owlUserGeomGroupCreate(context, 1, &extGeom);
       owlGroupBuildAccel(extBlas);
-      extTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      extTlas = owlInstanceGroupCreate(context, 2);
+#else
+      extTlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(extTlas, 0, extBlas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(extTlas, 1, extBlas);
-        owlInstanceGroupSetTransform(extTlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(extTlas, 1, extBlas);
+      owlInstanceGroupSetTransform(extTlas, 1, &mirrorTransform);
+#endif
       owlGroupBuildAccel(extTlas);
 
       // 3. brick geometry
       brickBlas = owlUserGeomGroupCreate(context, 1, &brickGeom);
       owlGroupBuildAccel(brickBlas);
-      brickTlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      brickTlas = owlInstanceGroupCreate(context, 2);
+#else
+      brickTlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(brickTlas, 0, brickBlas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(brickTlas, 1, brickBlas);
-        owlInstanceGroupSetTransform(brickTlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(brickTlas, 1, brickBlas);
+      owlInstanceGroupSetTransform(brickTlas, 1, &mirrorTransform);
+#endif
       owlGroupBuildAccel(brickTlas);
 
       // 4. build KD tree over exabricks
       if (kdtree) {
         kdtree->initGPU();
-        if (doMirror) {
 #ifdef EXA_STITCH_MIRROR_EXAJET
-          kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
-          kdtree->deviceTraversable.mirrorPlane.axis = 1;
-          kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
-#else
-          std::cerr << "Not compiled with option EXA_STITCH_MIRROR_EXAJET\n";
+        kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
+        kdtree->deviceTraversable.mirrorPlane.axis = 1;
+        kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
 #endif
-        }
       }
 
 

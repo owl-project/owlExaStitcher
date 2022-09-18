@@ -111,13 +111,17 @@ namespace exa {
       blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(blas);
 
-      tlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      tlas = owlInstanceGroupCreate(context, 2);
+#else
+      tlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(tlas, 0, blas);
 
-      if (doMirror) {
-        owlInstanceGroupSetChild(tlas, 1, blas);
-        owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(tlas, 1, blas);
+      owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
+#endif
 
       owlGroupBuildAccel(tlas);
       return true;

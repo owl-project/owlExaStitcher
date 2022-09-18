@@ -77,7 +77,6 @@ namespace exa {
     int spp = 1;
     int heatMapEnabled = 0;
     float heatMapScale = 1.f;
-    bool mirrorXZ = false;
   } cmdline;
   
   void usage(const std::string &err)
@@ -651,9 +650,6 @@ namespace exa {
         cmdline.lights[0].intensity = std::stof(argv[++i]);
         cmdline.lights[0].on = true;
       }
-      else if (arg == "--mirror") {
-        cmdline.mirrorXZ = true;
-      }
       else 
         usage("unknown cmdline arg '"+arg+"'");
     }
@@ -667,8 +663,7 @@ namespace exa {
                          cmdline.kdtreeFileName,
                          cmdline.xform.remap_from,
                          cmdline.xform.remap_to,
-                         cmdline.numMCs,
-                         cmdline.mirrorXZ);
+                         cmdline.numMCs);
 
     const box3f modelBounds = renderer.modelBounds;
 

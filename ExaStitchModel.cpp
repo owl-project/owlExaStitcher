@@ -319,29 +319,41 @@ namespace exa {
     }
 
     if (gridletGeom.blas && stitchGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, doMirror ? 4 : 2);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      tlas = owlInstanceGroupCreate(context, 4);
+#else
+      tlas = owlInstanceGroupCreate(context, 2);
+#endif
       owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
       owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(tlas, 2, gridletGeom.blas);
-        owlInstanceGroupSetChild(tlas, 3, stitchGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 2, &mirrorTransform);
-        owlInstanceGroupSetTransform(tlas, 3, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(tlas, 2, gridletGeom.blas);
+      owlInstanceGroupSetChild(tlas, 3, stitchGeom.blas);
+      owlInstanceGroupSetTransform(tlas, 2, &mirrorTransform);
+      owlInstanceGroupSetTransform(tlas, 3, &mirrorTransform);
+#endif
     } else if (gridletGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      tlas = owlInstanceGroupCreate(context, 2);
+#else
+      tlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(tlas, 1, gridletGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(tlas, 1, gridletGeom.blas);
+      owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
+#endif
     } else if (stitchGeom.blas) {
-      tlas = owlInstanceGroupCreate(context, doMirror ? 2 : 1);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      tlas = owlInstanceGroupCreate(context, 2);
+#else
+      tlas = owlInstanceGroupCreate(context, 1);
+#endif
       owlInstanceGroupSetChild(tlas, 0, stitchGeom.blas);
-      if (doMirror) {
-        owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
-        owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
-      }
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
+      owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
+#endif
     } else {
       return false;
     }
