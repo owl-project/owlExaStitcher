@@ -372,14 +372,9 @@ namespace exa {
                    modelBounds.upper.y,
                    modelBounds.upper.z);
 
-    setTraversalMode(MC_DDA_TRAVERSAL);
-    // setTraversalMode(MC_BVH_TRAVERSAL);
-    // setTraversalMode(EXABRICK_ABR_TRAVERSAL);
-    // setTraversalMode(EXABRICK_BVH_TRAVERSAL);
-    // setTraversalMode(EXABRICK_KDTREE_TRAVERSAL);
 
-    setSamplerModeExaBrick(EXA_BRICK_SAMPLER_ABR_BVH);
-    // setSamplerModeExaBrick(EXA_BRICK_SAMPLER_EXT_BVH);
+    setTraversalMode(EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE);
+    setSamplerModeExaBrick(EXA_STITCH_EXA_BRICK_SAMPLER_MODE);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);

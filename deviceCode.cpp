@@ -1725,12 +1725,13 @@ namespace exa {
   inline void __device__ renderFrame_SelectAccelType()
   {
     auto& lp = optixLaunchParams;
-    if (lp.traversalMode == MC_DDA_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.majorantGrid,S{});
-    else if (lp.traversalMode == EXABRICK_KDTREE_TRAVERSAL)
-      renderFrame_Impl<I,Shade>(lp.majorantKDTree,S{});
-    else
-      renderFrame_Impl<I,Shade>(lp.majorantBVH,S{});
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
+    renderFrame_Impl<I,Shade>(lp.majorantGrid,S{});
+#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE ==  EXABRICK_KDTREE_TRAVERSAL
+    renderFrame_Impl<I,Shade>(lp.majorantKDTree,S{});
+#else
+    renderFrame_Impl<I,Shade>(lp.majorantBVH,S{});
+#endif
   }
 
   template<Integrator I>

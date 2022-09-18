@@ -59,17 +59,16 @@ enum RayTypeDecl {
 #define SHADE_MODE_GRIDLETS 1
 #define SHADE_MODE_TEASER   2
 
+#define EXABRICK_ABR_TRAVERSAL    0
+#define MC_DDA_TRAVERSAL          1
+#define MC_BVH_TRAVERSAL          2
+#define EXABRICK_KDTREE_TRAVERSAL 3
+#define EXABRICK_BVH_TRAVERSAL    4
+
 namespace exa {
 
   typedef int SamplingMode;
-
-  enum TraversalMode {
-    MC_DDA_TRAVERSAL = 0,
-    MC_BVH_TRAVERSAL = 1,
-    EXABRICK_ABR_TRAVERSAL = 2,
-    EXABRICK_BVH_TRAVERSAL = 3,
-    EXABRICK_KDTREE_TRAVERSAL = 4,
-  };
+  typedef int TraversalMode;
 
   struct RayGen {
   };
