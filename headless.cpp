@@ -101,6 +101,10 @@ namespace exa {
     int screenshotID=10;//-1
     int stopID=50;
     std::string screenshotFileName = "";
+
+    log << "\nBechmark:\n";
+    log << "FRAME_ID;SEC.\n";
+
     while (++frameID) {
 
       static double lastCameraUpdate = -1.f;
@@ -112,7 +116,7 @@ namespace exa {
       double t1 = getCurrentTime();
       render();
       double t2 = getCurrentTime();
-      // std::cout << frameID << ';' << t2-t1 << '\n';
+      log << frameID << ';' << t2-t1 << '\n';
 
       if (frameID==screenshotID) {
         // Save png
