@@ -22,7 +22,7 @@ do
         -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=${traversal_mode}
     cmake --build ${BUILD_DIR} -j
 
-    outfile="-o meteor-46k_sm${sampler_mode}_tm${traversal_mode}"
-    ${BUILD_DIR}/exaStitchViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee meteor-46k.out
+    outfile="-o cloud_sm${sampler_mode}_tm${traversal_mode}"
+    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee cloud.out
   done
 done
