@@ -117,9 +117,6 @@ namespace exa {
       size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
-      // maximum opacity buffers are pre-located in ExaBrickModel.cpp
-      owlBufferClear(brickMaxOpacities);
-
       size_t numThreads = 1024;
       computeMaxOpacitiesForABRs<<<iDivUp(numABRs, numThreads), numThreads>>>(
         (float *)owlBufferGetPointer(abrMaxOpacities,0),
