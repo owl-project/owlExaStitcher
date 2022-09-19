@@ -1207,6 +1207,7 @@ namespace exa {
     if (cmdline.xfFileName != "") {
       viewer.loadTransferFunction(cmdline.xfFileName);
       renderer.setColorMap(viewer.xf.colorMap);
+      viewer.xf.absDomain = renderer.valueRange;
 
       range1f r = viewer.xfRange();
 
