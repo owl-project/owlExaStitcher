@@ -45,7 +45,6 @@ namespace exa {
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
      { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
-     { "traversalMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,traversalMode)},
      { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,maxOpacities) },
      { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
@@ -378,8 +377,7 @@ namespace exa {
                    modelBounds.upper.z);
 
 
-    setTraversalMode(EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE);
-    setSamplerModeExaBrick(EXA_STITCH_EXA_BRICK_SAMPLER_MODE);
+    owlParamsSetGroup(lp,"sampleBVH",model->sampleBVH);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
@@ -470,6 +468,8 @@ namespace exa {
 
     model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
+    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
+
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
       xf.colorMapTexture = 0;
@@ -528,6 +528,8 @@ namespace exa {
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
     model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+
+    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
@@ -580,48 +582,12 @@ namespace exa {
   void OWLRenderer::setSamplerModeExaBrick(int mode)
   {
     printf("setSamplerModeExaBrick %d\n", (int)mode);
-
-    samplerModeExaBrick = mode;
-
-    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      mod->setSamplingMode(mode);
-    } else {
-      fprintf(stderr,"Setting exa sampling mode, but we're not using exabricks\n");
-    }
-    owlParamsSetGroup(lp,"sampleBVH",model->sampleBVH);
   }
 
   void OWLRenderer::setTraversalMode(TraversalMode mode)
   {
     printf("setTraversalMode %d\n", (int)mode);
 
-    traversalMode = mode;
-
-    owlParamsSet1i(lp,"traversalMode",(int)traversalMode);
-
-    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      mod->setTraversalMode(mode);
-    }
-
-    if (model->majorantAccel.bvh) {
-      owlParamsSetGroup(lp,"majorantBVH",model->majorantAccel.bvh);
-    } else if (model->majorantAccel.grid) {
-      owlParamsSetRaw(lp,"majorantGrid",&model->majorantAccel.grid->deviceTraversable);
-    } else if (model->majorantAccel.kdtree) {
-      owlParamsSetRaw(lp,"majorantKDTree",&model->majorantAccel.kdtree->deviceTraversable);
-    } else {
-      fprintf(stderr,"Model's accels not set, forgot to call initGPU?\n");
-    }
-
-    if (owl,xf.colorMapBuffer) {
-      range1f r{
-      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
-      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
-      };
-      model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-    }
-
-    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
   }
 
   void OWLRenderer::setSubImage(const box2f si, bool active)

@@ -462,6 +462,7 @@ namespace exa {
 
   bool Grid::initGPU(OWLContext owl, OWLModule module)
   {
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
     // build BVH (tarversal method a)
     OWLVarDecl geomVars[]
     = {
@@ -490,6 +491,7 @@ namespace exa {
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlGroupBuildAccel(tlas);
+#endif
 
     // init device traversable for DDA (traversal method b)
     deviceTraversable.dims = dims;

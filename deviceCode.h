@@ -183,8 +183,6 @@ namespace exa {
     int       integrator;
     int       shadeMode;
     int       sampler;
-    int       samplerModeExaBrick;
-    int       traversalMode;
     float    *maxOpacities;
 
     OptixTraversableHandle  sampleBVH;
