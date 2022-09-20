@@ -5,7 +5,7 @@ KDTREE="-kdtree /slow/UNSORTED/exa/exajet/exajet-spatial-32min.kdtree"
 MESH="-mesh /slow/UNSORTED/exa/exajet/exajet.exa.tris"
 
 CAMERA="--camera 15.48 0 6.675 8.677 0 -3.46 0 0 1 --fov 70"
-XF="-xf exajet-rear.xf"
+XF="-xf exajet-teaser.xf"
 NUM_MCS="--num-mcs 512 512 512"
 XFORM="--remap-from 1232128 1259072 1238336 1270848 1277952 1255296 --remap-to -1.73575 -9.44 -3.73281 17.6243 0 4.74719"
 IMG_SIZE="--size 1024 1024"
