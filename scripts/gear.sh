@@ -11,7 +11,7 @@ XF="-xf gear.xf"
 
 for sampler_mode in {0..1}
 do
-  for traversal_mode in {1..1}
+  for traversal_mode in {0..4}
   do
     cmake ${BUILD_DIR} \
         -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=OFF \
