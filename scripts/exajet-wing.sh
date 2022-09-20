@@ -24,6 +24,6 @@ do
     cmake --build ${BUILD_DIR} -j
 
     outfile="-o exajet-wing_sm${sampler_mode}_tm${traversal_mode}"
-    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MS} ${XFORM} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee exajet-wing.out
+    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${XFORM} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee exajet-wing.out
   done
 done
