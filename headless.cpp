@@ -24,6 +24,13 @@
 // #define STB_IMAGE_WRITE_IMPLEMENTATION 1
 #include "stb/stb_image_write.h"
 
+#include <cstdio>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <array>
+
 using namespace owl;
 
 namespace exa {
