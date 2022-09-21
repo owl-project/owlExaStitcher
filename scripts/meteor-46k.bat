@@ -1,14 +1,15 @@
 set SOURCE_DIR=C:\Users\wilso\Documents\Projects\research\exastitch
 set BUILD_DIR=C:\Users\wilso\Documents\Projects\research\exastitch\build
 
-set BRICKS=-bricks E:\stitcher\silcc\SILCC_hdf5_plt_cnt_0300_dens.bricks
-set SCALARS=-scalars E:\stitcher\silcc\SILCC_hdf5_plt_cnt_0300_dens.scalars
-set KDTREE=-kdtree E:\stitcher\silcc\SILCC_hdf5_plt_cnt_0300_dens.kd
+set BRICKS=-bricks E:\stitcher\meteor-46112\meteor-46112.bricks
+set SCALARS=-scalars E:\stitcher\meteor-46112\meteor-46112.tev.scalars
+set KDTREE=-kdtree E:\stitcher\meteor-46112\meteor-46112.kd
 
-set CAMERA=--camera 5346.1 1520.14 82012.8 6671.5 2211.75 81920.5 -0.430131 0.759096 -0.488631 -fovy 70
-set XF=-xf cloud.xf
-@REM set LIGHT="--light -13885.075195 3776.682129 86940.859375 900.000000"
-set NUM_MCS=--num-mcs 128 128 128
+set CAMERA=--camera 2607.41 3218.14 3474.3 494.535 1300.13 -210.744 -0.242807 0.91051 -0.334689 -fovy 70
+set XF=-xf meteor-46k.xf
+@REM set LIGHT=--light -5166.112793 5752.800293 4556.298340 100.000000
+set CLIP_PLANE=--clip-plane 0 0 1 921.6
+set NUM_MCS=--num-mcs 128 128 64
 set IMG_SIZE=-win 1024 1024
 
 FOR /L %%s IN (0,1,1) DO (
@@ -25,6 +26,6 @@ FOR /L %%s IN (0,1,1) DO (
 
     cmake --build %BUILD_DIR% --config Release
 
-    %BUILD_DIR%\Release\exaStitchHeadlessViewer %BRICKS% %KDTREE% %SCALARS% %MESH% %CAMERA% %XF% %NUM_MCS% %XFORM% %LIGHT% %CLIP_PLANE% %IMG_SIZE% -o cloud_sm%%s_tm%%t -rt 0 > cloud_sm%%s_tm%%t.txt
+    %BUILD_DIR%\Release\exaStitchHeadlessViewer %BRICKS% %KDTREE% %SCALARS% %MESH% %CAMERA% %XF% %NUM_MCS% %XFORM% %LIGHT% %CLIP_PLANE% %IMG_SIZE% -o meteor-46k_sm%%s_tm%%t -rt 0 > meteor-46k_sm%%s_tm%%t.txt
   )
 )
