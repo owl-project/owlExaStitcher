@@ -486,16 +486,29 @@ namespace exa {
 
     owlBuildPrograms(owl);
 
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    blas = owlUserGeomGroupCreate(owl, 1, &geom);
+    owlGroupBuildAccel(blas);
+    tlas = owlInstanceGroupCreate(owl, 2);
+    owlInstanceGroupSetChild(tlas, 0, blas);
+    owlInstanceGroupSetChild(tlas, 1, blas);
+#else
     blas = owlUserGeomGroupCreate(owl, 1, &geom);
     owlGroupBuildAccel(blas);
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlGroupBuildAccel(tlas);
 #endif
+#endif
 
     // init device traversable for DDA (traversal method b)
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    deviceTraversable.traversable.dims = dims;
+    deviceTraversable.traversable.bounds = worldBounds;
+#else
     deviceTraversable.dims = dims;
     deviceTraversable.bounds = worldBounds;
+#endif
 
     return true;
   }

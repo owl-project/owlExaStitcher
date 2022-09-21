@@ -18,10 +18,23 @@
 
 namespace exa {
 
-  struct GridTraversableHandle {
+  struct GridTraversable {
     owl::vec3i dims;
     owl::box3f bounds;
   };
+
+#ifdef EXA_STITCH_MIRROR_EXAJET
+  struct GridTraversableHandle {
+    GridTraversable traversable;
+    struct {
+      float offset;
+      int axis = -1;
+    } mirrorPlane;
+    owl::affine3f mirrorInvTransform; // to object space, default is identity
+  };
+#else
+  typedef GridTraversable GridTraversableHandle;
+#endif
 
   __device__ inline
   size_t linearIndex(const owl::vec3i index, const owl::vec3i dims)
