@@ -1037,7 +1037,64 @@ namespace exa {
   inline __device__
   void traverse(const GridTraversableHandle &grid, Ray ray, const Func &func)
   {
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    if (grid.mirrorPlane.axis < 0) {
+      dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+    } else {
+      float d;
+      if (grid.mirrorPlane.axis == 0) {
+        d = (grid.mirrorPlane.offset - ray.origin.x) * rcp(ray.direction.x);
+      }
+      else if (grid.mirrorPlane.axis == 1) {
+        d = (grid.mirrorPlane.offset - ray.origin.y) * rcp(ray.direction.y);
+      }
+      else {
+        d = (grid.mirrorPlane.offset - ray.origin.z) * rcp(ray.direction.z);
+      }
+
+      const vec3f ori = ray.origin;
+      const vec3f dir = ray.direction;
+      const float tmin = ray.tmin;
+      const float tmax = ray.tmax;
+
+      unsigned near = signbit(ray.direction[grid.mirrorPlane.axis]);
+      unsigned far  = 1^near;
+
+      // if (debug()) printf("%f,%f,%f\n",ray.tmin,ray.tmax,d);
+
+      if (d <= ray.tmin) {
+        if (far == 1) {
+          ray.origin = xfmPoint(grid.mirrorInvTransform,ray.origin);
+          ray.direction = xfmVector(grid.mirrorInvTransform,ray.direction);
+        }
+        dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+      } else if (d >= ray.tmax) {
+        if (near == 1) {
+          ray.origin = xfmPoint(grid.mirrorInvTransform,ray.origin);
+          ray.direction = xfmVector(grid.mirrorInvTransform,ray.direction);
+        }
+        dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+      } else {
+        if (near == 1) {
+          ray.origin = xfmPoint(grid.mirrorInvTransform,ori);
+          ray.direction = xfmVector(grid.mirrorInvTransform,dir);
+        }
+        ray.tmin = tmin;
+        ray.tmax = min(tmax,d);
+        dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+
+        if (far == 1) {
+          ray.origin = xfmPoint(grid.mirrorInvTransform,ori);
+          ray.direction = xfmVector(grid.mirrorInvTransform,dir);
+        }
+        ray.tmin = max(tmin,d);
+        ray.tmax = tmax;
+        dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+      }
+    }
+#else
     dda3(ray,grid.dims,grid.bounds,func);
+#endif
   }
 
 

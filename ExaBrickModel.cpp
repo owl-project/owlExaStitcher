@@ -264,6 +264,16 @@ namespace exa {
         // build the BVH, for the "traverse grid with optix" mode
         // Also initializes the device traversable
         grid->initGPU(context,module);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
+        grid->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
+        grid->deviceTraversable.mirrorPlane.axis = 1;
+        grid->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
+#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
+        owlInstanceGroupSetTransform(grid->tlas, 1, &mirrorTransform);
+        owlGroupBuildAccel(grid->tlas);
+#endif
+#endif
       }
 #endif
 
