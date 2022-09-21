@@ -1088,6 +1088,8 @@ namespace exa {
         dda3(ray,grid.traversable.dims,grid.traversable.bounds,wrapper);
 
         if (goOn) {
+          ray.origin = ori;
+          ray.direction = dir;
           if (i_far == 1) {
             ray.origin = xfmPoint(grid.mirrorInvTransform,ori);
             ray.direction = xfmVector(grid.mirrorInvTransform,dir);
