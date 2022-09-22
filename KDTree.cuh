@@ -258,20 +258,25 @@ namespace exa {
       }
 
       float d;
+      unsigned i_near, i_far;
       if (tree.mirrorPlane.axis == 0) {
         d = (tree.mirrorPlane.offset - ray.origin.x) * rcp(ray.direction.x);
+        i_near = signbit(ray.direction.x);
       }
       else if (tree.mirrorPlane.axis == 1) {
         d = (tree.mirrorPlane.offset - ray.origin.y) * rcp(ray.direction.y);
+        i_near = signbit(ray.direction.y);
       }
       else {
         d = (tree.mirrorPlane.offset - ray.origin.z) * rcp(ray.direction.z);
+        i_near = signbit(ray.direction.z);
       }
+      i_far  = 1^i_near;
+
       const float tmin = ray.tmin;
       const float tmax = ray.tmax;
-
-      unsigned i_near = signbit(ray.direction[tree.mirrorPlane.axis]);
-      unsigned i_far  = 1^i_near;
+      const auto org = ray.origin;
+      const auto dir = ray.direction;
 
       // original tree
       if (d <= ray.tmin) {
@@ -300,6 +305,9 @@ namespace exa {
       ray.tmin = tmin;
       ray.tmax = fminf(tmax, d);
       if (traceRayInternal(tree, ray, prd, isect)) return;
+
+      ray.origin = org;
+      ray.direction = dir;
 
       if (i_far == 1) {
         ray.origin = xfmPoint(tree.mirrorInvTransform,ray.origin);
