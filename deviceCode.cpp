@@ -1009,22 +1009,6 @@ namespace exa {
   // Spatial domain iterators
   // ------------------------------------------------------------------
 
-  // Isect program for non-zero length rays
-  __device__ void ExaBrickKdTreeIsect(const Ray &ray, SpatialPartitionPRD &prd, int primID, float tmin, float tmax, KDTreeHitRec &hitRec)
-  {
-    const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
-    const box3f bounds = brick.getBounds(); // use strict domain
-
-    float t0 = 1e30f, t1 = -1e30f;
-    if (intersect(ray,bounds,t0,t1)) {
-      prd.t0 = max(t0, tmin);
-      prd.t1 = min(t1, tmax);
-      prd.leafID = primID;
-      hitRec.hit = true;
-      hitRec.t = prd.t0;
-    }
-  }
-
   template <typename Traversable, typename Func>
   inline __device__
   void traverse(Traversable traversable, Ray ray, const Func &func)
@@ -1037,10 +1021,7 @@ namespace exa {
       prd.t0 = prd.t1 = 0.f; // doesn't matter as long as leafID==-1
       ray.tmin = alreadyIntegratedDistance;
 
-      if constexpr (std::is_same<Traversable,KDTreeTraversableHandle>::value)
-        kd::traceRay(traversable, ray, prd, ExaBrickKdTreeIsect);
-      else if constexpr (std::is_same<Traversable,OptixTraversableHandle>::value)
-        owl::traceRay(traversable, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+      owl::traceRay(traversable, ray, prd, OPTIX_RAY_FLAG_DISABLE_ANYHIT);
 
       if (prd.leafID < 0)
         return;
@@ -1050,6 +1031,29 @@ namespace exa {
 
       alreadyIntegratedDistance = prd.t1 * (1.0000001f);
     }
+  }
+
+  template <typename Func>
+  inline __device__
+  void traverse(const KDTreeTraversableHandle &traversable, Ray ray, const Func &func)
+  {
+    SpatialPartitionPRD prd;
+
+    kd::traceRay(traversable, ray, prd, [=](const Ray &ray,
+                                            SpatialPartitionPRD &prd,
+                                            int primID,
+                                            float tmin, float tmax,
+                                            KDTreeHitRec &hitRec) {
+      const ExaBrick &brick = optixLaunchParams.exaBrickBuffer[primID];
+      const box3f bounds = brick.getBounds(); // use strict domain
+
+      float t0 = 1e30f, t1 = -1e30f;
+      if (intersect(ray,bounds,t0,t1)) {
+        //t0 = max(t0, tmin);
+        //t1 = min(t1, tmax);
+        hitRec.hit = !func(primID,t0,t1);
+      }
+    });
   }
 
   template <typename Func>
