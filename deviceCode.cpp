@@ -883,6 +883,7 @@ namespace exa {
   };
 
   struct ExaBrickSampler {
+    // the sampler where we don't know which ABR we're in
     inline __device__ Sample sampleVolume(const vec3f pos)
     {
       SamplingRay ray;
@@ -897,6 +898,24 @@ namespace exa {
 
       if (sample.sumWeights <= 0) return {0,0,0.f};
       return {0,-1,sample.sumWeightedValues/sample.sumWeights};
+    }
+
+    // the sampler where we know the ABR
+    inline __device__ Sample sampleVolume(const vec3f pos, const int leafID)
+    {
+      auto &lp = optixLaunchParams;
+      const ABR &abr = lp.abrBuffer[leafID];
+
+      const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+      const int  childCount = abr.leafListSize;
+      float sumWeightedValues = 0.f;
+      float sumWeights = 0.f;
+      for (int childID=0;childID<childCount;childID++) {
+        const int brickID = childList[childID];
+        ExaBrick_addBasisFunctions(sumWeightedValues, sumWeights, brickID, pos);
+      }
+
+      return {0,-1,sumWeightedValues/sumWeights};
     }
 
     template <bool Shading=true>
@@ -1174,7 +1193,11 @@ namespace exa {
         }
 
         pos = ray.origin+ray.direction*t;
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL && EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH
+        Sample s = sampler.sampleVolume(pos,leafID);
+#else
         Sample s = sampler.sampleVolume(pos);
+#endif
         if (s.primID < 0)
           continue;
 
