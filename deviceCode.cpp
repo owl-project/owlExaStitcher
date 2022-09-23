@@ -1049,8 +1049,8 @@ namespace exa {
 
       float t0 = 1e30f, t1 = -1e30f;
       if (intersect(ray,bounds,t0,t1)) {
-        //t0 = max(t0, tmin);
-        //t1 = min(t1, tmax);
+        t0 = max(t0, tmin);
+        t1 = min(t1, tmax);
         hitRec.hit = !func(primID,t0,t1);
       }
     });
