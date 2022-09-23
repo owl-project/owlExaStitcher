@@ -56,6 +56,9 @@ namespace exa {
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
+#ifdef EXA_STITCH_MIRROR_EXAJET
+     { "mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,mirrorInvTransform)},
+#endif
      // exa brick buffers (for eval!)
      { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
      { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
@@ -400,6 +403,10 @@ namespace exa {
 
     owlParamsSetRaw(lp,"voxelSpaceTransform",&model->voxelSpaceTransform);
     owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    affine3f mirrorInvTransform = rcp((const affine3f &)model->mirrorTransform);
+    owlParamsSetRaw(lp,"mirrorInvTransform",&mirrorInvTransform);
+#endif
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);

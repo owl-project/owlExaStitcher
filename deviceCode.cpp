@@ -901,11 +901,16 @@ namespace exa {
     }
 
     // the sampler where we know the ABR
-    inline __device__ Sample sampleVolume(const vec3f pos, const int leafID)
+    inline __device__ Sample sampleVolume(vec3f pos, const int leafID)
     {
       auto &lp = optixLaunchParams;
       const ABR &abr = lp.abrBuffer[leafID];
 
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      if (!abr.domain.contains(pos)) {
+        pos = xfmPoint(lp.mirrorInvTransform,pos);
+      }
+#endif
       const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
       const int  childCount = abr.leafListSize;
       float sumWeightedValues = 0.f;
@@ -1197,7 +1202,7 @@ namespace exa {
         }
 
         pos = ray.origin+ray.direction*t;
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL && EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL && EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH
         Sample s = sampler.sampleVolume(pos,leafID);
 #else
         Sample s = sampler.sampleVolume(pos);

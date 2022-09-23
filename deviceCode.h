@@ -195,6 +195,9 @@ namespace exa {
     box3f      worldSpaceBounds;
     affine3f   voxelSpaceTransform;
     affine3f   lightSpaceTransform;
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    affine3f   mirrorInvTransform;
+#endif
 
     // For ExaBrick benchmark
     ExaBrick *exaBrickBuffer;
