@@ -233,12 +233,13 @@ namespace exa {
         KDTreeHitRec hitRec = {false,FLT_MAX}; // found a leaf
 
         const auto indices = node.get_indices();
-        for (unsigned int i = indices.first; i < indices.last; ++i) {
-          isect(ray, prd, tree.primRefs[i].primID,
-                se.tnear, se.tfar, hitRec);
+        assert(indices.last-indices.first==1);
+        unsigned i = indices.first;
 
-          if (hitRec.hit) return true;
-        }
+        isect(ray, prd, tree.primRefs[i].primID,
+              se.tnear, se.tfar, hitRec);
+
+        if (hitRec.hit) return true;
 
         if (ptr == 0)
           break;
