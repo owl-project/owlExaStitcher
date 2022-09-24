@@ -10,6 +10,8 @@ CLIP_PLANE="--clip-plane 0 0 1 921.6"
 NUM_MCS="--num-mcs 128 128 64"
 IMG_SIZE="-win 1024 1024"
 
+fpsfile="-fps meteor-46k.fps"
+
 for sampler_mode in {0..1}
 do
   for traversal_mode in {0..4}
@@ -24,6 +26,6 @@ do
     cmake --build ${BUILD_DIR} -j
 
     outfile="-o meteor-46k_sm${sampler_mode}_tm${traversal_mode}"
-    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee meteor-46k.out
+    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee meteor-46k.out
   done
 done

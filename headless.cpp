@@ -15,6 +15,7 @@
 // ======================================================================== //
 
 #include <fstream>
+#include <iomanip>
 #include <QApplication>
 #include <QDesktopWidget>
 #include <cuda_runtime.h>
@@ -76,6 +77,11 @@ namespace exa {
   void Headless::setOutFileName(std::string fileName)
   {
     outFileName = fileName;
+  }
+
+  void Headless::setOutFileNameFPS(std::string fileName)
+  {
+    outFileNameFPS = fileName;
   }
 
   struct Log {
@@ -142,7 +148,7 @@ namespace exa {
 
     int frameID=0;
     int screenshotID=10;//-1
-    int stopID=50;
+    int stopID=110;
     std::string screenshotFileName = outFileName.empty() ? "" : outFileName+".png";
 
     log << '\n';
@@ -150,6 +156,9 @@ namespace exa {
 
     log << "\nBechmark:\n";
     log << "FRAME_ID;SEC.\n";
+
+    double totalTime = 0.0;
+    double totalNumFrames = 0;
 
     while (++frameID) {
 
@@ -188,13 +197,35 @@ namespace exa {
         }
       }
 
+      if (frameID>screenshotID) {
+        totalTime += t2-t1;
+        totalNumFrames++;
+      }
+
       if (frameID==stopID)
         break;
     }
 
+    double FPS = 1./(totalTime/totalNumFrames);
+    log << (totalTime/totalNumFrames) << " avg. secs over " << totalNumFrames << " time\n";
+    log << FPS << " FPS\n";
+
     std::string logFileName = outFileName.empty() ? "benchmark.log" : outFileName+".log";
     std::ofstream logFile(logFileName);
     logFile << log.str();
+
+    auto now = []() {
+      auto nnow = std::chrono::system_clock::now();
+      auto in_time_t = std::chrono::system_clock::to_time_t(nnow);
+
+      std::stringstream ss;
+      ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+      return ss.str();
+    };
+
+    std::string fpsFileName = outFileName.empty() ? "fps.log" : outFileNameFPS;
+    std::ofstream fpsFile(fpsFileName,std::ios_base::app);
+    fpsFile << now() << ',' << outFileName << ',' << FPS << '\n';
   }
 
   void Headless::resize(const owl::vec2i &newSize)

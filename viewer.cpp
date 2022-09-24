@@ -47,6 +47,7 @@ namespace exa {
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "owlDVR.png";
+    std::string fpsFileName = "fps.log";
     box2f subImage = {{1e30f,1e30f},{-1e30f,-1e30f}};
     struct {
       vec3f vp = vec3f(0.f);
@@ -595,6 +596,9 @@ namespace exa {
       }
       else if (arg == "-o") {
         cmdline.outFileName = argv[++i];
+      }
+      else if (arg == "-fps") {
+        cmdline.fpsFileName = argv[++i];
       }
       else if (arg == "-spp" || arg == "--spp") {
         cmdline.spp = std::stoi(argv[++i]);
@@ -1185,6 +1189,7 @@ namespace exa {
 #else
     Viewer viewer(&renderer);
     viewer.setOutFileName(cmdline.outFileName);
+    viewer.setOutFileNameFPS(cmdline.fpsFileName);
     viewer.resize(cmdline.windowSize);
 
     if (cmdline.camera.vu != vec3f(0.f)) {

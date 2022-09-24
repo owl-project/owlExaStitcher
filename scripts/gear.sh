@@ -9,6 +9,8 @@ IMG_SIZE="-win 1024 1024"
 NUM_MCS="--num-mcs 1024 1024 256"
 XF="-xf gear.xf"
 
+fpsfile="-fps gear.fps"
+
 for sampler_mode in {0..1}
 do
   for traversal_mode in {0..4}
@@ -23,6 +25,6 @@ do
     cmake --build ${BUILD_DIR} -j
 
     outfile="-o gear_sm${sampler_mode}_tm${traversal_mode}"
-    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${XFORM} ${IMG_SIZE} ${outfile} -rt 0 2>&1 | tee gear.out
+    ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${XFORM} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee gear.out
   done
 done

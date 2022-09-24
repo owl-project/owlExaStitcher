@@ -26,6 +26,6 @@ FOR /L %%s IN (0,1,1) DO (
 
     cmake --build %BUILD_DIR% --config Release
 
-    %BUILD_DIR%\Release\exaStitchHeadlessViewer %BRICKS% %KDTREE% %SCALARS% %MESH% %CAMERA% %XF% %NUM_MCS% %XFORM% %LIGHT% %CLIP_PLANE% %IMG_SIZE% -o exajet-rear_sm%%s_tm%%t -rt 0 > exajet-rear_sm%%s_tm%%t.txt
+    %BUILD_DIR%\Release\exaStitchHeadlessViewer %BRICKS% %KDTREE% %SCALARS% %MESH% %CAMERA% %XF% %NUM_MCS% %XFORM% %LIGHT% %CLIP_PLANE% %IMG_SIZE% -o exajet-rear_sm%%s_tm%%t -fps exajet-rear_fps.txt -rt 0 > exajet-rear_sm%%s_tm%%t.txt
   )
 )

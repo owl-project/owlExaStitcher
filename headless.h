@@ -31,6 +31,7 @@ namespace exa {
     ~Headless();
 
     void setOutFileName(std::string fileName);
+    void setOutFileNameFPS(std::string fileName);
 
     void run();
 
@@ -95,6 +96,7 @@ namespace exa {
     owl::interval<float> xfRange();
 
     std::string outFileName;
+    std::string outFileNameFPS;
   };
 
 } // ::exa
