@@ -78,9 +78,23 @@ namespace exa {
     outFileName = fileName;
   }
 
+  struct Log {
+
+    std::string str() { return stream.str(); }
+    std::stringstream stream;
+  };
+
+  template <typename T>
+  Log& operator<<(Log &log, T&& t)
+  {
+    log.stream << t;
+    std::cout << t << std::flush;
+    return log;
+  }
+
   void Headless::run()
   {
-    std::stringstream log;
+    Log log;
 
     log << "Benchmark summary:\n";
     log << "==================\n\n";
@@ -177,8 +191,6 @@ namespace exa {
       if (frameID==stopID)
         break;
     }
-
-    std::cout << log.str();
 
     std::string logFileName = outFileName.empty() ? "benchmark.log" : outFileName+".log";
     std::ofstream logFile(logFileName);
