@@ -194,12 +194,14 @@ namespace exa {
 
     if (!abrs.value.empty() && !bricks.empty()) {
 
-// #if !(EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL)
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       abrBuffer         = owlDeviceBufferCreate(context, OWL_USER_TYPE(ABR), abrs.value.size(), abrs.value.data());
-// #endif
+#endif
       brickBuffer       = owlDeviceBufferCreate(context, OWL_USER_TYPE(ExaBrick), bricks.size(), bricks.data());
       scalarBuffer      = owlDeviceBufferCreate(context, OWL_FLOAT, scalars.size(), scalars.data());
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_INT, abrs.leafList.size(), abrs.leafList.data());
+#endif
 
 #if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       abrMaxOpacities   = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
@@ -209,7 +211,7 @@ namespace exa {
       brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
 #endif
 
-// #if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSA
       // ABR geometry //
       abrGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (abrGeomType, module, "ExaBrickABRGeomBounds");
@@ -221,7 +223,7 @@ namespace exa {
       owlGeomSetPrimCount(abrGeom, abrs.value.size());
       owlGeomSetBuffer(abrGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(abrGeom,"exaBrickBuffer", brickBuffer);
-// #endif
+#endif
 
       // extended brick geometry //
       extGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
@@ -230,7 +232,7 @@ namespace exa {
       owlGeomTypeSetClosestHit   (extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickGeomCH");
       OWLGeom extGeom = owlGeomCreate(context, extGeomType);
       owlGeomSetPrimCount(extGeom, bricks.size());
-      owlGeomSetBuffer(extGeom,"abrBuffer", abrBuffer);
+      // owlGeomSetBuffer(extGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(extGeom,"exaBrickBuffer", brickBuffer);
 
       // brick geometry //
@@ -240,7 +242,7 @@ namespace exa {
       owlGeomTypeSetClosestHit   (brickGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickGeomCH");
       OWLGeom brickGeom = owlGeomCreate(context, brickGeomType);
       owlGeomSetPrimCount(brickGeom, bricks.size());
-      owlGeomSetBuffer(brickGeom,"abrBuffer", abrBuffer);
+      // owlGeomSetBuffer(brickGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(brickGeom,"exaBrickBuffer", brickBuffer);
 
       // finalize //
