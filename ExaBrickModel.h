@@ -41,6 +41,7 @@ namespace exa {
     ABRs                  abrs;
     KDTree::SP            kdtree; // optional kd-tree over bricks
     Grid::SP              grid;   // optional grid for space skipping
+    std::vector<std::vector<int>> adjacentBricks; // adjacency list to splat majorants into neighboring bricks
 
   private:
     // owl
@@ -57,6 +58,7 @@ namespace exa {
     OWLGroup    brickTlas;
 
     OWLBuffer   abrMaxOpacities;
+    OWLBuffer   brickValueRanges;
     OWLBuffer   brickMaxOpacities;
 
   public:

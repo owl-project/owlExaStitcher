@@ -24,31 +24,21 @@ namespace exa {
     return (a + b - 1) / b;
   }
 
-  __global__ void computeMaxOpacitiesForBricks(float       *exaBrickMaxOpacities,
-                                               const ABR   *abrs,
-                                               const int   *abrLeafList,
-                                               const vec4f *colorMap,
-                                               size_t       numABRs,
-                                               size_t       numColors,
-                                               range1f      xfRange)
+  __global__ void computeMaxOpacitiesForBricks(float         *exaBrickMaxOpacities,
+                                               const range1f *brickValueRanges,
+                                               const vec4f   *colorMap,
+                                               size_t         numBricks,
+                                               size_t         numColors,
+                                               range1f        xfRange)
   {
     size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
-    if (threadID >= numABRs) return;
+    if (threadID >= numBricks)
+      return;
 
-    const ABR &abr = abrs[threadID];
-    const int *childList = &abrLeafList[abr.leafListBegin];
-    const int childCount = abr.leafListSize;
-    range1f valueRange = abr.valueRange;
-
-    const auto setOpacity = [&] (float opacity) {
-      for (int childID=0;childID<childCount;childID++) {
-        const int brickID = childList[childID];
-        atomicMax(exaBrickMaxOpacities + brickID, opacity);
-      }
-    };
+    range1f valueRange = brickValueRanges[threadID];
 
     if (valueRange.upper < valueRange.lower) {
-      setOpacity(0.f);
+      exaBrickMaxOpacities[threadID] = 0.f;
       return;
     }
 
@@ -65,7 +55,7 @@ namespace exa {
       maxOpacity = fmaxf(maxOpacity,colorMap[i].w);
     }
 
-    setOpacity(maxOpacity);
+    exaBrickMaxOpacities[threadID] = maxOpacity;
   }
 
   __global__ void computeMaxOpacitiesForABRs(float       *abrMaxOpacities,
@@ -128,19 +118,17 @@ namespace exa {
 
 #if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
     {
-      size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
       // maximum opacity buffers are pre-located in ExaBrickModel.cpp
       owlBufferClear(brickMaxOpacities);
 
       size_t numThreads = 1024;
-      computeMaxOpacitiesForBricks<<<iDivUp(numABRs, numThreads), numThreads>>>(
+      computeMaxOpacitiesForBricks<<<iDivUp(bricks.size(), numThreads), numThreads>>>(
         (float *)owlBufferGetPointer(brickMaxOpacities,0),
-        (const ABR *)owlBufferGetPointer(abrBuffer,0),
-        (const int *)owlBufferGetPointer(abrLeafListBuffer,0),
+        (const range1f *)owlBufferGetPointer(brickValueRanges,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
-        numABRs,numColors,xfRange);
+        bricks.size(),numColors,xfRange);
     }
 #endif
   }

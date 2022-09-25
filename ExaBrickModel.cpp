@@ -31,6 +31,7 @@ namespace exa {
     ABRs &abrs                    = result->abrs;
     box3f &cellBounds             = result->cellBounds;
     range1f &valueRange           = result->valueRange;
+    auto &adjacentBricks          = result->adjacentBricks;
 
 
     // Indices/scalars are later flattened
@@ -127,6 +128,53 @@ namespace exa {
       result->kdtree->setLeaves(leaves);
       result->kdtree->setModelBounds(cellBounds);
     }
+
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+
+    // -------------------------------------------------------
+    // Adjacency list, in case we're traversing bricks
+    // -------------------------------------------------------
+
+    {
+      std::cout << "Building adjacent brick list...\n";
+      adjacentBricks.resize(bricks.size());
+
+      for (size_t i=0; i<abrs.value.size(); ++i) {
+        const ABR &abr = abrs.value[i];
+        for (int childID1=abr.leafListBegin;childID1<abr.leafListSize;childID1++) {
+          for (int childID2=abr.leafListBegin;childID2<abr.leafListSize;childID2++) {
+            if (childID1!=childID2) {
+              const box3f d1 = bricks[childID1].getDomain();
+              const box3f d2 = bricks[childID2].getDomain();
+
+              if (d1.overlaps(d2)) {
+                if (std::find(adjacentBricks[childID1].begin(),
+                              adjacentBricks[childID1].end(),childID2)==adjacentBricks[childID1].end())
+                  adjacentBricks[childID1].push_back(childID2);
+                if (std::find(adjacentBricks[childID2].begin(),
+                              adjacentBricks[childID2].end(),childID1)==adjacentBricks[childID2].end())
+                  adjacentBricks[childID2].push_back(childID1);
+              }
+            }
+          }
+        }
+      }
+
+      // for (size_t i=0; i<bricks.size(); ++i) {
+      //   for (size_t j=i+1; j<bricks.size(); ++j) {
+      //     const box3f di = bricks[i].getDomain();
+      //     const box3f dj = bricks[j].getDomain();
+      //     if (di.overlaps(dj)) {
+      //       if (std::find(adjacentBricks[i].begin(),adjacentBricks[i].end(),j)==adjacentBricks[i].end())
+      //         adjacentBricks[i].push_back(j);
+      //       if (std::find(adjacentBricks[j].begin(),adjacentBricks[j].end(),i)==adjacentBricks[j].end())
+      //         adjacentBricks[j].push_back(i);
+      //     }
+      //   }
+      // }
+      std::cout << "Done\n";
+    }
+#endif
 
     return result;
   }
@@ -279,6 +327,52 @@ namespace exa {
 #endif
 #endif
       }
+#endif
+
+
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+      std::vector<range1f> hValueRanges(bricks.size());
+      std::fill(hValueRanges.begin(),
+                hValueRanges.end(),
+                range1f{1e30f,-1e30f});
+
+      for (size_t i=0; i<bricks.size(); ++i) {
+        const ExaBrick &brick = bricks[i];
+        for (int z=0; z<brick.size.z; ++z) {
+          for (int y=0; y<brick.size.y; ++y) {
+            for (int x=0; x<brick.size.x; ++x) {
+              vec3i index3(x,y,z);
+              int idx = brick.getIndexIndex(index3);
+              const float value = scalars[idx];
+
+              hValueRanges[i].lower = std::min(hValueRanges[i].lower,value);
+              hValueRanges[i].upper = std::max(hValueRanges[i].upper,value);
+
+              vec3i lower = brick.lower + index3*(1<<brick.level);
+              vec3i upper = lower + (1<<brick.level);
+
+              const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+
+              box3f domain(vec3f(lower)-halfCell,vec3f(upper)+halfCell);
+
+              for (int j=0; j<adjacentBricks[i].size(); ++j) {
+                const ExaBrick &adjacentBrick = bricks[j];
+                if (domain.overlaps(adjacentBrick.getDomain())) {
+                  hValueRanges[j].lower = std::min(hValueRanges[j].lower,value);
+                  hValueRanges[j].upper = std::max(hValueRanges[j].upper,value);
+                }
+              }
+            }
+          }
+        }
+
+        std::cout << '(' << (i+1) << '/' << bricks.size() << ")\r";
+      }
+
+      owlBufferRelease(brickValueRanges);
+      brickValueRanges = owlDeviceBufferCreate(context, OWL_USER_TYPE(range1f),
+                                               hValueRanges.size(),
+                                               hValueRanges.data());
 #endif
 
       initBaseModel();
