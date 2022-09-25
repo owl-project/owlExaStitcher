@@ -369,7 +369,7 @@ namespace exa {
     }
 
     // Add contrib from ExaBricks
-    {
+    if (0) { // ABR grid projection
       double tfirst = getCurrentTime();
       size_t numThreads = 1024;
       size_t numABRs = owlBufferSizeInBytes(model->abrBuffer)/sizeof(ABR);
@@ -382,6 +382,51 @@ namespace exa {
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
       double tlast = getCurrentTime();
       std::cout << tlast-tfirst << '\n';
+    } else { // project cells; for now on the CPU
+      std::vector<range1f> hValueRanges(dims.x*size_t(dims.y)*dims.z);
+      std::fill(hValueRanges.begin(),
+                hValueRanges.end(),
+                range1f{1e30f,-1e30f});
+
+      for (size_t i=0; i<model->bricks.size(); ++i) {
+        const ExaBrick &brick = model->bricks[i];
+        for (int z=0; z<brick.size.z; ++z) {
+          for (int y=0; y<brick.size.y; ++y) {
+            for (int x=0; x<brick.size.x; ++x) {
+              vec3i index3(x,y,z);
+              int idx = brick.getIndexIndex(index3);
+              const float value = model->scalars[idx];
+
+              vec3i lower = brick.lower + index3*(1<<brick.level);
+              vec3i upper = lower + (1<<brick.level);
+
+              const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+
+              const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
+              const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
+
+              for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
+                for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
+                  for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
+                    const vec3i mcID(mcx,mcy,mcz);
+                    hValueRanges[linearIndex(mcID,dims)].lower
+                      = std::min(hValueRanges[linearIndex(mcID,dims)].lower,value);
+                    hValueRanges[linearIndex(mcID,dims)].upper
+                      = std::max(hValueRanges[linearIndex(mcID,dims)].upper,value);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        std::cout << '(' << (i+1) << '/' << model->bricks.size() << ")\r";
+      }
+
+      owlBufferRelease(valueRanges);
+      valueRanges = owlDeviceBufferCreate(owl, OWL_USER_TYPE(range1f),
+                                          hValueRanges.size(),
+                                          hValueRanges.data());
     }
   }
 

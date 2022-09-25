@@ -36,7 +36,7 @@ namespace exa {
   typedef GridTraversable GridTraversableHandle;
 #endif
 
-  __device__ inline
+  __both__ inline
   size_t linearIndex(const owl::vec3i index, const owl::vec3i dims)
   {
     return index.z * size_t(dims.x) * dims.y
@@ -44,7 +44,7 @@ namespace exa {
          + index.x;
   }
 
-  __device__ inline
+  __both__ inline
   owl::vec3i gridIndex(const size_t index, const owl::vec3i grid)
   {
     const auto stride_y = (size_t)grid.x;
@@ -52,7 +52,7 @@ namespace exa {
     return  owl::vec3i(index % stride_y, (index % stride_z) / stride_y, index / stride_z);
   }
 
-  __device__ inline
+  __both__ inline
   owl::vec3i projectOnGrid(const owl::vec3f V,
                            const owl::vec3i dims,
                            const owl::box3f worldBounds)
