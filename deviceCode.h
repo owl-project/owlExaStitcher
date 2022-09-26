@@ -165,9 +165,10 @@ namespace exa {
   };
 
   struct MacroCellGeom {
-    vec3i dims;
-    vec3f spacing;
-    vec3f origin;
+    vec3i  dims;
+    vec3f  spacing;
+    vec3f  origin;
+    float *maxOpacities;
   };
 
   struct ExaBrickGeom {

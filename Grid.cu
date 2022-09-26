@@ -514,6 +514,7 @@ namespace exa {
        { "dims", OWL_INT3, OWL_OFFSETOF(MacroCellGeom,dims) },
        { "spacing", OWL_FLOAT3, OWL_OFFSETOF(MacroCellGeom,spacing) },
        { "origin", OWL_FLOAT3, OWL_OFFSETOF(MacroCellGeom,origin) },
+       { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(MacroCellGeom,maxOpacities) },
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -528,17 +529,17 @@ namespace exa {
     owlGeomSet3i(geom,"dims", dims.x, dims.y, dims.z);
     owlGeomSet3f(geom,"spacing", spacing.x, spacing.y, spacing.z);
     owlGeomSet3f(geom,"origin", worldBounds.lower.x, worldBounds.lower.y, worldBounds.lower.z);
+    owlGeomSetBuffer(geom,"maxOpacities", maxOpacities);
 
     owlBuildPrograms(owl);
 
-#ifdef EXA_STITCH_MIRROR_EXAJET
     blas = owlUserGeomGroupCreate(owl, 1, &geom);
+#ifdef EXA_STITCH_MIRROR_EXAJET
     owlGroupBuildAccel(blas);
     tlas = owlInstanceGroupCreate(owl, 2);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlInstanceGroupSetChild(tlas, 1, blas);
 #else
-    blas = owlUserGeomGroupCreate(owl, 1, &geom);
     owlGroupBuildAccel(blas);
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
@@ -603,6 +604,11 @@ namespace exa {
       (const range1f *)owlBufferGetPointer(valueRanges,0),
       (const vec4f *)owlBufferGetPointer(colorMap,0),
       numMCs,numColors,xfRange);
+
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
+    owlGroupBuildAccel(blas);
+    owlGroupBuildAccel(tlas);
+#endif
   }
 
 } // ::exa

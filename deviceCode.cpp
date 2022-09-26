@@ -42,7 +42,7 @@ namespace exa {
 
   typedef owl::common::LCG<4> Random;
 
-#define DEBUGGING 1
+#define DEBUGGING 0
 #define DBG_X (getLaunchDims().x/2)
 #define DBG_Y (getLaunchDims().y/2)
 
@@ -678,13 +678,19 @@ namespace exa {
   }
 
   OPTIX_BOUNDS_PROGRAM(MacroCellGeomBounds)(const void* geomData,
-                                              box3f& result,
-                                              int leafID)
+                                            box3f& result,
+                                            int leafID)
   {
     const MacroCellGeom &self = *(const MacroCellGeom *)geomData;
-    const auto index = gridIndex(leafID, self.dims);
-    result.lower = self.spacing * vec3f(index) + self.origin;
-    result.upper = self.spacing + result.lower;
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      const vec3i index = gridIndex(leafID, self.dims);
+      result.lower = self.spacing * vec3f(index) + self.origin;
+      result.upper = self.spacing + result.lower;
+    }
 
     // printf("bounds (%f,%f,%f) (%f,%f,%f)\n", 
     //        result.lower.x,result.lower.y,result.lower.z,
@@ -1215,6 +1221,7 @@ namespace exa {
           s.value -= xfDomain.lower;
           s.value /= xfDomain.upper-xfDomain.lower;
           xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+          //xf = vec4f(randomColor(leafID),0.1f);
         } else if constexpr (SM==Gridlets) {
           const range1f xfDomain = lp.transferFunc.domain;
           s.value -= xfDomain.lower;
