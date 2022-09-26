@@ -174,6 +174,7 @@ namespace exa {
   struct ExaBrickGeom {
     ABR *abrBuffer;
     ExaBrick *exaBrickBuffer;
+    float *maxOpacities;
   };
 
   struct LaunchParams {

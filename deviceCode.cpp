@@ -548,8 +548,14 @@ namespace exa {
                                            int leafID)
   {
     const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
-    const ABR &abr = self.abrBuffer[leafID];
-    result = abr.domain;
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      const ABR &abr = self.abrBuffer[leafID];
+      result = abr.domain;
+    }
   }
 
   // Isect program for non-zero length rays
@@ -613,8 +619,14 @@ namespace exa {
                                               int leafID)
   {
     const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
-    const ExaBrick &brick = self.exaBrickBuffer[leafID];
-    result = brick.getDomain();
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      const ExaBrick &brick = self.exaBrickBuffer[leafID];
+      result = brick.getDomain();
+    }
   }
 
   OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)() // sampling rays with zero length
@@ -642,8 +654,14 @@ namespace exa {
                                               int leafID)
   {
     const ExaBrickGeom &self = *(const ExaBrickGeom *)geomData;
-    const ExaBrick &brick = self.exaBrickBuffer[leafID];
-    result = brick.getBounds();
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      const ExaBrick &brick = self.exaBrickBuffer[leafID];
+      result = brick.getBounds();
+    }
   }
 
   OPTIX_INTERSECT_PROGRAM(ExaBrickBrickGeomIsect)() // for non-zero length rays

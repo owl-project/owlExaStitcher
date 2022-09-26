@@ -129,7 +129,9 @@ namespace exa {
       result->kdtree->setModelBounds(cellBounds);
     }
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
 
     // -------------------------------------------------------
     // Adjacency list, in case we're traversing bricks
@@ -185,6 +187,7 @@ namespace exa {
     = {
        { "abrBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,abrBuffer)},
        { "exaBrickBuffer",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,exaBrickBuffer)},
+       { "maxOpacities",  OWL_BUFPTR, OWL_OFFSETOF(ExaBrickGeom,maxOpacities)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -207,11 +210,13 @@ namespace exa {
       abrMaxOpacities   = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
 #endif
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
       brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
 #endif
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSA
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       // ABR geometry //
       abrGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (abrGeomType, module, "ExaBrickABRGeomBounds");
@@ -223,8 +228,10 @@ namespace exa {
       owlGeomSetPrimCount(abrGeom, abrs.value.size());
       owlGeomSetBuffer(abrGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(abrGeom,"exaBrickBuffer", brickBuffer);
+      owlGeomSetBuffer(abrGeom,"maxOpacities", abrMaxOpacities);
 #endif
 
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH
       // extended brick geometry //
       extGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (extGeomType, module, "ExaBrickExtGeomBounds");
@@ -234,7 +241,10 @@ namespace exa {
       owlGeomSetPrimCount(extGeom, bricks.size());
       // owlGeomSetBuffer(extGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(extGeom,"exaBrickBuffer", brickBuffer);
+      owlGeomSetBuffer(extGeom,"maxOpacities", brickMaxOpacities);
+#endif
 
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL
       // brick geometry //
       brickGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (brickGeomType, module, "ExaBrickBrickGeomBounds");
@@ -244,6 +254,8 @@ namespace exa {
       owlGeomSetPrimCount(brickGeom, bricks.size());
       // owlGeomSetBuffer(brickGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(brickGeom,"exaBrickBuffer", brickBuffer);
+      owlGeomSetBuffer(brickGeom,"maxOpacities", brickMaxOpacities);
+#endif
 
       // finalize //
       owlBuildPrograms(context);
@@ -332,7 +344,9 @@ namespace exa {
 #endif
 
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
+    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
       std::vector<range1f> hValueRanges(bricks.size());
       std::fill(hValueRanges.begin(),
                 hValueRanges.end(),
