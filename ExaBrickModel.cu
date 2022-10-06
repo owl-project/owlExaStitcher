@@ -96,15 +96,14 @@ namespace exa {
                                           OWLBuffer colorMap,
                                           range1f xfRange)
   {
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
-    if (grid && grid->dims != vec3i(0)) {
+    if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
+      if (!grid || grid->dims==vec3i(0))
+        return;
+
       grid->computeMaxOpacities(owl,colorMap,xfRange);
     }
-#endif
 
-#if  EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || \
-     EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
-    {
+    if (samplerMode == EXA_BRICK_SAMPLER_ABR_BVH || traversalMode == EXABRICK_ABR_TRAVERSAL) {
       size_t numABRs = owlBufferSizeInBytes(abrBuffer)/sizeof(ABR);
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
@@ -114,16 +113,15 @@ namespace exa {
         (const ABR *)owlBufferGetPointer(abrBuffer,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
         numABRs,numColors,xfRange);
+
+      owlGroupBuildAccel(abrBlas);
+      owlGroupBuildAccel(abrTlas);
     }
 
-    owlGroupBuildAccel(abrBlas);
-    owlGroupBuildAccel(abrTlas);
-#endif
+    if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
+        traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
-    {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
       size_t numThreads = 1024;
@@ -132,19 +130,17 @@ namespace exa {
         (const range1f *)owlBufferGetPointer(brickValueRanges,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
         bricks.size(),numColors,xfRange);
+
+      if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH) {
+        owlGroupBuildAccel(extBlas);
+        owlGroupBuildAccel(extTlas);
+      }
+
+      if (traversalMode == EXABRICK_BVH_TRAVERSAL) {
+        owlGroupBuildAccel(brickBlas);
+        owlGroupBuildAccel(brickTlas);
+      }
     }
-
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH
-    owlGroupBuildAccel(extBlas);
-    owlGroupBuildAccel(extTlas);
-#endif
-
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL
-    owlGroupBuildAccel(brickBlas);
-    owlGroupBuildAccel(brickTlas);
-#endif
-
-#endif
   }
 } // ::exa
 

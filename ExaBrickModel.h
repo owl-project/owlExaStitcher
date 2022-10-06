@@ -59,7 +59,7 @@ namespace exa {
 
     OWLBuffer   abrMaxOpacities;
     OWLBuffer   brickValueRanges;
-    OWLBuffer   brickMaxOpacities;
+    OWLBuffer   brickMaxOpacities{ 0 };
 
   public:
     OWLBuffer   abrBuffer;
@@ -83,6 +83,8 @@ namespace exa {
     // sets model's accels etc. based on traversal and sampling mode
     void initBaseModel();
 
+    static int traversalMode;
+    static int samplerMode;
   };
 
 } // ::exa

@@ -20,6 +20,9 @@
 
 namespace exa {
 
+  int ExaBrickModel::traversalMode = EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE;
+  int ExaBrickModel::samplerMode   = EXA_STITCH_EXA_BRICK_SAMPLER_MODE;
+
   ExaBrickModel::SP ExaBrickModel::load(const std::string brickFileName,
                                         const std::string scalarFileName,
                                         const std::string kdTreeFileName)
@@ -129,15 +132,13 @@ namespace exa {
       result->kdtree->setModelBounds(cellBounds);
     }
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
-
     // -------------------------------------------------------
     // Adjacency list, in case we're traversing bricks
     // -------------------------------------------------------
 
-    {
+    if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
+        traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
       std::cout << "Building adjacent brick list...\n";
       adjacentBricks.resize(bricks.size());
 
@@ -176,7 +177,6 @@ namespace exa {
       // }
       std::cout << "Done\n";
     }
-#endif
 
     return result;
   }
@@ -191,33 +191,24 @@ namespace exa {
        { nullptr /* sentinel to mark end of list */ }
     };
 
+    if (bricks.empty())
+      return false;
+
     // ==================================================================
     // exa brick geom
     // ==================================================================
 
-    if (!abrs.value.empty() && !bricks.empty()) {
+    brickBuffer       = owlDeviceBufferCreate(context, OWL_USER_TYPE(ExaBrick), bricks.size(), bricks.data());
+    scalarBuffer      = owlDeviceBufferCreate(context, OWL_FLOAT, scalars.size(), scalars.data());
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
+    if (traversalMode == EXABRICK_ABR_TRAVERSAL || samplerMode == EXA_BRICK_SAMPLER_ABR_BVH) {
+      if (abrs.value.empty())
+        return false;
+
       abrBuffer         = owlDeviceBufferCreate(context, OWL_USER_TYPE(ABR), abrs.value.size(), abrs.value.data());
-#endif
-      brickBuffer       = owlDeviceBufferCreate(context, OWL_USER_TYPE(ExaBrick), bricks.size(), bricks.data());
-      scalarBuffer      = owlDeviceBufferCreate(context, OWL_FLOAT, scalars.size(), scalars.data());
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       abrLeafListBuffer = owlDeviceBufferCreate(context, OWL_INT, abrs.leafList.size(), abrs.leafList.data());
-#endif
-
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
       abrMaxOpacities   = owlDeviceBufferCreate(context, OWL_FLOAT, abrs.value.size(), nullptr);
-#endif
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
-      brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
-#endif
-
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
-      // ABR geometry //
       abrGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (abrGeomType, module, "ExaBrickABRGeomBounds");
       owlGeomTypeSetIntersectProg(abrGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickABRGeomIsect");
@@ -229,9 +220,24 @@ namespace exa {
       owlGeomSetBuffer(abrGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(abrGeom,"exaBrickBuffer", brickBuffer);
       owlGeomSetBuffer(abrGeom,"maxOpacities", abrMaxOpacities);
-#endif
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH
+      owlBuildPrograms(context);
+
+      abrBlas = owlUserGeomGroupCreate(context, 1, &abrGeom);
+      owlGroupBuildAccel(abrBlas);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      abrTlas = owlInstanceGroupCreate(context, 2);
+      owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
+      owlInstanceGroupSetChild(abrTlas, 1, abrBlas);
+      owlInstanceGroupSetTransform(abrTlas, 1, &mirrorTransform);
+#else
+      abrTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
+#endif
+      owlGroupBuildAccel(abrTlas);
+    }
+
+    if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ) {
       // extended brick geometry //
       extGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (extGeomType, module, "ExaBrickExtGeomBounds");
@@ -239,12 +245,28 @@ namespace exa {
       owlGeomTypeSetClosestHit   (extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickGeomCH");
       OWLGeom extGeom = owlGeomCreate(context, extGeomType);
       owlGeomSetPrimCount(extGeom, bricks.size());
-      // owlGeomSetBuffer(extGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(extGeom,"exaBrickBuffer", brickBuffer);
+      if (!brickMaxOpacities)
+        brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
       owlGeomSetBuffer(extGeom,"maxOpacities", brickMaxOpacities);
-#endif
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL
+      owlBuildPrograms(context);
+
+      extBlas = owlUserGeomGroupCreate(context, 1, &extGeom);
+      owlGroupBuildAccel(extBlas);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      extTlas = owlInstanceGroupCreate(context, 2);
+      owlInstanceGroupSetChild(extTlas, 0, extBlas);
+      owlInstanceGroupSetChild(extTlas, 1, extBlas);
+      owlInstanceGroupSetTransform(extTlas, 1, &mirrorTransform);
+#else
+      extTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(extTlas, 0, extBlas);
+#endif
+      owlGroupBuildAccel(extTlas);
+    }
+
+    if (traversalMode == EXABRICK_BVH_TRAVERSAL) {
       // brick geometry //
       brickGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (brickGeomType, module, "ExaBrickBrickGeomBounds");
@@ -252,101 +274,67 @@ namespace exa {
       owlGeomTypeSetClosestHit   (brickGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickGeomCH");
       OWLGeom brickGeom = owlGeomCreate(context, brickGeomType);
       owlGeomSetPrimCount(brickGeom, bricks.size());
-      // owlGeomSetBuffer(brickGeom,"abrBuffer", abrBuffer);
       owlGeomSetBuffer(brickGeom,"exaBrickBuffer", brickBuffer);
+      if (!brickMaxOpacities)
+        brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
       owlGeomSetBuffer(brickGeom,"maxOpacities", brickMaxOpacities);
-#endif
 
-      // finalize //
       owlBuildPrograms(context);
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL
-      // 1. ABR geometry 
-      abrBlas = owlUserGeomGroupCreate(context, 1, &abrGeom);
-      owlGroupBuildAccel(abrBlas);
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      abrTlas = owlInstanceGroupCreate(context, 2);
-#else
-      abrTlas = owlInstanceGroupCreate(context, 1);
-#endif
-      owlInstanceGroupSetChild(abrTlas, 0, abrBlas);
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      owlInstanceGroupSetChild(abrTlas, 1, abrBlas);
-      owlInstanceGroupSetTransform(abrTlas, 1, &mirrorTransform);
-#endif
-      owlGroupBuildAccel(abrTlas);
-#endif
-
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH
-      // 2. extended brick geometry
-      extBlas = owlUserGeomGroupCreate(context, 1, &extGeom);
-      owlGroupBuildAccel(extBlas);
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      extTlas = owlInstanceGroupCreate(context, 2);
-#else
-      extTlas = owlInstanceGroupCreate(context, 1);
-#endif
-      owlInstanceGroupSetChild(extTlas, 0, extBlas);
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      owlInstanceGroupSetChild(extTlas, 1, extBlas);
-      owlInstanceGroupSetTransform(extTlas, 1, &mirrorTransform);
-#endif
-      owlGroupBuildAccel(extTlas);
-#endif
-
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL
-      // 3. brick geometry
       brickBlas = owlUserGeomGroupCreate(context, 1, &brickGeom);
       owlGroupBuildAccel(brickBlas);
 #ifdef EXA_STITCH_MIRROR_EXAJET
       brickTlas = owlInstanceGroupCreate(context, 2);
-#else
-      brickTlas = owlInstanceGroupCreate(context, 1);
-#endif
       owlInstanceGroupSetChild(brickTlas, 0, brickBlas);
-#ifdef EXA_STITCH_MIRROR_EXAJET
       owlInstanceGroupSetChild(brickTlas, 1, brickBlas);
       owlInstanceGroupSetTransform(brickTlas, 1, &mirrorTransform);
+#else
+      brickTlas = owlInstanceGroupCreate(context, 1);
+      owlInstanceGroupSetChild(brickTlas, 0, brickBlas);
 #endif
       owlGroupBuildAccel(brickTlas);
-#endif
+    } else if (traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
+      // build KD tree over exabricks
+      if (!kdtree)
+        return false;
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
-      // 4. build KD tree over exabricks
-      if (kdtree) {
-        kdtree->initGPU();
-#ifdef EXA_STITCH_MIRROR_EXAJET
-        kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
-        kdtree->deviceTraversable.mirrorPlane.axis = 1;
-        kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
-#endif
-      }
-#endif
+      if (!brickMaxOpacities)
+        brickMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, bricks.size(), nullptr);
 
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL || EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
-      // 5. build the grid
-      if (grid && grid->dims != vec3i(0)) {
-        grid->build(context,shared_from_this(),grid->dims,cellBounds);
-        // build the BVH, for the "traverse grid with optix" mode
-        // Also initializes the device traversable
-        grid->initGPU(context,module);
+      kdtree->initGPU();
 #ifdef EXA_STITCH_MIRROR_EXAJET
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
+      kdtree->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
+      kdtree->deviceTraversable.mirrorPlane.axis = 1;
+      kdtree->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
+#endif
+    }
+
+    if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
+      // build the grid
+      if (!grid || grid->dims==vec3i(0))
+        return false;
+
+      grid->build(context,shared_from_this(),grid->dims,cellBounds);
+      // build the BVH, for the "traverse grid with optix" mode
+      // Also initializes the device traversable
+      grid->initGPU(context,module);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+      if (traversalMode == MC_DDA_TRAVERSAL) {
         grid->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
         grid->deviceTraversable.mirrorPlane.axis = 1;
         grid->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
-#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
+      } else if (traversalMode == MC_BVH_TRAVERSAL) {
         owlInstanceGroupSetTransform(grid->tlas, 1, &mirrorTransform);
         owlGroupBuildAccel(grid->tlas);
-#endif
-#endif
       }
 #endif
+    }
 
 
-#if EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_EXT_BVH || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_BVH_TRAVERSAL || \
-    EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
+    if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
+        traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
+
       std::vector<range1f> hValueRanges(bricks.size());
       std::fill(hValueRanges.begin(),
                 hValueRanges.end(),
@@ -389,14 +377,11 @@ namespace exa {
       brickValueRanges = owlDeviceBufferCreate(context, OWL_USER_TYPE(range1f),
                                                hValueRanges.size(),
                                                hValueRanges.data());
-#endif
-
-      initBaseModel();
-
-      return true;
     }
 
-    return false;
+    initBaseModel();
+
+    return true;
   }
 
   void ExaBrickModel::setNumGridCells(const vec3i numMCs)
@@ -428,7 +413,7 @@ namespace exa {
     Model::majorantAccel.kdtree = NULL;
 
     // Set the sampling accel
-    switch (EXA_STITCH_EXA_BRICK_SAMPLER_MODE) {
+    switch (samplerMode) {
       
       case EXA_BRICK_SAMPLER_ABR_BVH: {
         Model::sampleBVH = abrTlas;
@@ -442,7 +427,7 @@ namespace exa {
     }
 
     // Set the majorant traversal accel and majorants buffer
-    switch (EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE) {
+    switch (traversalMode) {
     
       case MC_DDA_TRAVERSAL: {
         Model::majorantAccel.grid = grid;
