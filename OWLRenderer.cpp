@@ -586,17 +586,6 @@ namespace exa {
     accumID = 0;
   }
   
-  void OWLRenderer::setSamplerModeExaBrick(int mode)
-  {
-    printf("setSamplerModeExaBrick %d\n", (int)mode);
-  }
-
-  void OWLRenderer::setTraversalMode(TraversalMode mode)
-  {
-    printf("setTraversalMode %d\n", (int)mode);
-
-  }
-
   void OWLRenderer::setSubImage(const box2f si, bool active)
   {
     owlParamsSet2f(lp,"subImage.value.lower",si.lower.x,si.lower.y);

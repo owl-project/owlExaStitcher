@@ -774,29 +774,6 @@ namespace exa {
     shadeModeLayout.addWidget(&shadeModeLabel);
     shadeModeLayout.addWidget(&shadeModeSelection);
 
-    // Traversal Type
-    QHBoxLayout traversalModeLayout;
-    QLabel traversalModeLabel("Traversal Mode: ");
-    QComboBox traversalModeSelection;
-    traversalModeSelection.addItem("MC + DDA");
-    traversalModeSelection.addItem("MC + BVH");
-    traversalModeSelection.addItem("ABR BVH");
-    traversalModeSelection.addItem("Extended Brick BVH");
-    traversalModeSelection.addItem("Extended Brick KD-Tree");
-    traversalModeSelection.setCurrentIndex(renderer.traversalMode);
-    traversalModeLayout.addWidget(&traversalModeLabel);
-    traversalModeLayout.addWidget(&traversalModeSelection);
-
-    // Sampling Type
-    QHBoxLayout samplingModeLayout;
-    QLabel samplingModeLabel("Sampling Mode: ");
-    QComboBox samplingModeSelection;
-    samplingModeSelection.addItem("ABR BVH");
-    samplingModeSelection.addItem("Extended Brick BVH");
-    samplingModeSelection.setCurrentIndex(renderer.samplerModeExaBrick);
-    samplingModeLayout.addWidget(&samplingModeLabel);
-    samplingModeLayout.addWidget(&samplingModeSelection);
-
     // Light source
     QHBoxLayout light0Layout;
     QCheckBox light0Enabled("Enable Light");
@@ -826,8 +803,6 @@ namespace exa {
     QVBoxLayout settingsvlayout(renderSettingsBox);
     settingsvlayout.addLayout(&rendererTypeLayout);
     settingsvlayout.addLayout(&shadeModeLayout);
-    settingsvlayout.addLayout(&traversalModeLayout);
-    settingsvlayout.addLayout(&samplingModeLayout);
     settingsvlayout.addLayout(&light0Layout);
 
     // ==================================================================
@@ -960,20 +935,6 @@ namespace exa {
     QObject::connect(&shadeModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
       [&](int item) {
         renderer.setShadeMode(item);
-      });
-
-    // Traversal Mode  select
-    QObject::connect(&traversalModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
-      [&](int item) {
-        renderer.setTraversalMode((TraversalMode)item);
-        renderer.resetAccum();
-      });
-
-    // Sampling Mode  select
-    QObject::connect(&samplingModeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
-      [&](int item) {
-        renderer.setSamplerModeExaBrick(item);
-        renderer.resetAccum();
       });
 
     // Light pos editing enabled

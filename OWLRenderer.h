@@ -56,9 +56,6 @@ namespace exa {
     void setShadeMode(int sm);
     std::map<int,std::string> shadeModes();
     void setSampler(int sampler);
-    void setSamplerModeExaBrick(int mode);
-    void setTraversalMode(TraversalMode mode);
-
     void setSubImage(const box2f si, bool active);
     void setSubImageSelection(const box2f si, bool active);
 
@@ -87,9 +84,6 @@ namespace exa {
     } xf;
 
     Model::SP model { 0 };
-
-    TraversalMode traversalMode;
-    int samplerModeExaBrick;
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };
