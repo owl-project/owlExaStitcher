@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2019 Ingo Wald                                                 //
+// Copyright 2022-2022 Stefan Zellmann                                      //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -14,37 +14,23 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include <cstddef>
-#include <mutex>
-#include <set>
-#include <vector>
-#include "deviceCode.h"
+#include "Sampler.h"
 
 namespace exa {
 
-  /*! helper class that allows for keeping track which bricks overlap
-      in which basis-function region */
-  struct ABRs {
-    
-    void buildFrom(const ExaBrick *bricks,
-                   const size_t numBricks,
-                   const float *scalarFields);
-    void addLeaf(std::vector<std::pair<box3f,int>> &buildPrims,
-                 const box3f &domain);
-    void buildRec(std::vector<std::pair<box3f,int>> &buildPrims,
-                  const box3f &domain);
-    void computeValueRange(ABR &abr,
-                           const ExaBrick *bricks,
-                           const float *scalarFields);
-    
-    std::mutex mutex;
-    std::vector<ABR> value;
-    /*! offset in parent's leaflist class where our leaf list starst */
-    std::vector<int> leafList;
-  };
-  
+  Sampler::~Sampler()
+  {
+  }
+
+  bool Sampler::build(OWLContext owl, Model::SP model)
+  {
+    return false;
+  }
+
+  void Sampler::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
+  {
+  }
+
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

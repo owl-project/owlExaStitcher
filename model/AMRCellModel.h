@@ -17,55 +17,28 @@
 #pragma once
 
 #include <vector>
-#include "deviceCode.h"
+#include <common.h>
 #include "Model.h"
 
 namespace exa {
 
-  struct ExaStitchModel : Model,
-                          std::enable_shared_from_this<ExaStitchModel>
+  struct AMRCell {
+    vec3i pos;
+    int   level;
+  };
+
+  struct AMRCellModel : Model
   {
-    typedef std::shared_ptr<ExaStitchModel> SP;
+    typedef std::shared_ptr<AMRCellModel> SP;
 
-    static ExaStitchModel::SP load(const std::string umeshFileName,
-                                   const std::string gridsFileName,
-                                   const std::string scalarFileName);
+    static AMRCellModel::SP load(const std::string cellFileName,
+                                 const std::string scalarFileName);
 
-    std::vector<int>     indices;
-    std::vector<vec4f>   vertices;
-    std::vector<Gridlet> gridlets;
-    // The scalars referenced by gridlet; umesh scalars
-    // are stored in the respectivep vertices w coordinate
-    std::vector<float>   gridletScalars;
-
-    // owl
-    struct {
-      OWLGeomType geomType;
-      OWLGroup blas;
-    } gridletGeom;
-
-    struct {
-      OWLGeomType geomType;
-      OWLGroup blas;
-    } stitchGeom;
-
-    OWLGroup tlas;
-
-    OWLBuffer indexBuffer;
-    OWLBuffer vertexBuffer;
-    OWLBuffer gridletBuffer;
-    OWLBuffer gridletScalarBuffer;
-
-    bool initGPU(OWLContext context, OWLModule module);
+    std::vector<AMRCell> cells;
+    std::vector<float>   scalars;
 
     // Statistics
-    size_t numScalarsTotal;
-    size_t numEmptyScalars;
-    void memStats(size_t &elemVertexBytes,
-                  size_t &elemIndexBytes,
-                  size_t &gridletBytes,
-                  size_t &emptyScalarsBytes,
-                  size_t &nonEmptyScalarsBytes);
+    void memStats(size_t &cellsBytes, size_t &scalarsBytes);
   };
 
 } // ::exa

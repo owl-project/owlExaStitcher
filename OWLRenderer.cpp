@@ -14,9 +14,13 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "AMRCellModel.h"
-#include "ExaBrickModel.h"
-#include "ExaStitchModel.h"
+#include "model/AMRCellModel.h"
+#include "model/ExaBrickModel.h"
+#include "model/ExaStitchModel.h"
+#include "sampler/AMRCellSampler.h"
+#include "sampler/ExaBrickSampler.h"
+#include "sampler/ExaStitchSampler.h"
+#include "deviceCode.h"
 #include "OWLRenderer.h"
 #include "TriangleMesh.h"
 
@@ -36,7 +40,7 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
-  OWLVarDecl launchParamsVars[]
+  std::vector<OWLVarDecl> commonLPVars
   = {
      { "fbPointer",   OWL_RAW_POINTER, OWL_OFFSETOF(LaunchParams,fbPointer) },
      { "fbDepth",   OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,fbDepth) },
@@ -44,9 +48,7 @@ namespace exa {
      { "accumID",   OWL_INT, OWL_OFFSETOF(LaunchParams,accumID) },
      { "shadeMode",  OWL_INT, OWL_OFFSETOF(LaunchParams,shadeMode)},
      { "integrator",  OWL_INT, OWL_OFFSETOF(LaunchParams,integrator)},
-     { "sampler",  OWL_INT, OWL_OFFSETOF(LaunchParams,sampler)},
      { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(LaunchParams,maxOpacities) },
-     { "sampleBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,sampleBVH)},
      { "meshBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,meshBVH)},
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
      { "majorantKDTree", OWL_USER_TYPE(KDTreeTraversableHandle),  OWL_OFFSETOF(LaunchParams,majorantKDTree)},
@@ -56,14 +58,6 @@ namespace exa {
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
-#ifdef EXA_STITCH_MIRROR_EXAJET
-     { "mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,mirrorInvTransform)},
-#endif
-     // exa brick buffers (for eval!)
-     { "exaBrickBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,exaBrickBuffer)},
-     { "abrBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrBuffer)},
-     { "scalarBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,scalarBuffer)},
-     { "abrLeafListBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,abrLeafListBuffer)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
@@ -105,7 +99,6 @@ namespace exa {
      { "subImage.selection.upper", OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,subImage.selection.upper) },
      { "subImage.active", OWL_INT, OWL_OFFSETOF(LaunchParams,subImage.active) },
      { "subImage.selecting", OWL_INT, OWL_OFFSETOF(LaunchParams,subImage.selecting) },
-     { nullptr /* sentinel to mark end of list */ }
   };
   
   // ==================================================================
@@ -156,11 +149,7 @@ namespace exa {
     modelBounds.extend(model->getBounds());
     valueRange.extend(model->valueRange);
 
-    // TODO: we of course don't only want to set that for the exabrick model
-    // but for the others as well...
-    if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-      mod->setNumGridCells(numMCs);
-    }
+    model->setNumGridCells(numMCs);
 
     // ==================================================================
     // Meshes
@@ -194,14 +183,14 @@ namespace exa {
         meshVertexBytes += mesh->vertex.size()*sizeof(mesh->vertex[0]);
       }
 
-      if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
+      if (auto mod = model->as<ExaStitchModel>()) {
         mod->memStats(elemVertexBytes,elemIndexBytes,gridletBytes,
                       emptyScalarsBytes,nonEmptyScalarsBytes);
       }
-      else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
+      else if (auto mod = model->as<ExaBrickModel>()) {
         mod->memStats(exaBrickBytes,exaScalarBytes,abrBytes,abrLeafListBytes);
       }
-      else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
+      else if (auto mod = model->as<AMRCellModel>()) {
         mod->memStats(amrCellBytes,amrScalarBytes);
       }
 
@@ -228,46 +217,64 @@ namespace exa {
     }
 
 
-    owl = owlContextCreate(nullptr,1);
-    owlContextSetRayTypeCount(owl,2);
-    module = owlModuleCreate(owl,embedded_deviceCode);
-    lp = owlParamsCreate(owl,sizeof(LaunchParams),launchParamsVars,-1);
-    rayGen = owlRayGenCreate(owl,module,"renderFrame",sizeof(RayGen),rayGenVars,-1);
-
     // ==================================================================
     // Upload to GPU
     // ==================================================================
 
-    if (model->initGPU(owl,module)) {
+    if (model->as<AMRCellModel>()) {
+      sampler = std::make_shared<AMRCellSampler>();
+    } else if (model->as<ExaBrickModel>()) {
+      sampler = std::make_shared<ExaBrickSampler>();
+    } else if (model->as<ExaStitchModel>()) {
+      sampler = std::make_shared<ExaStitchSampler>();
+    }
 
-      // Set the BVH that is used for sampling
-      owlParamsSetGroup(lp, "sampleBVH", model->sampleBVH);
+    if (!sampler) {
+      throw std::runtime_error("Could not load module");
+    }
+
+    owl = owlContextCreate(nullptr,1);
+    owlContextSetRayTypeCount(owl,2);
+    module = owlModuleCreate(owl,embedded_deviceCode);
+    const std::string renderFrame
+      = "renderFrame_"+sampler->className();
+    PRINT(renderFrame);
+    rayGen = owlRayGenCreate(owl,module,renderFrame.c_str(),0,rayGenVars,-1);
+
+    // -------------------------------------------------------
+    // set up launch params
+    // -------------------------------------------------------
+    std::vector<OWLVarDecl> samplerLPVars = sampler->getLPVariables();
+
+    std::vector<OWLVarDecl> lpVars;
+    for (auto var : commonLPVars)
+      if (var.name)
+        lpVars.push_back(var);
+
+    for (auto var : samplerLPVars)
+      if (var.name) {
+        var.offset += OWL_OFFSETOF(LaunchParams,sampler);
+        lpVars.push_back(var);
+      }
+    lpVars.push_back({nullptr}); // sentinel
+    lp = owlParamsCreate(owl,sizeof(LaunchParams),lpVars.data(),-1);
+
+    if (sampler->build(owl,model)) {
 
       // Set the traversal accel (whatever that _is_)
-      if (model->majorantAccel.bvh) {
-        owlParamsSetGroup(lp,"majorantBVH",model->majorantAccel.bvh);
-      } else if (model->majorantAccel.grid) {
-        owlParamsSetRaw(lp,"majorantGrid",&model->majorantAccel.grid->deviceTraversable);
-      } else if (model->majorantAccel.kdtree) {
-        owlParamsSetRaw(lp,"majorantKDTree",&model->majorantAccel.kdtree->deviceTraversable);
+      if (sampler->majorantAccel.bvh) {
+        owlParamsSetGroup(lp,"majorantBVH",sampler->majorantAccel.bvh);
+      } else if (sampler->majorantAccel.grid) {
+        owlParamsSetRaw(lp,"majorantGrid",&sampler->majorantAccel.grid->deviceTraversable);
+      } else if (sampler->majorantAccel.kdtree) {
+        owlParamsSetRaw(lp,"majorantKDTree",&sampler->majorantAccel.kdtree->deviceTraversable);
       } else {
-        fprintf(stderr,"Model's accels not set, forgot to call initGPU?\n");
+        fprintf(stderr,"Model's accels not set, forgot to call sampler->build()?\n");
       }
 
-      // Set model type-specific data/buffers, and tell the devcie which
-      // sampler mode we use
-      if (auto mod = std::dynamic_pointer_cast<ExaStitchModel>(model)) {
-        owlParamsSetBuffer(lp,"gridletBuffer",mod->gridletBuffer);
-        setSampler(EXA_STITCH_SAMPLER);
-      } else if (auto mod = std::dynamic_pointer_cast<ExaBrickModel>(model)) {
-        owlParamsSetBuffer(lp,"exaBrickBuffer", mod->brickBuffer);
-        owlParamsSetBuffer(lp,"abrBuffer", mod->abrBuffer);
-        owlParamsSetBuffer(lp,"scalarBuffer", mod->scalarBuffer);
-        owlParamsSetBuffer(lp,"abrLeafListBuffer", mod->abrLeafListBuffer);
-        setSampler(EXA_BRICK_SAMPLER);
-      } else if (auto mod = std::dynamic_pointer_cast<AMRCellModel>(model)) {
-        setSampler(AMR_CELL_SAMPLER);
-      }
+      sampler->setLPs(lp);
+    } else {
+      throw std::runtime_error("GPU upload failed");
     }
 
     // ==================================================================
@@ -380,8 +387,6 @@ namespace exa {
                    modelBounds.upper.z);
 
 
-    owlParamsSetGroup(lp,"sampleBVH",model->sampleBVH);
-
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
@@ -403,10 +408,6 @@ namespace exa {
 
     owlParamsSetRaw(lp,"voxelSpaceTransform",&model->voxelSpaceTransform);
     owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
-#ifdef EXA_STITCH_MIRROR_EXAJET
-    affine3f mirrorInvTransform = rcp((const affine3f &)model->mirrorTransform);
-    owlParamsSetRaw(lp,"mirrorInvTransform",&mirrorInvTransform);
-#endif
 
     owlBuildPipeline(owl);
     owlBuildSBT(owl);
@@ -473,9 +474,9 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
 
-    model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
-    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
+    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
 
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
@@ -534,9 +535,9 @@ namespace exa {
     };
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
-    model->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
-    owlParamsSetBuffer(lp,"maxOpacities",model->maxOpacities);
+    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
@@ -580,12 +581,6 @@ namespace exa {
             {2,"teaser"}};
   }
 
-  void OWLRenderer::setSampler(int sampler)
-  {
-    owlParamsSet1i(lp,"sampler",sampler);
-    accumID = 0;
-  }
-  
   void OWLRenderer::setSubImage(const box2f si, bool active)
   {
     owlParamsSet2f(lp,"subImage.value.lower",si.lower.x,si.lower.y);

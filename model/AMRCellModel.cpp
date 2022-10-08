@@ -68,68 +68,6 @@ namespace exa {
     return result; 
   }
 
-  bool AMRCellModel::initGPU(OWLContext context, OWLModule module)
-  {
-    OWLVarDecl amrCellGeomVars[]
-    = {
-       { "amrCellBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,amrCellBuffer)},
-       { "scalarBuffer",  OWL_BUFPTR, OWL_OFFSETOF(AMRCellGeom,scalarBuffer)},
-       { nullptr /* sentinel to mark end of list */ }
-    };
-
-    if (!cells.empty()) {
-      geomType = owlGeomTypeCreate(context,
-                                   OWL_GEOM_USER,
-                                   sizeof(AMRCellGeom),
-                                   amrCellGeomVars, -1);
-      owlGeomTypeSetBoundsProg(geomType, module, "AMRCellGeomBounds");
-      owlGeomTypeSetIntersectProg(geomType,
-                                  SAMPLING_RAY_TYPE,
-                                  module,
-                                  "AMRCellGeomIsect");
-      owlGeomTypeSetClosestHit(geomType,
-                               SAMPLING_RAY_TYPE,
-                               module,
-                               "AMRCellGeomCH");
-
-      OWLGeom geom = owlGeomCreate(context, geomType);
-      owlGeomSetPrimCount(geom, cells.size());
-
-      cellBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(AMRCell),
-                                         cells.size(),
-                                         cells.data());
-
-      scalarBuffer = owlDeviceBufferCreate(context, OWL_FLOAT,
-                                           scalars.size(),
-                                           scalars.data());
-
-      owlGeomSetBuffer(geom,"amrCellBuffer",cellBuffer);
-      owlGeomSetBuffer(geom,"scalarBuffer",scalarBuffer);
-
-      owlBuildPrograms(context);
-
-      blas = owlUserGeomGroupCreate(context, 1, &geom);
-      owlGroupBuildAccel(blas);
-
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      tlas = owlInstanceGroupCreate(context, 2);
-#else
-      tlas = owlInstanceGroupCreate(context, 1);
-#endif
-      owlInstanceGroupSetChild(tlas, 0, blas);
-
-#ifdef EXA_STITCH_MIRROR_EXAJET
-      owlInstanceGroupSetChild(tlas, 1, blas);
-      owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
-#endif
-
-      owlGroupBuildAccel(tlas);
-      return true;
-    }
-
-    return false;
-  }
-
   void AMRCellModel::memStats(size_t &cellsBytes, size_t &scalarsBytes)
   {
     cellsBytes = cells.empty()   ? 0 : cells.size()*sizeof(cells[0]);

@@ -17,15 +17,14 @@
 #pragma once
 
 #include <vector>
-#include "ABRs.h"
-#include "deviceCode.h"
-#include "Grid.h"
+#include <common.h>
+#include <Grid.h>
 #include "Model.h"
+#include "ABRs.h"
 
 namespace exa {
 
-  struct ExaBrickModel : Model,
-                         std::enable_shared_from_this<ExaBrickModel>
+  struct ExaBrickModel : Model
   {
     typedef std::shared_ptr<ExaBrickModel> SP;
 
@@ -33,44 +32,11 @@ namespace exa {
                                   const std::string scalarFileName,
                                   const std::string kdTreeFileName);
 
-    // Set the number of macro cells; the grid is built on initGPU (!)
-    void setNumGridCells(const vec3i numMCs);
-
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
     ABRs                  abrs;
     KDTree::SP            kdtree; // optional kd-tree over bricks
-    Grid::SP              grid;   // optional grid for space skipping
     std::vector<std::vector<int>> adjacentBricks; // adjacency list to splat majorants into neighboring bricks
-
-  private:
-    // owl
-    OWLGeomType abrGeomType;
-    OWLGroup    abrBlas;
-    OWLGroup    abrTlas;
-
-    OWLGeomType extGeomType;
-    OWLGroup    extBlas;
-    OWLGroup    extTlas;
-
-    OWLGeomType brickGeomType;
-    OWLGroup    brickBlas;
-    OWLGroup    brickTlas;
-
-    OWLBuffer   abrMaxOpacities;
-    OWLBuffer   brickValueRanges;
-    OWLBuffer   brickMaxOpacities{ 0 };
-
-  public:
-    OWLBuffer   abrBuffer;
-    OWLBuffer   brickBuffer;
-    OWLBuffer   scalarBuffer;
-    OWLBuffer   abrLeafListBuffer;
-
-    bool initGPU(OWLContext, OWLModule module);
-
-    // Compute per-ABR max opacities on the GPU
-    void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
 
     // Statistics
     void memStats(size_t &bricksBytes,
@@ -79,9 +45,6 @@ namespace exa {
                   size_t &abrLeafListBytes);
   
   private:
-
-    // sets model's accels etc. based on traversal and sampling mode
-    void initBaseModel();
 
     static int traversalMode;
     static int samplerMode;

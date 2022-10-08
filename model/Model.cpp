@@ -22,13 +22,14 @@ namespace exa {
   {
   }
 
-  bool Model::initGPU(OWLContext owl, OWLModule module)
+  void Model::setNumGridCells(const vec3i numMCs)
   {
-    return false;
-  }
+    if (grid != nullptr) {
+      throw std::runtime_error("must set num grid cells before calling initGPU!");
+    }
 
-  void Model::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
-  {
+    grid = std::make_shared<Grid>();
+    grid->dims = numMCs;
   }
 
   void Model::setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to)

@@ -16,8 +16,10 @@
 
 #pragma once
 
+#include <cuda_runtime.h>
 #include "qtOWL/ColorMaps.h"
-#include "Model.h"
+#include "model/Model.h"
+#include "sampler/Sampler.h"
 
 namespace exa {
 
@@ -84,6 +86,7 @@ namespace exa {
     } xf;
 
     Model::SP model { 0 };
+    Sampler::SP sampler { 0 };
 
     OWLBuffer accumBuffer { 0 };
     int accumID { 0 };

@@ -20,33 +20,34 @@
 #include <owl/owl.h>
 #include <owl/common/math/box.h>
 #include <owl/common/math/vec.h>
-#include "deviceCode.h"
+#include "common.h"
+#include "Grid.cuh"
 
 namespace exa {
 
-  class AMRCellModel;
-  class ExaBrickModel;
-  class ExaStitchModel;
+  class AMRCellSampler;
+  class ExaBrickSampler;
+  class ExaStitchSampler;
 
   struct Grid
   {
     typedef std::shared_ptr<Grid> SP;
 
-    // Build from simple cell model
+    // Build from simple cell sampler
     void build(OWLContext owl,
-               std::shared_ptr<AMRCellModel> model,
+               std::shared_ptr<AMRCellSampler> sampler,
                const owl::vec3i numMCs,
                const owl::box3f bounds);
 
-    // Build from exa brick model
+    // Build from exa brick sampler
     void build(OWLContext owl,
-               std::shared_ptr<ExaBrickModel> model,
+               std::shared_ptr<ExaBrickSampler> sampler,
                const owl::vec3i numMCs,
                const owl::box3f bounds);
 
     // Build from exa stitch model
     void build(OWLContext owl,
-               std::shared_ptr<ExaStitchModel> model,
+               std::shared_ptr<ExaStitchSampler> sampler,
                const owl::vec3i  numMCs,
                const owl::box3f  bounds);
 

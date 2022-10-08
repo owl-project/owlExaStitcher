@@ -14,7 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#include "ExaBrickModel.h"
+#include "ExaBrickSampler.h"
 #include "atomicOp.cuh"
 
 namespace exa {
@@ -92,15 +92,15 @@ namespace exa {
     abrMaxOpacities[threadID] = maxOpacity;
   }
 
-  void ExaBrickModel::computeMaxOpacities(OWLContext owl,
-                                          OWLBuffer colorMap,
-                                          range1f xfRange)
+  void ExaBrickSampler::computeMaxOpacities(OWLContext owl,
+                                            OWLBuffer colorMap,
+                                            range1f xfRange)
   {
     if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
-      if (!grid || grid->dims==vec3i(0))
+      if (!model->grid || model->grid->dims==vec3i(0))
         return;
 
-      grid->computeMaxOpacities(owl,colorMap,xfRange);
+      model->grid->computeMaxOpacities(owl,colorMap,xfRange);
     }
 
     if (samplerMode == EXA_BRICK_SAMPLER_ABR_BVH || traversalMode == EXABRICK_ABR_TRAVERSAL) {
@@ -125,11 +125,11 @@ namespace exa {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
       size_t numThreads = 1024;
-      computeMaxOpacitiesForBricks<<<iDivUp(bricks.size(), numThreads), numThreads>>>(
+      computeMaxOpacitiesForBricks<<<iDivUp(model->bricks.size(), numThreads), numThreads>>>(
         (float *)owlBufferGetPointer(brickMaxOpacities,0),
         (const range1f *)owlBufferGetPointer(brickValueRanges,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
-        bricks.size(),numColors,xfRange);
+        model->bricks.size(),numColors,xfRange);
 
       if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH) {
         owlGroupBuildAccel(extBlas);

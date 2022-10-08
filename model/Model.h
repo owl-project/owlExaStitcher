@@ -20,43 +20,36 @@
 #include <owl/common/math/AffineSpace.h>
 #include <owl/common/math/box.h>
 #include <owl/owl.h>
-#include "deviceCode.h"
+#include "common.h"
 #include "Grid.h"
 #include "KDTree.h"
 
 namespace exa {
 
-  struct Model
+  struct Model : std::enable_shared_from_this<Model>
   {
     typedef std::shared_ptr<Model> SP;
 
     virtual ~Model();
 
-    virtual bool initGPU(OWLContext owl, OWLModule module);
+    template <typename T>
+    inline std::shared_ptr<T> as()
+    {
+      if (!this) return {};
+      return std::dynamic_pointer_cast<T>(shared_from_this());
+    }
 
-    virtual void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
+    // Set the number of macro cells; the grid is built on Sampler::build() (!)
+    void setNumGridCells(const vec3i numMCs);
 
     void setVoxelSpaceTransform(const box3f remap_from, const box3f remap_to);
+
+    /*! optional grid for space skipping */
+    Grid::SP grid = nullptr;
 
     /*! return proper WORLD SPACE bounds, AFTER transformign voxel
       bounds back from voxel space to world space */
     box3f getBounds() const;
-
-    /*! BVH used to sample the volume grid */
-    OWLGroup sampleBVH{ 0 };
-
-    /*! the accel used for traversal/space skipping;
-      upon successful initGPU, *either one* of these should
-      not be NULL! */
-    struct {
-      OWLGroup bvh{ 0 };
-      Grid::SP grid{ 0 };
-      KDTree::SP kdtree{ 0 };
-    } majorantAccel;
-
-    /*! majorants/max opacities; these are set by the model classes,
-      e.g., when initGPU is called */
-    OWLBuffer maxOpacities{ 0 };
 
     box3f    cellBounds;
     range1f  valueRange;
