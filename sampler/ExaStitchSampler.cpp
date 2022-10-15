@@ -205,7 +205,9 @@ namespace exa {
     std::vector<OWLVarDecl> vars
       = {
          { "ess.sampleBVH", OWL_GROUP, OWL_OFFSETOF(LP,sampleBVH) },
+#ifdef EXA_STITCH_MIRROR_EXAJET
          { "ess.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
+#endif
     };
     return vars;
   }

@@ -277,7 +277,9 @@ namespace exa {
          { "ebs.abrBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrBuffer) },
          { "ebs.scalarBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,scalarBuffer) },
          { "ebs.abrLeafListBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrLeafListBuffer) },
+#ifdef EXA_STITCH_MIRROR_EXAJET
          { "ebs.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
+#endif
     };
     return vars;
   }

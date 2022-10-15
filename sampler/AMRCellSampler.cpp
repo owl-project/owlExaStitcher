@@ -126,7 +126,9 @@ namespace exa {
     std::vector<OWLVarDecl> vars
       = {
          { "acs.sampleBVH", OWL_GROUP, OWL_OFFSETOF(LP,sampleBVH) },
+#ifdef EXA_STITCH_MIRROR_EXAJET
          { "acs.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
+#endif
     };
     return vars;
   }
