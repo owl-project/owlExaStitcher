@@ -1224,40 +1224,35 @@ namespace exa {
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
 
-  template <Integrator I, ShadeMode SM, typename Sampler>
-  inline void __device__ renderFrame_SelectAccelType(const Sampler &sampler)
-  {
-    auto& lp = optixLaunchParams;
-//#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
-    renderFrame_Impl<I,SM>(lp.majorantGrid,sampler);
-//#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE ==  EXABRICK_KDTREE_TRAVERSAL
-//    renderFrame_Impl<I,SM>(lp.majorantKDTree,sampler);
-//#else
-//    renderFrame_Impl<I,SM>(lp.majorantBVH,sampler);
-//#endif
-  }
-
-  template <ShadeMode SM, typename Sampler>
-  inline void __device__ renderFrame_SelectIntegrator(const Sampler &sampler)
+  template <ShadeMode SM, typename Traversable, typename Sampler>
+  inline void __device__ renderFrame_SelectIntegrator(const Traversable &traversable, const Sampler &sampler)
   {
     auto& lp = optixLaunchParams;
     
     if (lp.integrator==PATH_TRACING_INTEGRATOR)
-      renderFrame_SelectAccelType<PathTracer,SM>(sampler);
+      renderFrame_Impl<PathTracer,SM>(traversable,sampler);
     else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR)
-      renderFrame_SelectAccelType<DirectLighting,SM>(sampler);
+      renderFrame_Impl<DirectLighting,SM>(traversable,sampler);
     else if (lp.integrator==RAY_MARCHING_INTEGRATOR)
-      renderFrame_SelectAccelType<RayMarcher,SM>(sampler);
+      renderFrame_Impl<RayMarcher,SM>(traversable,sampler);
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame_AMRCellSampler)()
   {
-    renderFrame_SelectIntegrator<Default>(optixLaunchParams.sampler.acs);
+    auto& lp = optixLaunchParams;
+    renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.acs);
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame_ExaBrickSampler)()
   {
-    renderFrame_SelectIntegrator<Default>(optixLaunchParams.sampler.ebs);
+    auto& lp = optixLaunchParams;
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
+    renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.ebs);
+#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE ==  EXABRICK_KDTREE_TRAVERSAL
+    renderFrame_SelectIntegrator<Default>(lp.majorantKDTree,lp.sampler.ebs);
+#else
+    renderFrame_SelectIntegrator<Default>(lp.majorantBVH,lp.sampler.ebs);
+#endif
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame_ExaStitchSampler)()
@@ -1265,11 +1260,11 @@ namespace exa {
     auto& lp = optixLaunchParams;
 
     if (lp.shadeMode == SHADE_MODE_DEFAULT)
-      return renderFrame_SelectIntegrator<Default>(lp.sampler.ess);
+      return renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.ess);
     else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
-      return renderFrame_SelectIntegrator<Gridlets>(lp.sampler.ess);
+      return renderFrame_SelectIntegrator<Gridlets>(lp.majorantGrid,lp.sampler.ess);
     else if (lp.shadeMode == SHADE_MODE_TEASER)
-      return renderFrame_SelectIntegrator<Teaser>(lp.sampler.ess);
+      return renderFrame_SelectIntegrator<Teaser>(lp.majorantGrid,lp.sampler.ess);
   }
 } // ::exa
 
