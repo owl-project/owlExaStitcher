@@ -180,8 +180,6 @@ namespace exa {
       return false;
 
     grid->build(context,shared_from_this()->as<ExaStitchSampler>(),grid->dims,cellBounds);
-    // initializes the device traversable
-    grid->initGPU(context,module);
 #ifdef EXA_STITCH_MIRROR_EXAJET
     grid->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
     grid->deviceTraversable.mirrorPlane.axis = 1;

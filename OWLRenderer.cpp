@@ -261,6 +261,14 @@ namespace exa {
 
     if (sampler->build(owl,model)) {
 
+      // Currently only for ExaBricks, build an optional BVH over the majorant grid
+      // (the OPtiX code for that lives in *this* module!)
+      if (auto ebs = sampler->as<ExaBrickSampler>()) {
+        if (ebs->traversalMode == MC_BVH_TRAVERSAL)
+          if (!ebs->buildOptixBVH(owl,module))
+            throw std::runtime_error("Building BVH from grid failed");
+      }
+
       // Set the traversal accel (whatever that _is_)
       if (sampler->majorantAccel.bvh) {
         owlParamsSetGroup(lp,"majorantBVH",sampler->majorantAccel.bvh);

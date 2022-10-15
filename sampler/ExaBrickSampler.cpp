@@ -177,17 +177,11 @@ namespace exa {
         return false;
 
       grid->build(context,shared_from_this()->as<ExaBrickSampler>(),grid->dims,cellBounds);
-      // build the BVH, for the "traverse grid with optix" mode
-      // Also initializes the device traversable
-      grid->initGPU(context,module);
 #ifdef EXA_STITCH_MIRROR_EXAJET
       if (traversalMode == MC_DDA_TRAVERSAL) {
         grid->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
         grid->deviceTraversable.mirrorPlane.axis = 1;
         grid->deviceTraversable.mirrorPlane.offset = cellBounds.upper.y;
-      } else if (traversalMode == MC_BVH_TRAVERSAL) {
-        owlInstanceGroupSetTransform(grid->tlas, 1, &mirrorTransform);
-        owlGroupBuildAccel(grid->tlas);
       }
 #endif
     }
@@ -247,6 +241,27 @@ namespace exa {
     } else if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH) {
       sampleBVH = extTlas;
     }
+
+    initTraversal();
+
+    return true;
+  }
+
+  bool ExaBrickSampler::buildOptixBVH(OWLContext owl, OWLModule module)
+  {
+    if (traversalMode != MC_BVH_TRAVERSAL)
+      return false;
+
+    if (!model->grid || model->grid->dims==vec3i(0))
+      return false;
+
+    if (!model->grid->buildOptixBVH(owl,module))
+      return false;
+
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    owlInstanceGroupSetTransform(model->grid->tlas, 1, &model->mirrorTransform);
+    owlGroupBuildAccel(model->grid->tlas);
+#endif
 
     initTraversal();
 

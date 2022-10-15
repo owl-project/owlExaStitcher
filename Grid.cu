@@ -18,6 +18,7 @@
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
 #include "common.h"
+#include "deviceCode.h"
 #include "Grid.h"
 #include "Grid.cuh"
 #include "atomicOp.cuh"
@@ -343,6 +344,16 @@ namespace exa {
       cudaDeviceSynchronize();
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
+
+    // init device traversable for DDA
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    deviceTraversable.traversable.dims = dims;
+    deviceTraversable.traversable.bounds = worldBounds;
+#else
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+#endif
+
   }
 
   void Grid::build(OWLContext          owl,
@@ -428,6 +439,16 @@ namespace exa {
                                           hValueRanges.size(),
                                           hValueRanges.data());
     }
+
+    // init device traversable for DDA
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    deviceTraversable.traversable.dims = dims;
+    deviceTraversable.traversable.bounds = worldBounds;
+#else
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+#endif
+
   }
 
   void Grid::build(OWLContext           owl,
@@ -503,11 +524,20 @@ namespace exa {
       double tlast = getCurrentTime();
       std::cout << tlast-tfirst << '\n';
     }
+
+    // init device traversable for DDA
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    deviceTraversable.traversable.dims = dims;
+    deviceTraversable.traversable.bounds = worldBounds;
+#else
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+#endif
+
   }
 
-  bool Grid::initGPU(OWLContext owl, OWLModule module)
+  bool Grid::buildOptixBVH(OWLContext owl, OWLModule module)
   {
-#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_BVH_TRAVERSAL
     // build BVH (tarversal method a)
     OWLVarDecl geomVars[]
     = {
@@ -544,16 +574,6 @@ namespace exa {
     tlas = owlInstanceGroupCreate(owl, 1);
     owlInstanceGroupSetChild(tlas, 0, blas);
     owlGroupBuildAccel(tlas);
-#endif
-#endif
-
-    // init device traversable for DDA (traversal method b)
-#ifdef EXA_STITCH_MIRROR_EXAJET
-    deviceTraversable.traversable.dims = dims;
-    deviceTraversable.traversable.bounds = worldBounds;
-#else
-    deviceTraversable.dims = dims;
-    deviceTraversable.bounds = worldBounds;
 #endif
 
     return true;

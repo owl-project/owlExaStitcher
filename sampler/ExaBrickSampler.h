@@ -31,6 +31,9 @@ namespace exa {
   {
     typedef std::shared_ptr<ExaBrickSampler> SP;
 
+    static int traversalMode;
+    static int samplerMode;
+
     // Launch params associated with sampler
     struct LP {
       OptixTraversableHandle sampleBVH;
@@ -44,6 +47,9 @@ namespace exa {
     };
 
     bool build(OWLContext owl, Model::SP model);
+
+    /* build OptiX BVH (currently implemented in another module) */
+    bool buildOptixBVH(OWLContext owl, OWLModule module);
 
     void computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange);
 
@@ -87,9 +93,6 @@ namespace exa {
 
     // sets traversal accel on base sampler
     void initTraversal();
-
-    static int traversalMode;
-    static int samplerMode;
   };
 
 #ifdef __CUDA_ARCH__
