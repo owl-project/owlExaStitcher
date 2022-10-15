@@ -12,6 +12,9 @@ XF="-xf gear.xf"
 
 fpsfile="-fps gear.fps"
 
+samplers=("ABRs" "Extended bricks")
+iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
+
 for sampler_mode in {0..1}
 do
   for traversal_mode in {0..4}
@@ -24,6 +27,8 @@ do
         -DEXA_STITCH_EXA_BRICK_SAMPLER_MODE=${sampler_mode} \
         -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=${traversal_mode}
     cmake --build ${BUILD_DIR} -j
+
+    echo "Benchmark: ExaBricks, sampler: ${samplers[${sampler_mode}]}, traversal: ${iterators[${traversal_mode}]}"
 
     outfile="-o gear_sm${sampler_mode}_tm${traversal_mode}"
     ${BUILD_DIR}/exaStitchHeadlessViewer ${BRICKS} ${KDTREE} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${XFORM} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee gear.out
