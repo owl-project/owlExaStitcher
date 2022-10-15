@@ -21,9 +21,6 @@ do
   for traversal_mode in {0..4}
   do
     cmake ${BUILD_DIR} \
-        -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=OFF \
-        -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=ON \
-        -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=OFF \
         -DEXA_STITCH_MIRROR_EXAJET=ON \
         -DEXA_STITCH_EXA_BRICK_SAMPLER_MODE=${sampler_mode} \
         -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=${traversal_mode}
