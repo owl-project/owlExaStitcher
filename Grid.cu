@@ -18,7 +18,7 @@
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
 #include "common.h"
-#include "deviceCode.h"
+#include "LaunchParams.h" // for MacroCellGeom (dependency should be removed eventually)
 #include "Grid.h"
 #include "Grid.cuh"
 #include "atomicOp.cuh"

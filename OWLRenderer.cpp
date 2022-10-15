@@ -20,7 +20,7 @@
 #include "sampler/AMRCellSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
-#include "deviceCode.h"
+#include "LaunchParams.h"
 #include "OWLRenderer.h"
 #include "TriangleMesh.h"
 

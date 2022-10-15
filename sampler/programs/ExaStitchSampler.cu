@@ -15,9 +15,9 @@
 // ======================================================================== //
 
 #include <common.h>
-#include <deviceCode.h>
 #include <Plane.h>
 #include <UElems.h>
+#include "../ExaStitchSampler.h"
 
 namespace exa {
 

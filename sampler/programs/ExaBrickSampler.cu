@@ -15,7 +15,7 @@
 // ======================================================================== //
 
 #include <common.h>
-#include <deviceCode.h>
+#include <LaunchParams.h> // TODO: still depends on renderer's laucnh params
 
 namespace exa {
 

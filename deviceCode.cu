@@ -15,7 +15,7 @@
 // ======================================================================== //
 
 #include <float.h>
-#include "deviceCode.h"
+#include "LaunchParams.h"
 #include "Grid.cuh"
 #include "KDTree.cuh"
 #include "Plane.h"

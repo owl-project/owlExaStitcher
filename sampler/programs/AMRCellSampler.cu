@@ -15,7 +15,7 @@
 // ======================================================================== //
 
 #include <common.h>
-#include <deviceCode.h>
+#include "../AMRCellSampler.h"
 
 namespace exa {
 
