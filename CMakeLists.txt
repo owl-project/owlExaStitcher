@@ -101,28 +101,9 @@ add_library(witcher STATIC
   LightInteractor.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
-  Witcher.cpp
   )
 
 #--- options ----------------------------------------------
-option(EXA_STITCH_WITH_EXA_STITCH_SAMPLER "Build includes exa stitch sampler" ON)
-if(EXA_STITCH_WITH_EXA_STITCH_SAMPLER)
-  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=1)
-  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_EXA_STITCH_SAMPLER=1)
-endif()
-
-option(EXA_STITCH_WITH_EXA_BRICK_SAMPLER "Build includes exa brick sampler" ON)
-if(EXA_STITCH_WITH_EXA_BRICK_SAMPLER)
-  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=1)
-  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_EXA_BRICK_SAMPLER=1)
-endif()
-
-option(EXA_STITCH_WITH_AMR_CELL_SAMPLER "Build includes AMR cell sampler" ON)
-if(EXA_STITCH_WITH_AMR_CELL_SAMPLER)
-  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
-  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_WITH_AMR_CELL_SAMPLER=1)
-endif()
-
 option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)
 if(EXA_STITCH_MIRROR_EXAJET)
   target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
