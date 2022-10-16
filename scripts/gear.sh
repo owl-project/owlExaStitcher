@@ -1,4 +1,6 @@
 BUILD_DIR="/home/ampere/stefan/exastitch/build"
+UMESH="/slow/stitcher/landinggear.umesh"
+GRIDLETS="-grids /slow/stitcher/landinggear.grids"
 BRICKS="-bricks /slow/stefan/gear.bricks"
 SCALARS="-scalars /fast/exa/landinggear/derived/chombo.exa.velmag.scalars"
 KDTREE="-kdtree /slow/stefan/gear.kd"
@@ -12,6 +14,18 @@ XF="-xf gear.xf"
 
 fpsfile="-fps gear.fps"
 
+#--- Stitcher benchmark -----------------------------------
+cmake ${BUILD_DIR} \
+    -DEXA_STITCH_MIRROR_EXAJET=OFF
+cmake --build ${BUILD_DIR} -j
+
+echo "Benchmark: Stitcher"
+
+outfile="-o gear_stitcher"
+${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${XFORM} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee gear.out
+
+
+#--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
 

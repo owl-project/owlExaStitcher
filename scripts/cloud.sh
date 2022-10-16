@@ -1,4 +1,6 @@
 BUILD_DIR="/home/ampere/stefan/exastitch/build"
+UMESH="/slow/stitcher/cloud.umesh"
+GRIDLETS="-grids /slow/stitcher/cloud.grids.8"
 BRICKS="-bricks /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.bricks"
 SCALARS="-scalars /fast/data/exa/MC1_L11/SILCC_hdf5_plt_cnt_0300_dens.scalars"
 KDTREE="-kdtree /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.kd"
@@ -11,6 +13,18 @@ IMG_SIZE="-win 1024 1024"
 
 fpsfile="-fps cloud.fps"
 
+#--- Stitcher benchmark -----------------------------------
+cmake ${BUILD_DIR} \
+    -DEXA_STITCH_MIRROR_EXAJET=OFF
+cmake --build ${BUILD_DIR} -j
+
+echo "Benchmark: Stitcher"
+
+outfile="-o cloud_stitcher"
+${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee cloud.out
+
+
+#--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
 

@@ -1,4 +1,6 @@
 BUILD_DIR="/home/ampere/stefan/exastitch/build"
+UMESH="/slow/stitcher/exajet.umesh"
+GRIDLETS="-grids /slow/stitcher/exajet.grids"
 BRICKS="-bricks /slow/UNSORTED/exa/exajet/exajet-spatial-32min.bricks"
 SCALARS="-scalars /slow/UNSORTED/exa/exajet/mag_vorticity.bin"
 KDTREE="-kdtree /slow/UNSORTED/exa/exajet/exajet-spatial-32min.kdtree"
@@ -13,6 +15,18 @@ IMG_SIZE="--size 1024 1024"
 
 fpsfile="-fps exajet-rear.fps"
 
+#--- Stitcher benchmark -----------------------------------
+cmake ${BUILD_DIR} \
+    -DEXA_STITCH_MIRROR_EXAJET=ON
+cmake --build ${BUILD_DIR} -j
+
+echo "Benchmark: Stitcher"
+
+outfile="-o exajet-rear_stitcher"
+${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${XFORM} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee exajet-rear.out
+
+
+#--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
 

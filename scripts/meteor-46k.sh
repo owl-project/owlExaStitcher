@@ -1,4 +1,6 @@
 BUILD_DIR="/home/ampere/stefan/exastitch/build"
+UMESH="/slow/stitcher/meteor-46k.umesh"
+GRIDLETS="-grids /slow/stitcher/meteor-46k.grids.8"
 BRICKS="-bricks /slow/qiwu/meteor-46112.bricks"
 SCALARS="-scalars /slow/UNSORTED/exa/meteor-46k/meteor-46112.tev.scalars"
 KDTREE="-kdtree /slow/qiwu/meteor-46112.kd"
@@ -12,6 +14,18 @@ IMG_SIZE="-win 1024 1024"
 
 fpsfile="-fps meteor-46k.fps"
 
+#--- Stitcher benchmark -----------------------------------
+cmake ${BUILD_DIR} \
+    -DEXA_STITCH_MIRROR_EXAJET=OFF
+cmake --build ${BUILD_DIR} -j
+
+echo "Benchmark: Stitcher"
+
+outfile="-o meteor-46k_stitcher"
+${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee meteor-46k.out
+
+
+#--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
 

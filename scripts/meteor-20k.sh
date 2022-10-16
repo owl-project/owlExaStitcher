@@ -12,6 +12,18 @@ IMG_SIZE="-win 1024 1024"
 
 fpsfile="-fps meteor-20k.fps"
 
+#--- Stitcher benchmark -----------------------------------
+cmake ${BUILD_DIR} \
+    -DEXA_STITCH_MIRROR_EXAJET=OFF
+cmake --build ${BUILD_DIR} -j
+
+echo "Benchmark: Stitcher"
+
+outfile="-o meteor-20k_stitcher"
+${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee meteor-20k.out
+
+
+#--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH")
 
