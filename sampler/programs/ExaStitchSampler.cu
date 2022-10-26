@@ -31,8 +31,13 @@ namespace exa {
   {
     const GridletGeom &self = *(const GridletGeom *)geomData;
 
-    const Gridlet &gridlet = self.gridletBuffer[leafID];
-    result = gridlet.getBounds();
+    if (self.gridletMaxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      const Gridlet &gridlet = self.gridletBuffer[leafID];
+      result = gridlet.getBounds();
+    }
   }
 
   OPTIX_INTERSECT_PROGRAM(GridletGeomIsect)()
@@ -113,13 +118,18 @@ namespace exa {
   {
     const StitchGeom &self = *(const StitchGeom *)geomData;
 
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
     result = box3f();
-    for (int i=0; i<8; ++i) {
-      int idx = self.indexBuffer[leafID*8+i];
-      if (idx < 0) break;
-      vec3f v(self.vertexBuffer[idx]);
-      result.extend(v);
-      // printf("%i: %f,%f,%f\n",idx,v.x,v.y,v.z);
+      for (int i=0; i<8; ++i) {
+        int idx = self.indexBuffer[leafID*8+i];
+        if (idx < 0) break;
+        vec3f v(self.vertexBuffer[idx]);
+        result.extend(v);
+        // printf("%i: %f,%f,%f\n",idx,v.x,v.y,v.z);
+      }
     }
   }
 

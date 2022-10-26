@@ -28,6 +28,7 @@ namespace exa {
     = {
        { "gridletBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletBuffer)},
        { "gridletScalarBuffer",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletScalarBuffer)},
+       { "gridletMaxOpacities",  OWL_BUFPTR, OWL_OFFSETOF(GridletGeom,gridletMaxOpacities)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -35,6 +36,7 @@ namespace exa {
     = {
        { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,indexBuffer)},
        { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,vertexBuffer)},
+       { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(StitchGeom,maxOpacities)},
        { nullptr /* sentinel to mark end of list */ }
     };
 
@@ -60,6 +62,15 @@ namespace exa {
     // ==================================================================
 
     if (!gridlets.empty()) {
+      gridletValueRanges = owlDeviceBufferCreate(context, OWL_USER_TYPE(range1f),
+                                                 model->gridlets.size(),
+                                                 nullptr);
+
+
+      gridletMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                  model->gridlets.size(),
+                                                  nullptr);
+
       gridletGeom.geomType = owlGeomTypeCreate(context,
                                                OWL_GEOM_USER,
                                                sizeof(GridletGeom),
@@ -87,8 +98,11 @@ namespace exa {
 
       owlGeomSetBuffer(geom,"gridletBuffer",gridletBuffer);
       owlGeomSetBuffer(geom,"gridletScalarBuffer",gridletScalarBuffer);
+      owlGeomSetBuffer(geom,"gridletMaxOpacities",gridletMaxOpacities);
 
       owlBuildPrograms(context);
+
+      computeGridletValueRanges(context);
 
       gridletGeom.blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(gridletGeom.blas);
@@ -99,6 +113,10 @@ namespace exa {
     // ==================================================================
 
     if (!vertices.empty() && !indices.empty()) {
+      umeshMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                indices.size()/8,
+                                                nullptr);
+
       stitchGeom.geomType = owlGeomTypeCreate(context,
                                               OWL_GEOM_USER,
                                               sizeof(StitchGeom),
@@ -126,6 +144,7 @@ namespace exa {
 
       owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
       owlGeomSetBuffer(geom,"indexBuffer",indexBuffer);
+      owlGeomSetBuffer(geom,"maxOpacities",umeshMaxOpacities);
 
       owlBuildPrograms(context);
 
@@ -190,14 +209,6 @@ namespace exa {
 
     // All tests passed => success
     return true;
-  }
-
-  void ExaStitchSampler::computeMaxOpacities(OWLContext owl, OWLBuffer colorMap, range1f xfRange)
-  {
-    if (!model->grid || model->grid->dims==vec3i(0))
-      return;
-
-    model->grid->computeMaxOpacities(owl,colorMap,xfRange);
   }
 
   std::vector<OWLVarDecl> ExaStitchSampler::getLPVariables()

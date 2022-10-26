@@ -24,11 +24,13 @@ namespace exa {
   struct GridletGeom {
     Gridlet *gridletBuffer;
     float   *gridletScalarBuffer;
+    float   *gridletMaxOpacities;
   };
 
   struct StitchGeom {
     int   *indexBuffer;
     vec4f *vertexBuffer;
+    float *maxOpacities;
   };
 
   struct ExaStitchSampler : Sampler
@@ -78,6 +80,11 @@ namespace exa {
     OWLBuffer gridletScalarBuffer;
   private:
 
+    OWLBuffer gridletValueRanges{ 0 };
+    OWLBuffer gridletMaxOpacities{ 0 };
+    OWLBuffer umeshMaxOpacities{ 0 };
+
+    void computeGridletValueRanges(OWLContext owl);
   };
 
 #ifdef __CUDA_ARCH__
