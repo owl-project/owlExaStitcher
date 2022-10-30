@@ -56,5 +56,11 @@ typedef owl::interval<float> range1f;
 namespace exa {
   typedef int SamplingMode;
   typedef int TraversalMode;
+
+  inline __both__
+  float lerp(const float val1, const float val2, const float x)
+  {
+    return (1.f-x)*val1+x*val2;
+  };
 } // ::exa
 

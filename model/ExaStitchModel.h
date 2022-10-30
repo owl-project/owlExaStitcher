@@ -18,7 +18,7 @@
 
 #include <vector>
 #include <common.h>
-#include "Gridlet.h"
+#include <Gridlet.h>
 #include "Model.h"
 
 namespace exa {

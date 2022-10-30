@@ -85,6 +85,13 @@ namespace exa {
     int domainID;
   };
 
+  template <typename DeviceSampler>
+  inline __device__
+  Sample testSample(DeviceSampler /*for tag dispatch*/, const vec3f pos, int primID)
+  {
+    return {-1,-1,0.f};
+  }
+
   /* call it PRD when used as taht */
   typedef SpatialDomain DomainPRD;
 
@@ -112,12 +119,6 @@ namespace exa {
 
     return t0 < t1;
   }
-
-  inline __device__
-  float lerp(const float val1, const float val2, const float x)
-  {
-    return (1.f-x)*val1+x*val2;
-  };
 
 #endif
 } // ::exa

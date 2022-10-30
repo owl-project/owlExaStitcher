@@ -598,6 +598,11 @@ namespace exa {
 
       float t = t0;
 
+#define CACHING 1
+#ifdef CACHING
+      int primID = -1;
+#endif
+
       while (1) { // Delta tracking loop
 
         if (majorant <= 0.f)
@@ -609,11 +614,23 @@ namespace exa {
           break;
         }
 
+#ifdef CACHING
+        Sample s = testSample(sampler,pos,primID);
+        if (s.primID < 0) {
+          SpatialDomain dom{t0,t1,leafID};
+          pos = ray.origin+ray.direction*t;
+          s = sample(sampler,dom,pos);
+        }
+
+        if (s.primID < 0)
+          continue;
+#else
         SpatialDomain dom{t0,t1,leafID};
         pos = ray.origin+ray.direction*t;
         Sample s = sample(sampler,dom,pos);
         if (s.primID < 0)
           continue;
+#endif
 
         if constexpr (SM==Default) {
           const range1f xfDomain = lp.transferFunc.domain;

@@ -89,6 +89,15 @@ namespace exa {
 
 #ifdef __CUDA_ARCH__
   inline __device__
+  Sample testSample(const ExaStitchSampler::LP &lp,
+                    const vec3f pos, int primID)
+  {
+    Sample sample{-1,-1,0.f};
+
+    return sample;
+  }
+
+  inline __device__
   Sample sample(const ExaStitchSampler::LP &lp,
                 const SpatialDomain &domain,
                 const vec3f pos)
