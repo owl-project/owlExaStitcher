@@ -216,6 +216,8 @@ namespace exa {
     std::vector<OWLVarDecl> vars
       = {
          { "ess.sampleBVH", OWL_GROUP, OWL_OFFSETOF(LP,sampleBVH) },
+         { "ess.gridletBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,gridletBuffer) },
+         { "ess.gridletScalarBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,gridletScalarBuffer) },
 #ifdef EXA_STITCH_MIRROR_EXAJET
          { "ess.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
 #endif
@@ -226,6 +228,8 @@ namespace exa {
   void ExaStitchSampler::setLPs(OWLParams lp)
   {
     owlParamsSetGroup(lp,"ess.sampleBVH",tlas);
+    owlParamsSetBuffer(lp,"ess.gridletBuffer",gridletBuffer);
+    owlParamsSetBuffer(lp,"ess.gridletScalarBuffer",gridletScalarBuffer);
 #ifdef EXA_STITCH_MIRROR_EXAJET
     affine3f mirrorInvTransform = rcp((const affine3f &)model->mirrorTransform);
     owlParamsSetRaw(lp,"ess.mirrorInvTransform",&mirrorInvTransform);

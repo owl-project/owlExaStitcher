@@ -16,7 +16,8 @@
 
 #pragma once
 
-#include "model/ExaStitchModel.h"
+#include <model/ExaStitchModel.h>
+#include <Gridlet.h>
 #include "Sampler.h"
 
 namespace exa {
@@ -40,6 +41,8 @@ namespace exa {
     // Launch params associated with sampler
     struct LP {
       OptixTraversableHandle sampleBVH;
+      Gridlet *gridletBuffer;
+      float *gridletScalarBuffer;
 #ifdef EXA_STITCH_MIRROR_EXAJET
       affine3f  mirrorInvTransform;
 #endif
@@ -93,6 +96,16 @@ namespace exa {
                     const vec3f pos, int primID)
   {
     Sample sample{-1,-1,0.f};
+
+    if (primID < 0)
+      return sample;
+
+    if (intersectGridlet(sample.value,sample.cellID,pos,
+                         lp.gridletBuffer[primID],
+                         lp.gridletScalarBuffer))
+    {
+      sample.primID = primID;
+    }
 
     return sample;
   }

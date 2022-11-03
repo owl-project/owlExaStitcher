@@ -615,15 +615,19 @@ namespace exa {
         }
 
 #ifdef CACHING
+        pos = ray.origin+ray.direction*t;
         Sample s = testSample(sampler,pos,primID);
         if (s.primID < 0) {
           SpatialDomain dom{t0,t1,leafID};
-          pos = ray.origin+ray.direction*t;
           s = sample(sampler,dom,pos);
         }
 
         if (s.primID < 0)
           continue;
+
+        // remember for next time!
+        if (s.cellID != -1) // only girdlets for now
+          primID = s.primID;
 #else
         SpatialDomain dom{t0,t1,leafID};
         pos = ray.origin+ray.direction*t;
