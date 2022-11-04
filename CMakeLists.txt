@@ -79,6 +79,17 @@ set(CMAKE_AUTOMOC ON)
 
 add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
+# ------------------------------------------------------------------
+# bigmesh (FIXME!)
+# ------------------------------------------------------------------
+
+set(bigmesh_libraries "/home/ampere/stefan/umeshviewer-install/lib/libmpm_model.a")
+set(bigmesh_libraries ${bigmesh_libraries} "/home/ampere/stefan/umeshviewer-install/lib/libmpm_accel.a")
+set(bigmesh_include_dir "/home/ampere/stefan/umeshviewer-install/include")
+set(umesh_include_dir "${PROJECT_SOURCE_DIR}/submodules/umesh")
+include_directories(${bigmesh_include_dir})
+include_directories(${umesh_include_dir})
+
 
 # ------------------------------------------------------------------
 # witcher lib
@@ -88,10 +99,12 @@ include_directories(${PROJECT_SOURCE_DIR})
 add_library(witcher STATIC
   model/ABRs.cpp
   model/AMRCellModel.cpp
+  model/BigMeshModel.cpp
   model/ExaBrickModel.cpp
   model/ExaStitchModel.cpp
   model/Model.cpp
   sampler/AMRCellSampler.cpp
+  sampler/BigMeshSampler.cpp
   sampler/ExaBrickSampler.cpp
   sampler/ExaBrickSampler.cu
   sampler/ExaStitchSampler.cpp
@@ -132,6 +145,7 @@ target_link_libraries(witcher
       owl::owl
       qtOWL
       umesh
+      ${bigmesh_libraries}
       ${OPENGL_LIBRARIES})
 
 # ------------------------------------------------------------------

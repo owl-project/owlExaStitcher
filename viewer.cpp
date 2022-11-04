@@ -43,6 +43,7 @@ namespace exa {
     std::string gridsFileName = "";
     std::string amrCellFileName = "";
     std::string exaBrickFileName = "";
+    std::string bigMeshFileName = "";
     std::string kdtreeFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
@@ -561,6 +562,9 @@ namespace exa {
       else if (arg == "-bricks") {
         cmdline.exaBrickFileName = argv[++i];
       }
+      else if (arg == "-bm") {
+        cmdline.bigMeshFileName = argv[++i];
+      }
       else if (arg == "-kdtree") {
         cmdline.kdtreeFileName = argv[++i];
       }
@@ -662,6 +666,7 @@ namespace exa {
                          cmdline.gridsFileName,
                          cmdline.amrCellFileName,
                          cmdline.exaBrickFileName,
+                         cmdline.bigMeshFileName,
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
                          cmdline.kdtreeFileName,

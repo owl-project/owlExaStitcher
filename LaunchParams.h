@@ -26,6 +26,7 @@
 #include "owl/common/math/random.h"
 
 #include "sampler/AMRCellSampler.h"
+#include "sampler/BigMeshSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
 #include "common.h"
@@ -49,6 +50,7 @@ namespace exa {
   struct LaunchParams {
     union {
       AMRCellSampler::LP   acs;
+      BigMeshSampler::LP   bms;
       ExaBrickSampler::LP  ebs;
       ExaStitchSampler::LP ess;
     } sampler;

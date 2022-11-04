@@ -1264,6 +1264,12 @@ namespace exa {
     renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.acs);
   }
 
+  OPTIX_RAYGEN_PROGRAM(renderFrame_BigMeshSampler)()
+  {
+    auto& lp = optixLaunchParams;
+    renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.bms);
+  }
+
   OPTIX_RAYGEN_PROGRAM(renderFrame_ExaBrickSampler)()
   {
     auto& lp = optixLaunchParams;

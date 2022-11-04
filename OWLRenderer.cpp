@@ -15,9 +15,11 @@
 // ======================================================================== //
 
 #include "model/AMRCellModel.h"
+#include "model/BigMeshModel.h"
 #include "model/ExaBrickModel.h"
 #include "model/ExaStitchModel.h"
 #include "sampler/AMRCellSampler.h"
+#include "sampler/BigMeshSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
 #include "LaunchParams.h"
@@ -109,6 +111,7 @@ namespace exa {
                            const std::string gridsFileName,
                            const std::string amrCellFileName,
                            const std::string exaBrickFileName,
+                           const std::string bigMeshFileName,
                            const std::string meshFileName,
                            const std::string scalarFileName,
                            const std::string kdtreeFileName,
@@ -125,6 +128,9 @@ namespace exa {
     }
     else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
       model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
+    }
+    else if (!bigMeshFileName.empty()) {
+      model = BigMeshModel::load(bigMeshFileName);
     }
     else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
       model = AMRCellModel::load(amrCellFileName,scalarFileName);
@@ -223,6 +229,8 @@ namespace exa {
 
     if (model->as<AMRCellModel>()) {
       sampler = std::make_shared<AMRCellSampler>();
+    } else if (model->as<BigMeshModel>()) {
+      sampler = std::make_shared<BigMeshSampler>();
     } else if (model->as<ExaBrickModel>()) {
       sampler = std::make_shared<ExaBrickSampler>();
     } else if (model->as<ExaStitchModel>()) {

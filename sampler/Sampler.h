@@ -20,8 +20,8 @@
 #include <string>
 #include <vector>
 #include <owl/owl.h>
-#include "model/Model.h"
-#include "common.h"
+#include "../model/Model.h"
+#include "../common.h"
 
 namespace exa {
 
