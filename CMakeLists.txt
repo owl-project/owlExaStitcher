@@ -83,8 +83,8 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 # bigmesh (FIXME!)
 # ------------------------------------------------------------------
 
-set(bigmesh_libraries "/home/ampere/stefan/umeshviewer-install/lib/libmpm_model.a")
-set(bigmesh_libraries ${bigmesh_libraries} "/home/ampere/stefan/umeshviewer-install/lib/libmpm_accel.a")
+set(bigmesh_libraries "/home/ampere/stefan/umeshviewer-install/lib/libmpm_model.so")
+set(bigmesh_libraries ${bigmesh_libraries} "/home/ampere/stefan/umeshviewer-install/lib/libmpm_accel.so")
 set(bigmesh_include_dir "/home/ampere/stefan/umeshviewer-install/include")
 set(umesh_include_dir "${PROJECT_SOURCE_DIR}/submodules/umesh")
 include_directories(${bigmesh_include_dir})
