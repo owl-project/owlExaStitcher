@@ -83,13 +83,20 @@ add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 # bigmesh (FIXME!)
 # ------------------------------------------------------------------
 
-set(bigmesh_libraries "/home/ampere/stefan/umeshviewer-install/lib/libmpm_model.so")
-set(bigmesh_libraries ${bigmesh_libraries} "/home/ampere/stefan/umeshviewer-install/lib/libmpm_accel.so")
+set(mpm_model_library "/home/ampere/stefan/umeshviewer-install/lib/libmpm_model.so")
+set(mpm_accel_library "/home/ampere/stefan/umeshviewer-install/lib/libmpm_accel.so")
+set(bigmesh_libraries ${mpm_model_library} ${mpm_accel_library})
 set(bigmesh_include_dir "/home/ampere/stefan/umeshviewer-install/include")
-set(umesh_include_dir "${PROJECT_SOURCE_DIR}/submodules/umesh")
-include_directories(${bigmesh_include_dir})
-include_directories(${umesh_include_dir})
 
+if(EXISTS ${mpm_model_library} AND EXISTS ${mpm_accel_library} AND EXISTS ${bigmesh_include_dir})
+  set(BIGMESH_FOUND TRUE)
+endif()
+
+if(BIGMESH_FOUND)
+  include_directories(${bigmesh_include_dir})
+  set(umesh_include_dir "${PROJECT_SOURCE_DIR}/submodules/umesh")
+  include_directories(${umesh_include_dir})
+endif()
 
 # ------------------------------------------------------------------
 # witcher lib
@@ -116,6 +123,9 @@ add_library(witcher STATIC
   OWLRenderer.cpp
   TriangleMesh.cpp
   )
+if(BIGMESH_FOUND)
+ target_compile_definitions(witcher PUBLIC -DHAVE_BIGMESH=1)
+endif()
 
 #--- options ----------------------------------------------
 option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)
@@ -145,8 +155,10 @@ target_link_libraries(witcher
       owl::owl
       qtOWL
       umesh
-      ${bigmesh_libraries}
       ${OPENGL_LIBRARIES})
+if(BIGMESH_FOUND)
+    target_link_libraries(witcher ${bigmesh_libraries})
+endif()
 
 # ------------------------------------------------------------------
 # viewer

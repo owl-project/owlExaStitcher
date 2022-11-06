@@ -20,6 +20,7 @@ namespace exa {
 
   bool BigMeshSampler::build(OWLContext owl, Model::SP model)
   {
+#ifdef HAVE_BIGMESH
     bmModel = model->as<BigMeshModel>();
 
     if (!bmModel)
@@ -54,32 +55,43 @@ namespace exa {
     Sampler::maxOpacities = bmModel->grid->maxOpacities;
 
     return true;
+#else
+    return false;
+#endif
   }
 
   void BigMeshSampler::computeMaxOpacities(OWLContext owl,
                                            OWLBuffer colorMap,
                                            range1f xfRange)
   {
+#ifdef HAVE_BIGMESH
     if (!bmModel->grid || bmModel->grid->dims==vec3i(0))
       return;
 
     bmModel->grid->computeMaxOpacities(owl,colorMap,xfRange);
+#endif
   }
 
   std::vector<OWLVarDecl> BigMeshSampler::getLPVariables()
   {
+#ifdef HAVE_BIGMESH
     if (!bmSampler)
       bmSampler = std::make_shared<fun::BigMeshSampler>();
 
     return bmSampler->getLPVariables();
+#else
+    return {};
+#endif
   }
 
   void BigMeshSampler::setLPs(OWLParams lp)
   {
+#ifdef HAVE_BIGMESH
     if (!bmSampler)
       bmSampler = std::make_shared<fun::BigMeshSampler>();
 
     bmSampler->setLPs(lp);
+#endif
   }
 
 } // ::exa

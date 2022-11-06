@@ -14,18 +14,23 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#ifdef HAVE_BIGMESH
 #include <model/BigMeshModel.h>
+#endif
 #include "BigMeshModel.h"
 
 namespace exa {
 
   struct BigMeshModel::Pimpl
   {
+#ifdef HAVE_BIGMESH
     fun::BigMeshModel::SP bmModel;
+#endif
   };
 
   BigMeshModel::SP BigMeshModel::load(const std::string bmFileName)
   {
+#ifdef HAVE_BIGMESH
     BigMeshModel::SP model = std::make_shared<BigMeshModel>();
 
     fun::Model::SP funModel = fun::Model::load(bmFileName);
@@ -39,6 +44,9 @@ namespace exa {
     std::cout << model->valueRange << '\n';
 
     return model;
+#else
+    return nullptr;
+#endif
   }
 
   BigMeshModel::BigMeshModel()
@@ -52,7 +60,11 @@ namespace exa {
 
   std::shared_ptr<fun::Model> BigMeshModel::getFunModel()
   {
+#ifdef HAVE_BIGMESH
     return impl->bmModel;
+#else
+    return nullptr;
+#endif
   }
 } // ::exa
 

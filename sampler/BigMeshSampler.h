@@ -16,7 +16,9 @@
 
 #pragma once
 
+#if HAVE_BIGMESH
 #include <sampler/BigMeshSampler.h>
+#endif
 #include "../model/BigMeshModel.h"
 #include "Sampler.h"
 
@@ -26,7 +28,11 @@ namespace exa {
   {
     typedef std::shared_ptr<BigMeshSampler> SP;
 
+#if HAVE_BIGMESH
     typedef fun::BigMeshSampler::LP LP;
+#else
+    struct LP {};
+#endif
 
     bool build(OWLContext owl, Model::SP model);
 
@@ -40,7 +46,9 @@ namespace exa {
 
     BigMeshModel::SP bmModel = nullptr;
 
+#if HAVE_BIGMESH
     fun::BigMeshSampler::SP bmSampler = nullptr;
+#endif
   };
 
 #ifdef __CUDA_ARCH__
@@ -49,6 +57,7 @@ namespace exa {
                 const SpatialDomain &domain,
                 const vec3f pos)
   {
+#ifdef HAVE_BIGMESH
     // can't just do that b/c umesh only has one raytype:
     //fun::BigMeshSampler::MarchState marchState{};
     //float ignore=0.f;
@@ -68,6 +77,7 @@ namespace exa {
       return {-1,-1,value};
     else
       return {0,-1,value};
+#endif
   }
 #endif
 } // ::exa
