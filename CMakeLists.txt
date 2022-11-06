@@ -125,6 +125,7 @@ add_library(witcher STATIC
   )
 if(BIGMESH_FOUND)
  target_compile_definitions(witcher PUBLIC -DHAVE_BIGMESH=1)
+ target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DHAVE_BIGMESH=1)
 endif()
 
 #--- options ----------------------------------------------
