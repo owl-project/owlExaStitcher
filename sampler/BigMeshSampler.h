@@ -49,10 +49,21 @@ namespace exa {
                 const SpatialDomain &domain,
                 const vec3f pos)
   {
-    fun::BigMeshSampler::MarchState marchState;
-    float ignore=0.f;
-    vec3f P(6569.999023,1624.000244,81564.000000);
-    float value = fun::sample(lp,marchState,ignore,P);
+    // can't just do that b/c umesh only has one raytype:
+    //fun::BigMeshSampler::MarchState marchState{};
+    //float ignore=0.f;
+    //float value = fun::sample(lp,marchState,ignore,pos);
+    
+    const owl::RayT<0,2> sampleRay(pos,vec3f(1e-5f,1e-5f,1e-5f),0.f,1e-5f);
+    fun::SampleResult samplePRD;
+    // trace an epsilon-ray that will find all bigmesh-multileaves
+    owl::traceRay(lp.sampleBVH,sampleRay,samplePRD,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT/*|
+                  OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT
+                  |OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT*/
+                  );
+    float value = samplePRD.value;
+
     if (value<-1e19f)
       return {-1,-1,value};
     else
