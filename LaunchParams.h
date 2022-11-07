@@ -67,7 +67,6 @@ namespace exa {
     KDTreeTraversableHandle majorantKDTree;
     GridTraversableHandle   majorantGrid;
 
-    Gridlet  *gridletBuffer;
     box3f     worldSpaceBounds;
     affine3f  voxelSpaceTransform;
     affine3f  lightSpaceTransform;

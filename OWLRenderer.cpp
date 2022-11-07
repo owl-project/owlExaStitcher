@@ -55,7 +55,6 @@ namespace exa {
      { "majorantBVH",    OWL_GROUP,  OWL_OFFSETOF(LaunchParams,majorantBVH)},
      { "majorantKDTree", OWL_USER_TYPE(KDTreeTraversableHandle),  OWL_OFFSETOF(LaunchParams,majorantKDTree)},
      { "majorantGrid", OWL_USER_TYPE(GridTraversableHandle),  OWL_OFFSETOF(LaunchParams,majorantGrid)},
-     { "gridletBuffer",    OWL_BUFPTR,  OWL_OFFSETOF(LaunchParams,gridletBuffer)},
      { "worldSpaceBounds.lower",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.lower)},
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},

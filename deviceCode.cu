@@ -650,7 +650,7 @@ namespace exa {
           if (s.cellID == -1) { // uelem
             xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
           } else {
-            const Gridlet &gridlet = lp.gridletBuffer[s.primID];
+            const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
             vec3i imin = {
               s.cellID%gridlet.dims.x,
               s.cellID/gridlet.dims.x%gridlet.dims.y,
@@ -674,7 +674,7 @@ namespace exa {
           if (s.cellID == -1) { // uelem
             rgb2 = vec3f(1,0,0);
           } else {
-            const Gridlet &gridlet = lp.gridletBuffer[s.primID];
+            const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
             vec3i imin = {
               s.cellID%gridlet.dims.x,
               s.cellID/gridlet.dims.x%gridlet.dims.y,
