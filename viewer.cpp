@@ -246,21 +246,14 @@ namespace exa {
     void mouseButtonLeft(const vec2i &where, bool pressed)
     {
       if (subImageSelecting) {
-        if (!pressed && downPos-where != vec2i(0)) {
-
-          const vec2i size = getWindowSize();
-          auto flip = [size](const vec2i P) { return vec2i{P.x,size.y-P.y-1}; };
-          box2i subImageWin = {
-            clamp(vec2i(min(flip(downPos),flip(where))),vec2i(0),size),
-            clamp(vec2i(max(flip(downPos),flip(where))),vec2i(0),size)
-          };
-          const box2f subImageUV(vec2f(subImageWin.lower)/vec2f(size),
-                                 vec2f(subImageWin.upper)/vec2f(size));
+        if (!pressed && !lastSubImageWin.empty()) {
+          const box2f subImageUV = lastSubImageWin;
           pushSubImage(subImageUV);
           box2f combinedUV = computeSubImageUV();
           renderer->setSubImage(combinedUV,true);
           emit subImageChanged(combinedUV);
           renderer->setSubImageSelection({},false); // deactivate selection
+          lastSubImageWin = {};
         }
         downPos = where;
       } else if (lightInteractor.active()) {
@@ -309,6 +302,7 @@ namespace exa {
         const box2f subImageUV(vec2f(subImageWin.lower)/vec2f(size),
                                vec2f(subImageWin.upper)/vec2f(size));
         renderer->setSubImageSelection(subImageUV,true);
+        lastSubImageWin = subImageUV;
         emit subImageSelectionChanged(subImageUV);
       } else if (lightInteractor.active()) {
         lightInteractor.mouseDragLeft(where,delta);
@@ -334,9 +328,10 @@ namespace exa {
     qtOWL::XFEditor *xfEditor = nullptr;
 
     vec2i downPos { 0, 0 };
+    box2f lastSubImageWin;
     bool subImageSelecting = false;
     std::vector<box2f> subImageUndoStack;
-    size_t subImageUndoStackTop = 0;
+    int subImageUndoStackTop = 0;
     LightInteractor lightInteractor;
 
     enum class SubImageSelectionContraint {
@@ -1018,7 +1013,7 @@ namespace exa {
     // Sub image selection undo last
     QObject::connect(undoSubImageButton, &QPushButton::pressed,
       [&]() {
-        viewer.subImageUndoStackTop = std::max(size_t(0),viewer.subImageUndoStackTop-1);
+        viewer.subImageUndoStackTop = std::max<int>(0,viewer.subImageUndoStackTop-1);
         box2f subImg = viewer.computeSubImageUV();
         renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
       });
@@ -1026,8 +1021,8 @@ namespace exa {
     // Sub image selection redo last
     QObject::connect(redoSubImageButton, &QPushButton::pressed,
       [&]() {
-        viewer.subImageUndoStackTop = std::min(viewer.subImageUndoStackTop+1,
-                                               viewer.subImageUndoStack.size());
+        viewer.subImageUndoStackTop = std::min<int>(viewer.subImageUndoStackTop+1,
+                                                    viewer.subImageUndoStack.size());
         box2f subImg = viewer.computeSubImageUV();
         renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
       });
