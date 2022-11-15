@@ -116,6 +116,8 @@ add_library(witcher STATIC
   sampler/ExaBrickSampler.cu
   sampler/ExaStitchSampler.cpp
   sampler/ExaStitchSampler.cu
+  sampler/QuickClustersSampler.cpp
+  sampler/QuickClustersSampler.cu
   sampler/Sampler.cpp
   Grid.cu
   KDTree.cpp

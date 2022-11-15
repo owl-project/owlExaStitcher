@@ -22,6 +22,7 @@
 #include "sampler/BigMeshSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
+#include "sampler/QuickClustersSampler.h"
 #include "LaunchParams.h"
 #include "OWLRenderer.h"
 #include "TriangleMesh.h"
@@ -233,7 +234,8 @@ namespace exa {
     } else if (model->as<ExaBrickModel>()) {
       sampler = std::make_shared<ExaBrickSampler>();
     } else if (model->as<ExaStitchModel>()) {
-      sampler = std::make_shared<ExaStitchSampler>();
+      // sampler = std::make_shared<ExaStitchSampler>();
+      sampler = std::make_shared<QuickClustersSampler>();
     }
 
     if (!sampler) {

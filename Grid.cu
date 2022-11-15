@@ -17,6 +17,7 @@
 #include "sampler/AMRCellSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
+#include "sampler/QuickClustersSampler.h"
 #include "common.h"
 #include "LaunchParams.h" // for MacroCellGeom (dependency should be removed eventually)
 #include "Grid.h"
@@ -523,6 +524,54 @@ namespace exa {
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
       double tlast = getCurrentTime();
       std::cout << tlast-tfirst << '\n';
+    }
+
+    // init device traversable for DDA
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    deviceTraversable.traversable.dims = dims;
+    deviceTraversable.traversable.bounds = worldBounds;
+#else
+    deviceTraversable.dims = dims;
+    deviceTraversable.bounds = worldBounds;
+#endif
+
+  }
+
+  void Grid::build(OWLContext           owl,
+                   QuickClustersSampler::SP sampler,
+                   const owl::vec3i     numMCs,
+                   const owl::box3f     bounds)
+  {
+    dims        = numMCs;
+    worldBounds = bounds;
+
+    valueRanges = owlDeviceBufferCreate(owl, OWL_USER_TYPE(range1f),
+                                        dims.x*size_t(dims.y)*dims.z,
+                                        nullptr);
+
+    // Init with small floats
+    {
+      size_t numThreads = 1024;
+      size_t numMCs = dims.x*size_t(dims.y)*dims.z;
+      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
+        ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
+
+      // pre-allocating max-opacity buffer
+      maxOpacities = owlDeviceBufferCreate(owl, OWL_FLOAT, numMCs, nullptr);
+    }
+
+    // Add contrib from uelems
+    {
+      size_t numThreads = 1024;
+      size_t numElems = owlBufferSizeInBytes(sampler->indexBuffer)/sizeof(int[8]);
+      std::cout << "DDA grid: adding " << numElems << " uelems\n";
+      buildGrid<<<iDivUp(numElems, numThreads), numThreads>>>(
+        (range1f *)owlBufferGetPointer(valueRanges,0),
+        (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
+        (const int *)owlBufferGetPointer(sampler->indexBuffer,0),
+        numElems,dims,worldBounds);
+      cudaDeviceSynchronize();
+      std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
 
     // init device traversable for DDA

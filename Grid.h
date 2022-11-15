@@ -28,6 +28,7 @@ namespace exa {
   class AMRCellSampler;
   class ExaBrickSampler;
   class ExaStitchSampler;
+  class QuickClustersSampler;
 
   struct Grid
   {
@@ -50,6 +51,12 @@ namespace exa {
                std::shared_ptr<ExaStitchSampler> sampler,
                const owl::vec3i  numMCs,
                const owl::box3f  bounds);
+
+    // Build from quick clusters model
+    void build(OWLContext           owl,
+                std::shared_ptr<QuickClustersSampler> sampler,
+                   const owl::vec3i     numMCs,
+                   const owl::box3f     bounds);
 
     // Build a BVH, in case we decide to traverse it with OptiX (bnechmark!)
     bool buildOptixBVH(OWLContext owl, OWLModule module);
