@@ -20,6 +20,8 @@ else()
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug;Release;RelWithDebInfo;MinSizeRel")
 endif()
 
+list(APPEND CUDA_NVCC_FLAGS "--extended-lambda")
+
 option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of static" ON)
 
 # enable_language(CUDA)
@@ -141,6 +143,7 @@ if(BIGMESH_FOUND)
  target_compile_definitions(witcher PUBLIC -DHAVE_BIGMESH=1)
  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DHAVE_BIGMESH=1)
 endif()
+target_compile_options(witcher PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
 
 #--- options ----------------------------------------------
 option(EXA_STITCH_MIRROR_EXAJET "Activate mirroring for exajet in kernels" OFF)

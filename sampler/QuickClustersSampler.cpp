@@ -8,6 +8,23 @@ extern "C" char embedded_ExaStitchSampler[];
 
 namespace exa {
 
+  void sortLeafPrimitives(uint64_t* &codesSorted, uint32_t* &elementIdsSorted, 
+                          const vec4f *d_vertices, const int *d_indices, const size_t numElements);
+
+  void buildClusters(const uint64_t* codesSorted, 
+                     const size_t    numElements,
+                     const uint32_t  maxNumClusters,
+                     uint32_t & numClusters, 
+                     uint32_t*& sortedIndexToCluster);
+
+  void fillClusters(const size_t    numElements,
+                    const uint32_t *d_sortedElementIDs,
+                    const vec4f    *d_vertices, 
+                    const int      *d_indices, 
+                    const uint32_t  numClusters,
+                    const uint32_t *d_sortedClusterIDs, 
+                    box4f*          d_clusters);
+  
   bool QuickClustersSampler::build(OWLContext context, Model::SP mod)
   {
     // process host data
@@ -65,12 +82,31 @@ namespace exa {
     // ==================================================================
     // setup geometry data
     // ==================================================================
-    uint64_t* codesSorted;
-    uint32_t* elementIdsSorted;
+    const int   *d_indices  = (const int*  )owlBufferGetPointer(indexBuffer,0);
+    const vec4f *d_vertices = (const vec4f*)owlBufferGetPointer(vertexBuffer,0);
+    const size_t numElements = indices.size()/8;
+    uint32_t     numClusters;
 
-    printGPUMemory("<<<< before sortLeafPrimitives " + std::to_string(__LINE__));
-    sortLeafPrimitives(codesSorted, elementIdsSorted);
-    printGPUMemory(">>>> after sortLeafPrimitives " + std::to_string(__LINE__));
+    uint32_t* d_sortedElementIDs = nullptr;
+    uint32_t* d_sortedClusterIDs = nullptr;
+
+    printGPUMemory("<<<< before clustering");
+
+    uint64_t* d_sortedCodes = nullptr;
+    sortLeafPrimitives(d_sortedCodes, d_sortedElementIDs, d_vertices, d_indices, numElements);
+    buildClusters(d_sortedCodes, numElements, 1000000, numClusters, d_sortedClusterIDs);
+    cudaFree(d_sortedCodes);
+
+    printGPUMemory("<<<< before fillClusters");
+    clusterBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numClusters, nullptr);
+    box4f* d_clusters = (box4f*)owlBufferGetPointer(clusterBuffer, 0);
+    fillClusters(numElements, d_sortedElementIDs, d_vertices, d_indices, numClusters, d_sortedClusterIDs, d_clusters);
+    owlBufferRelease(clusterBuffer);
+    printGPUMemory(">>>> after fillClusters");
+
+    cudaFree(d_sortedElementIDs);
+    cudaFree(d_sortedClusterIDs);
+    printGPUMemory(">>>> after clustering");
 
     // ==================================================================
     // build accel struct

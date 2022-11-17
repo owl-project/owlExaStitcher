@@ -40,9 +40,7 @@ namespace exa {
     OWLBuffer indexBuffer;
     OWLBuffer vertexBuffer;
 
-  private:
-    void sortLeafPrimitives(uint64_t* &codesSorted, uint32_t* &elementIdsSorted);
-
+  private:                  
     OWLModule module;
 
     struct {
@@ -53,6 +51,8 @@ namespace exa {
     OWLGroup tlas;
 
     OWLBuffer umeshMaxOpacities{ 0 };
+
+    OWLBuffer clusterBuffer;
   };
 
 #ifdef __CUDA_ARCH__
