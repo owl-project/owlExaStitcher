@@ -2,6 +2,8 @@
 
 #include <owl/common/parallel/parallel_for.h>
 
+#include <cuda_runtime.h>
+
 extern "C" char embedded_ExaStitchSampler[];
 
 namespace exa {
@@ -11,7 +13,7 @@ namespace exa {
     // process host data
     if (!mod)
       return false;
-    model = std::dynamic_pointer_cast<ExaStitchModel>(mod);
+    model = std::dynamic_pointer_cast<QuickClustersModel>(mod);
     if (!model)
       return false;
     const std::vector<int> &indices = model->indices;
@@ -60,6 +62,19 @@ namespace exa {
       owlGroupBuildAccel(leafGeom.blas);
     }
 
+    // ==================================================================
+    // setup geometry data
+    // ==================================================================
+    uint64_t* codesSorted;
+    uint32_t* elementIdsSorted;
+
+    printGPUMemory("<<<< before sortLeafPrimitives " + std::to_string(__LINE__));
+    sortLeafPrimitives(codesSorted, elementIdsSorted);
+    printGPUMemory(">>>> after sortLeafPrimitives " + std::to_string(__LINE__));
+
+    // ==================================================================
+    // build accel struct
+    // ==================================================================
     if (leafGeom.blas) {
 #ifdef EXA_STITCH_MIRROR_EXAJET
       tlas = owlInstanceGroupCreate(context, 2);
@@ -100,9 +115,9 @@ namespace exa {
   {
     std::vector<OWLVarDecl> vars
       = {
-         { "ess.sampleBVH", OWL_GROUP, OWL_OFFSETOF(LP,sampleBVH) },
+         { "qcs.sampleBVH", OWL_GROUP, OWL_OFFSETOF(LP,sampleBVH) },
 #ifdef EXA_STITCH_MIRROR_EXAJET
-         { "ess.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
+         { "qcs.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
 #endif
     };
     return vars;
@@ -110,10 +125,10 @@ namespace exa {
 
   void QuickClustersSampler::setLPs(OWLParams lp)
   {
-    owlParamsSetGroup(lp,"ess.sampleBVH",tlas);
+    owlParamsSetGroup(lp,"qcs.sampleBVH",tlas);
 #ifdef EXA_STITCH_MIRROR_EXAJET
     affine3f mirrorInvTransform = rcp((const affine3f &)model->mirrorTransform);
-    owlParamsSetRaw(lp,"ess.mirrorInvTransform",&mirrorInvTransform);
+    owlParamsSetRaw(lp,"qcs.mirrorInvTransform",&mirrorInvTransform);
 #endif
   }
 } // ::exa

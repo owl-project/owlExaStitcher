@@ -18,6 +18,7 @@
 #include "model/BigMeshModel.h"
 #include "model/ExaBrickModel.h"
 #include "model/ExaStitchModel.h"
+#include "model/QuickClustersModel.h"
 #include "sampler/AMRCellSampler.h"
 #include "sampler/BigMeshSampler.h"
 #include "sampler/ExaBrickSampler.h"
@@ -112,6 +113,7 @@ namespace exa {
                            const std::string amrCellFileName,
                            const std::string exaBrickFileName,
                            const std::string bigMeshFileName,
+                           const std::string quickClustersFileName,
                            const std::string meshFileName,
                            const std::string scalarFileName,
                            const std::string kdtreeFileName,
@@ -124,15 +126,23 @@ namespace exa {
     // ==================================================================
 
     if (!umeshFileName.empty() || !gridsFileName.empty()) { // only need one of them
+      printf(">>>> ExaStitchModel <<<<\n");
       model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
     }
     else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
+      printf(">>>> ExaBrickModel <<<<\n");
       model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
     }
     else if (!bigMeshFileName.empty()) {
+      printf(">>>> BigMeshModel <<<<\n");
       model = BigMeshModel::load(bigMeshFileName);
     }
+    else if (!quickClustersFileName.empty()) {
+      printf(">>>> QuickClustersModel <<<<\n");
+      model = QuickClustersModel::load(quickClustersFileName);
+    }
     else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
+      printf(">>>> AMRCellModel <<<<\n");
       model = AMRCellModel::load(amrCellFileName,scalarFileName);
     }
 
@@ -231,11 +241,12 @@ namespace exa {
       sampler = std::make_shared<AMRCellSampler>();
     } else if (model->as<BigMeshModel>()) {
       sampler = std::make_shared<BigMeshSampler>();
+    } else if (model->as<QuickClustersModel>()) {
+      sampler = std::make_shared<QuickClustersSampler>();
     } else if (model->as<ExaBrickModel>()) {
       sampler = std::make_shared<ExaBrickSampler>();
     } else if (model->as<ExaStitchModel>()) {
-      // sampler = std::make_shared<ExaStitchSampler>();
-      sampler = std::make_shared<QuickClustersSampler>();
+      sampler = std::make_shared<ExaStitchSampler>();
     }
 
     if (!sampler) {
@@ -511,7 +522,7 @@ namespace exa {
                       newCM.size(),1);
     }
     
-    int pitch = newCM.size()*sizeof(newCM[0]);
+    const size_t pitch = newCM.size()*sizeof(newCM[0]);
     cudaMemcpy2DToArray(xf.colorMapArray,
                         /* offset */0,0,
                         newCM.data(),

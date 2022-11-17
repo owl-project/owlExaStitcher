@@ -29,6 +29,7 @@
 #include "sampler/BigMeshSampler.h"
 #include "sampler/ExaBrickSampler.h"
 #include "sampler/ExaStitchSampler.h"
+#include "sampler/QuickClustersSampler.h"
 #include "common.h"
 #include "Grid.cuh"
 #include "KDTree.cuh"
@@ -53,6 +54,7 @@ namespace exa {
       BigMeshSampler::LP   bms;
       ExaBrickSampler::LP  ebs;
       ExaStitchSampler::LP ess;
+      QuickClustersSampler::LP qcs;
     } sampler;
     uint32_t *fbPointer;
     float    *fbDepth;

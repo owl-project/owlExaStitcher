@@ -1,6 +1,6 @@
 #pragma once
 
-#include <model/ExaStitchModel.h>
+#include <model/QuickClustersModel.h>
 #include <Gridlet.h>
 #include "Sampler.h"
 
@@ -12,8 +12,8 @@ namespace exa {
     float *maxOpacities;
   };
 
-  struct QuickClustersSampler : Sampler
-  {
+  class QuickClustersSampler : public Sampler {
+  public:
     typedef std::shared_ptr<QuickClustersSampler> SP;
 
     // Launch params associated with sampler
@@ -32,15 +32,17 @@ namespace exa {
 
     void setLPs(OWLParams lp);
 
-    std::string className() { return "ExaStitchSampler"; }
+    std::string className() { return "QuickClustersSampler"; }
 
     // still using the stitcher model ...
-    ExaStitchModel::SP model = nullptr;
+    QuickClustersModel::SP model = nullptr;
 
     OWLBuffer indexBuffer;
     OWLBuffer vertexBuffer;
 
   private:
+    void sortLeafPrimitives(uint64_t* &codesSorted, uint32_t* &elementIdsSorted);
+
     OWLModule module;
 
     struct {
@@ -53,4 +55,19 @@ namespace exa {
     OWLBuffer umeshMaxOpacities{ 0 };
   };
 
+#ifdef __CUDA_ARCH__
+  inline __device__
+  Sample sample(const QuickClustersSampler::LP &lp,
+                const SpatialDomain &domain,
+                const vec3f pos)
+  {
+    Sample prd{-1,-1,0.f};
+    SamplingRay ray(pos,vec3f(1.f),0.f,0.f);
+
+    owl::traceRay(lp.sampleBVH,ray,prd,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+    return prd;
+  }
+#endif
 }

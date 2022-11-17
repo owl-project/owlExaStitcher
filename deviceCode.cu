@@ -168,10 +168,10 @@ namespace exa {
 
   inline __device__ vec3f hue_to_rgb(float hue)
   {
-    float s = saturate( hue ) * 6.0f;
-    float r = saturate( fabsf(s - 3.f) - 1.0f );
-    float g = saturate( 2.0f - fabsf(s - 2.0f) );
-    float b = saturate( 2.0f - fabsf(s - 4.0f) );
+    float s = __saturatef( hue ) * 6.0f;
+    float r = __saturatef( fabsf(s - 3.f) - 1.0f );
+    float g = __saturatef( 2.0f - fabsf(s - 2.0f) );
+    float b = __saturatef( 2.0f - fabsf(s - 4.0f) );
     return vec3f(r, g, b); 
   }
     
@@ -727,7 +727,7 @@ namespace exa {
         // N /= 2.f;
         // xf.x = N.x; xf.y = N.y; xf.z = N.z;
         float sigmaT = xf.w;
-        float sigmaA = sigmaT/2.f;
+        // float sigmaA = sigmaT/2.f;
         /*if (u < sigmaA/sigmaT) {
           Le = getLe(s);
           Tr = 0.f;
@@ -1268,6 +1268,12 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.bms);
+  }
+
+  OPTIX_RAYGEN_PROGRAM(renderFrame_QuickClustersSampler)()
+  {
+    auto& lp = optixLaunchParams;
+    renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.qcs);
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame_ExaBrickSampler)()

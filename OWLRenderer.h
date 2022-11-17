@@ -32,6 +32,7 @@ namespace exa {
                 const std::string amrCellFileName = "",
                 const std::string exaBrickFileName = "",
                 const std::string bigMeshFileName = "",
+                const std::string quickClustersFileName = "",
                 const std::string meshFileName = "",
                 const std::string scalarFileName = "",
                 const std::string kdtreeFileName = "",

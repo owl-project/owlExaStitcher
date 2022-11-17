@@ -44,6 +44,7 @@ namespace exa {
     std::string amrCellFileName = "";
     std::string exaBrickFileName = "";
     std::string bigMeshFileName = "";
+    std::string quickClustersFileName = "";
     std::string kdtreeFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
@@ -560,6 +561,9 @@ namespace exa {
       else if (arg == "-bm") {
         cmdline.bigMeshFileName = argv[++i];
       }
+      else if (arg == "-qc") {
+        cmdline.quickClustersFileName = argv[++i];
+      }
       else if (arg == "-kdtree") {
         cmdline.kdtreeFileName = argv[++i];
       }
@@ -662,6 +666,7 @@ namespace exa {
                          cmdline.amrCellFileName,
                          cmdline.exaBrickFileName,
                          cmdline.bigMeshFileName,
+                         cmdline.quickClustersFileName,
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
                          cmdline.kdtreeFileName,
@@ -1022,7 +1027,7 @@ namespace exa {
     QObject::connect(redoSubImageButton, &QPushButton::pressed,
       [&]() {
         viewer.subImageUndoStackTop = std::min<int>(viewer.subImageUndoStackTop+1,
-                                                    viewer.subImageUndoStack.size());
+                                                    (int32_t)viewer.subImageUndoStack.size());
         box2f subImg = viewer.computeSubImageUV();
         renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
       });
@@ -1030,7 +1035,7 @@ namespace exa {
     // Sub image selection redo all
     QObject::connect(redoAllSubImageButton, &QPushButton::pressed,
       [&]() {
-        viewer.subImageUndoStackTop = viewer.subImageUndoStack.size();
+        viewer.subImageUndoStackTop = (int)viewer.subImageUndoStack.size();
         box2f subImg = viewer.computeSubImageUV();
         renderer.setSubImage(subImg,viewer.subImageUndoStackTop>0);
       });

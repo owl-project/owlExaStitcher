@@ -211,7 +211,7 @@ namespace exa {
               vec3i lower = brick.lower + index3*(1<<brick.level);
               vec3i upper = lower + (1<<brick.level);
 
-              const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+              const vec3f halfCell = vec3f((float)(1<<brick.level))*.5f;
 
               box3f domain(vec3f(lower)-halfCell,vec3f(upper)+halfCell);
 

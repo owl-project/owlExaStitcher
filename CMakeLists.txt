@@ -1,16 +1,28 @@
-
-project(exa-stitch)
+project(exa-stitch LANGUAGES C CXX CUDA)
 
 cmake_minimum_required(VERSION 3.1.3)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
+
+set(SET_UP_CONFIGURATIONS_DONE 1)
+# No reason to set CMAKE_CONFIGURATION_TYPES if it's not a multiconfig generator
+# Also no reason mess with CMAKE_BUILD_TYPE if it's a multiconfig generator.
+if(CMAKE_CONFIGURATION_TYPES) # multiconfig generator?
+  set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE) 
+else()
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+  endif()
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY HELPSTRING "Choose the type of build")
+  # set the valid options for cmake-gui drop-down list
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug;Release;RelWithDebInfo;MinSizeRel")
+endif()
 
 option(BUILD_SHARED_LIBS "Build all libraries as shared libraries instead of static" ON)
 
-enable_language(CUDA)
+# enable_language(CUDA)
 set(owl_dir ${CMAKE_CURRENT_SOURCE_DIR}/submodules/owl)
 add_subdirectory(${owl_dir} EXCLUDE_FROM_ALL)
 include_directories(${OWL_INCLUDES})

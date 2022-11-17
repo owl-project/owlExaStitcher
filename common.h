@@ -17,9 +17,11 @@
 #pragma once
 
 #include <owl/owl.h>
-#include "owl/common/math/AffineSpace.h"
-#include "owl/common/math/box.h"
-#include "owl/common/math/random.h"
+#include <owl/common/math/AffineSpace.h>
+#include <owl/common/math/box.h>
+#include <owl/common/math/random.h>
+
+#include <cuda_runtime.h>
 
 using namespace owl;
 using namespace owl::common;
@@ -61,6 +63,14 @@ namespace exa {
   float lerp(const float val1, const float val2, const float x)
   {
     return (1.f-x)*val1+x*val2;
-  };
+  }
+
+  inline void printGPUMemory(std::string str)
+  {
+    size_t free, total;
+    cudaMemGetInfo(&free, &total);
+    size_t used = total-free;
+    std::cout << str << ": " << prettyNumber(used) << '\n';
+  }
 } // ::exa
 
