@@ -174,21 +174,16 @@ namespace exa {
     if (threadID >= numElements)
       return;
 
-    vec4f v[8];
-    int numVerts = 0;
+    range1f valueRange = {1e30f,-1e30f};
+
+    #pragma unroll
     for (int i=0; i<8; ++i) {
       int idx = indices[threadID*8+i];
       if (idx >= 0) {
-        numVerts++;
-        v[i] = vertices[idx];
+        const vec4f v = vertices[idx];
+        valueRange.lower = min(valueRange.lower,v.w);
+        valueRange.upper = max(valueRange.upper,v.w);
       }
-    }
-
-    range1f valueRange = {1e30f,-1e30f};
-
-    for (int i=0; i<numVerts; ++i) {
-      valueRange.lower = min(valueRange.lower,v[i].w);
-      valueRange.upper = max(valueRange.upper,v[i].w);
     }
 
     if (valueRange.upper < valueRange.lower) {
@@ -254,19 +249,25 @@ namespace exa {
 
     if (primID >= numElements) return;
 
-    vec4f v[8];
-    int numVerts = 0;
-    for (int i=0; i<8; ++i) {
-      int idx = indexBuffer[primID*8+i];
-      if (idx >= 0) {
-        numVerts++;
-        v[i] = vertexBuffer[idx];
-      }
-    }
+    // vec4f v[8];
+    // int numVerts = 0;
+    // for (int i=0; i<8; ++i) {
+    //   int idx = indexBuffer[primID*8+i];
+    //   if (idx >= 0) {
+    //     numVerts++;
+    //     v[i] = vertexBuffer[idx];
+    //   }
+    // }
 
     box4f primBounds4 = box4f();
-    for (int i = 0; i < numVerts; ++i) {
-      primBounds4 = primBounds4.extend(v[i]);
+
+    #pragma unroll
+    for (int i=0; i<8; ++i) {
+      const int idx = indexBuffer[primID*8+i];
+      if (idx >= 0) {
+        const vec4f v = vertexBuffer[idx];
+        primBounds4 = primBounds4.extend(v);
+      }
     }
 
     const float4 pt = make_float4(
@@ -413,7 +414,7 @@ namespace exa {
                                 const uint64_t* __restrict__ codes,
                                 uint32_t* __restrict__ elementToCluster,
                                 uint32_t* __restrict__ elementsInClusters,
-                                int maxElementsPerCluster)
+                                uint32_t maxElementsPerCluster)
   {
     uint32_t index = blockIdx.x * blockDim.x + threadIdx.x;   
     if (index >= numElements) return;
@@ -440,26 +441,33 @@ namespace exa {
   void buildClusters(const uint64_t* codesSorted, 
                      const size_t    numElements,
                      const uint32_t  maxNumClusters,
+                     const uint32_t  maxElementsPerCluster,
                      uint32_t & numClusters, 
                      uint32_t*& sortedIndexToCluster)
   {
+    if (maxNumClusters == 0 && maxElementsPerCluster == 0)
+      throw std::runtime_error("One of 'maxNumClusters' and 'maxElementsPerCluster' must be non-zero.");
+    if (maxNumClusters != 0 && maxElementsPerCluster != 0)
+      throw std::runtime_error("Only one of 'maxNumClusters' and 'maxElementsPerCluster' can be non-zero.");
+
     // Mark cluster starts
-    uint32_t* flags;
+    uint32_t* flags = nullptr;
     cudaMalloc((void**)&flags, numElements * sizeof(uint32_t));
     parallel_for_gpu(numElements,  [numbers=flags] __device__ (size_t index) {
       numbers[index] = 1;
     });
     cudaMalloc((void**)&sortedIndexToCluster, numElements * sizeof(uint32_t));
 
-    uint32_t *uniqueSortedIndexToCluster;
-    uint32_t *uniqueSortedIndexToClusterCount;
-    uint32_t *numRuns;
+    uint32_t *uniqueSortedIndexToCluster = nullptr;
+    uint32_t *uniqueSortedIndexToClusterCount = nullptr;
+    uint32_t *numRuns = nullptr;
     cudaMalloc((void**)&uniqueSortedIndexToCluster, numElements * sizeof(uint32_t));
     cudaMalloc((void**)&uniqueSortedIndexToClusterCount, numElements * sizeof(uint32_t));
     cudaMalloc((void**)&numRuns, sizeof(uint32_t));
 
     // going to try to merge clusters that are too small
     int prevNumClusters = 0;
+    uint32_t numElementsPerCluster = 1;
     while (true)
     {
       // Postfix sum the flag and subtract one to compute cluster addresses
@@ -477,8 +485,7 @@ namespace exa {
         // Run exclusive prefix sum
         cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items);
         // subtract one to get addresses
-        // subtractOne<<<div_up(numElements, numThreads), numThreads>>>(sortedIndexToCluster, num_items);
-        parallel_for_gpu(num_items,  [numbers=sortedIndexToCluster] __device__ (size_t index) {
+        parallel_for_gpu(num_items, [numbers=d_out] __device__ (size_t index) {
           numbers[index] = numbers[index] - 1;
         });
         cudaDeviceSynchronize();
@@ -514,6 +521,7 @@ namespace exa {
       numClusters = hNumRuns;
       if (prevNumClusters == numClusters) break; // can't merge any more
       prevNumClusters = numClusters;
+      std::cout << "generated " << numClusters << " clusters... merging..." << std::endl;
 
       // unmark cluster flags where too many elements exist in a cluster
       linear_kernel(mergeClusters, 
@@ -521,18 +529,18 @@ namespace exa {
         flags, codesSorted,
         sortedIndexToCluster,
         uniqueSortedIndexToClusterCount,
-        numElements// here, we don't care how many elements go in a cluster. just for adaptive sampling...
+        maxElementsPerCluster > 0 ? maxElementsPerCluster : (uint32_t)numElements
       );
       OWL_CUDA_SYNC_CHECK();
+      numElementsPerCluster *= 2;
 
       // cudaMemcpy(&numClusters,(sortedIndexToCluster + (numElements - 1)),sizeof(uint32_t),cudaMemcpyDeviceToHost);
       // numClusters += 1; // account for subtract by one.
 
-      if (numClusters < maxNumClusters) break;
-      std::cout << "generated " << numClusters << " clusters... merging..." << std::endl;
+      if (maxNumClusters > 0 && numClusters < maxNumClusters) break;
     }
 
-    std::cout << "done..." << std::endl;
+    std::cout << "done... numElementsPerCluster = " << numElementsPerCluster << std::endl;
 
     cudaFree(uniqueSortedIndexToCluster);
     cudaFree(uniqueSortedIndexToClusterCount);
@@ -541,13 +549,13 @@ namespace exa {
     cudaFree(flags);
   }
 
-  __global__ void makeClusters( const uint64_t numElements,
-                                const uint32_t* __restrict__ elementIDs,
-                                const vec4f   * __restrict__ vertexBuffer,
-                                const int32_t * __restrict__ indexBuffer,
-                                const uint32_t numClusters,
-                                const uint32_t* __restrict__ clusterIDs,
-                                box4f* clusters)
+  __global__ void makeClusterBBox( const uint64_t numElements,
+                                   const uint32_t* __restrict__ elementIDs,
+                                   const vec4f   * __restrict__ vertexBuffer,
+                                   const int32_t * __restrict__ indexBuffer,
+                                   const uint32_t numClusters,
+                                   const uint32_t* __restrict__ clusterIDs,
+                                   box4f* clusters)
   {
     const size_t index = size_t(blockIdx.x) * blockDim.x + threadIdx.x;
     if (index >= numElements) return;
@@ -555,19 +563,25 @@ namespace exa {
     const uint32_t clusterID = clusterIDs[index];
     const uint32_t primID = elementIDs[index];
 
-    vec4f v[8];
-    int numVerts = 0;
-    for (int i=0; i<8; ++i) {
-      int idx = indexBuffer[primID*8+i];
-      if (idx >= 0) {
-        numVerts++;
-        v[i] = vertexBuffer[idx];
-      }
-    }
-
+    // vec4f v[8];
+    // int numVerts = 0;
+    // for (int i=0; i<8; ++i) {
+    //   int idx = indexBuffer[primID*8+i];
+    //   if (idx >= 0) {
+    //     numVerts++;
+    //     v[i] = vertexBuffer[idx];
+    //   }
+    // }
+    
     box4f primBounds4 = box4f();
-    for (int i = 0; i < numVerts; ++i) {
-      primBounds4 = primBounds4.extend(v[i]);
+
+    #pragma unroll
+    for (int i=0; i<8; ++i) {
+      const int idx = indexBuffer[primID*8+i];
+      if (idx >= 0) {
+        const vec4f v = vertexBuffer[idx];
+        primBounds4 = primBounds4.extend(v);
+      }
     }
 
     atomicMin(&clusters[clusterID].lower.x,primBounds4.lower.x);
@@ -580,20 +594,93 @@ namespace exa {
     atomicMax(&clusters[clusterID].upper.w,primBounds4.upper.w);
   }
 
-  void fillClusters(const size_t    numElements,
-                    const uint32_t *d_sortedElementIDs,
-                    const vec4f    *d_vertices, 
-                    const int      *d_indices, 
-                    const uint32_t  numClusters,
-                    const uint32_t *d_sortedClusterIDs, 
-                    box4f*          d_clusters)
+  void fillClusterBBoxBuffer(const size_t    numElements,
+                             const uint32_t *d_sortedElementIDs,
+                             const vec4f    *d_vertices, 
+                             const int      *d_indices, 
+                             const uint32_t  numClusters,
+                             const uint32_t *d_sortedClusterIDs, 
+                             box4f*          d_clusters)
   {  
     cudaMemset(d_clusters, sizeof(box4f)*numClusters, 0);
-    linear_kernel(makeClusters, 
+    linear_kernel(makeClusterBBox, 
       numElements, d_sortedElementIDs, d_vertices, d_indices, 
       numClusters, d_sortedClusterIDs, d_clusters
     );
     OWL_CUDA_SYNC_CHECK();
+  }
+  
+  struct VertexValue {
+    uint32_t address;
+    float3 position;  
+    float scalar;  
+  };
+
+  void fillLeafClusterBuffer(const size_t    numElements, const uint32_t * d_sortedElementIDs,
+                             const size_t    numVertices, const vec4f    * d_vertices, 
+                             const size_t    numIndices,  const int      * d_indices, 
+                             const uint32_t  numMeshlets, const uint32_t * d_sortednumMeshletIDs)
+  {
+    // figure out how many elements of each type are in each cluster
+    uint32_t* numPrimitivesInCluster;
+    cudaMalloc((void**)&numPrimitivesInCluster, numMeshlets * sizeof(uint32_t));
+    cudaMemset(numPrimitivesInCluster, 0, numMeshlets * sizeof(uint32_t));
+
+    parallel_for_gpu(numElements, 
+    [ 
+      sortedIndexToCluster=d_sortednumMeshletIDs, 
+      numClusters=numMeshlets, 
+      elementIds=d_sortedElementIDs, 
+      numPrimitivesInCluster=numPrimitivesInCluster
+    ] 
+    __device__ (size_t index) {
+      const uint32_t clusterIndex = sortedIndexToCluster[index];
+      atomicAdd(&numPrimitivesInCluster[clusterIndex], 1);
+    });
+    OWL_CUDA_SYNC_CHECK();
+
+    // Copy to host ...
+    std::vector<uint32_t> hNumPrimitivesInCluster(numMeshlets);
+    cudaMemcpy(hNumPrimitivesInCluster.data(), numPrimitivesInCluster, numMeshlets * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    // for (auto& n : hNumPrimitivesInCluster) {
+    //   std::cout << n << std::endl;
+    // }
+
+    // // Fill vertex values structures
+    // VertexValue* vertexValues;
+    // cudaMalloc((void**)&vertexValues, numVertices * sizeof(VertexValue));
+    // parallel_for_gpu(numVertices, 
+    // [
+    //   out=vertexValues, 
+    //   in=d_vertices
+    // ] 
+    // __device__ (size_t index) {
+    //   out[index] = {
+    //     (uint32_t)index,
+    //     vec3f(in[index]),
+    //     in[index].w
+    //   };
+    // });
+    // OWL_CUDA_SYNC_CHECK();
+
+    // VertexValue *verticesCopy;
+    // cudaMalloc((void**)&verticesCopy, numVertices * sizeof(VertexValue)); // freed after sort
+
+    // uint8_t *isUsed;
+    // cudaMalloc((void**)&isUsed,  numVertices * sizeof(uint8_t)); // free'd after replace unused step
+    
+    // uint32_t *newIdx;
+    // cudaMalloc((void**)&newIdx, numVertices * sizeof(uint32_t)); // free'd at end
+
+    // uint32_t* perm;
+    // cudaMalloc((void**) &perm, numVertices * sizeof(uint32_t)); // free'd at end
+
+    // uint32_t* clusterElementIds;
+    // cudaMalloc((void**)&clusterElementIds, totalElements * sizeof(uint32_t));  
+
+    // uint8_t* clusterElementTypes;
+    // cudaMalloc((void**)&clusterElementTypes, totalElements * sizeof(uint8_t));  // freed after sort
+
   }
 
 }

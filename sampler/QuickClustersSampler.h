@@ -12,6 +12,18 @@ namespace exa {
     float *maxOpacities;
   };
 
+  // struct Meshlet {
+  //   uint32_t numElements;
+  //   uint32_t numPyramids;
+  //   uint32_t numWedges;
+  //   uint32_t numHexahedra;
+  //   std::vector<uint8_t> tetrahedra;
+  //   std::vector<uint8_t> pyramids;
+  //   std::vector<uint8_t> wedges;
+  //   std::vector<uint8_t> hexahedra;
+  //   std::vector<vec4f> vertices;
+  // };
+
   class QuickClustersSampler : public Sampler {
   public:
     typedef std::shared_ptr<QuickClustersSampler> SP;
@@ -51,8 +63,6 @@ namespace exa {
     OWLGroup tlas;
 
     OWLBuffer umeshMaxOpacities{ 0 };
-
-    OWLBuffer clusterBuffer;
   };
 
 #ifdef __CUDA_ARCH__
