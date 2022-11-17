@@ -34,8 +34,8 @@ namespace exa {
     float *maxOpacities;
   };
 
-  struct ExaStitchSampler : Sampler
-  {
+  class ExaStitchSampler : public Sampler {
+  public:
     typedef std::shared_ptr<ExaStitchSampler> SP;
 
     // Launch params associated with sampler

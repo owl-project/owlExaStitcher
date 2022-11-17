@@ -231,7 +231,7 @@ namespace exa {
     {
       size_t numThreads = 1024;
 
-      initValueRangesGPU<<<iDivUp(model->gridlets.size(), numThreads), numThreads>>>(
+      initValueRangesGPU<<<(uint32_t)iDivUp(model->gridlets.size(), (uint32_t)numThreads), numThreads>>>(
         (range1f *)owlBufferGetPointer(gridletValueRanges,0),
         model->gridlets.size());
     }
@@ -247,7 +247,7 @@ namespace exa {
       vec3i init = 0;
       cudaMemcpy(maxGridletSize,&init,sizeof(init),cudaMemcpyHostToDevice);
 
-      getMaxGridletSize<<<iDivUp(numGridlets, numThreads), numThreads>>>(
+      getMaxGridletSize<<<(uint32_t)iDivUp(numGridlets, numThreads), (uint32_t)numThreads>>>(
         (const Gridlet *)owlBufferGetPointer(gridletBuffer,0),
         numGridlets,maxGridletSize);
 
@@ -255,10 +255,11 @@ namespace exa {
       cudaMemcpy(&hMaxGridletSize,maxGridletSize,sizeof(hMaxGridletSize),
                  cudaMemcpyDeviceToHost);
 
-      dim3 gridDims(numGridlets,hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z);
+      dim3 gridDims((int)numGridlets,
+                    (int)(hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z));
       dim3 blockDims(64,16);
-      dim3 numBlocks(iDivUp(gridDims.x,blockDims.x),
-                     iDivUp(gridDims.y,blockDims.y));
+      dim3 numBlocks((int)iDivUp(gridDims.x,blockDims.x),
+                     (int)iDivUp(gridDims.y,blockDims.y));
 
       computeGridletValueRangesGPU<<<numBlocks, blockDims>>>(
         (range1f *)owlBufferGetPointer(gridletValueRanges,0),
@@ -285,7 +286,7 @@ namespace exa {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
       size_t numThreads = 1024;
 
-      computeGridletMaxOpacitiesGPU<<<iDivUp(model->gridlets.size(), numThreads), numThreads>>>(
+      computeGridletMaxOpacitiesGPU<<<(uint32_t)iDivUp(model->gridlets.size(), numThreads), (uint32_t)numThreads>>>(
         (float *)owlBufferGetPointer(gridletMaxOpacities,0),
         (const range1f *)owlBufferGetPointer(gridletValueRanges,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
@@ -299,7 +300,7 @@ namespace exa {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
       size_t numThreads = 1024;
 
-      computeUmeshMaxOpacitiesGPU<<<iDivUp(model->indices.size()/8, numThreads), numThreads>>>(
+      computeUmeshMaxOpacitiesGPU<<<(uint32_t)iDivUp(model->indices.size()/8, numThreads), (uint32_t)numThreads>>>(
         (float *)owlBufferGetPointer(umeshMaxOpacities,0),
         (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
         (const int *)owlBufferGetPointer(indexBuffer,0),

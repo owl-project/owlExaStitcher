@@ -63,7 +63,7 @@ namespace exa {
 
     ABR newLeaf;
     newLeaf.domain = domain;
-    newLeaf.leafListSize = allBrickIDs.size();
+    newLeaf.leafListSize = (int)allBrickIDs.size();
 
 
     {
@@ -77,7 +77,7 @@ namespace exa {
     }
     
     std::lock_guard<std::mutex> lock(mutex);
-    newLeaf.leafListBegin = leafList.size();
+    newLeaf.leafListBegin = (int)leafList.size();
     dbg_biggestLeaf = std::max(dbg_biggestLeaf,(int)buildPrims.size());
     for (auto it : allBrickIDs) {
       leafList.push_back(it);
@@ -207,7 +207,7 @@ namespace exa {
     for (int i=0;i<region.leafListSize;i++) {
       int brickID = leafList[region.leafListBegin+i];
       const ExaBrick &brick = bricks[brickID];
-      const float cellWidth = 1<<brick.level;
+      const float cellWidth = (float)(1<<brick.level);
       
       // bool valid_z[brick.size.z];
       std::vector<bool> valid_z(brick.size.z);
@@ -281,7 +281,7 @@ namespace exa {
         for (size_t i=begin;i<end;i++) {
             box3f domain = bricks[i].getDomain();
             blockBounds.extend(domain);
-            blockBuildPrims.push_back({domain,i});
+            blockBuildPrims.push_back({domain,(int)i});
         }
         std::lock_guard<std::mutex> lock(mutex);
         bounds.extend(blockBounds);
@@ -291,7 +291,7 @@ namespace exa {
     // bounds and buildprom built - recurse...
     std::cout << "-------------------------------------------------------" << std::endl;
     std::cout << "starting to build exa overlap regions, #inputs "
-              << prettyDouble(buildPrims.size()) << ", bounds " << bounds << std::endl;
+              << prettyDouble((double)buildPrims.size()) << ", bounds " << bounds << std::endl;
     buildRec(buildPrims,bounds);
     double t1 = getCurrentTime();
     std::cout << "(re-)built block basis function domain(s) in "
@@ -308,7 +308,7 @@ namespace exa {
           const ExaBrick &brick = bricks[brickID];
           finestLevel = std::min(finestLevel,brick.level);
         }
-        region.finestLevelCellWidth = 1<<finestLevel;
+        region.finestLevelCellWidth = (float)(1<<finestLevel);
         computeValueRange(region,bricks,scalarBuffers);
         // if (regionID % 100000 == 0) {
         //   static std::mutex mutex;
@@ -317,15 +317,15 @@ namespace exa {
         // }
       });
       
-    std::cout << "total num leaves " << prettyDouble(this->value.size()) << std::endl;
+    std::cout << "total num leaves " << prettyDouble((double)this->value.size()) << std::endl;
     std::cout << "avg leaf size " << (leafList.size() / float(this->value.size())) << std::endl;
     
     std::cout << "biggest leaf: "
               << dbg_biggestLeaf << " bricks" << std::endl;
 
-    std::cout << "stat: #cells   " << prettyDouble(stat_numCells) << std::endl;
-    std::cout << "stat: #bricks  " << prettyDouble(stat_numBricks) << std::endl;
-    std::cout << "stat: #regions " << prettyDouble(stat_numRegions) << std::endl;
+    std::cout << "stat: #cells   " << prettyDouble((double)stat_numCells) << std::endl;
+    std::cout << "stat: #bricks  " << prettyDouble((double)stat_numBricks) << std::endl;
+    std::cout << "stat: #regions " << prettyDouble((double)stat_numRegions) << std::endl;
     std::cout << "stat: avg bricks/region (by count) : " << (stat_numBricksInRegions/double(stat_numRegions)) << std::endl;
     std::cout << "stat: avg bricks/region (by volume): " << (stat_volumeWeightedNumBrickInRegion/stat_totalVolumeInRegions) << std::endl;
     std::cout << "stat: brick/region MAX : " << stat_maxBricksPerRegion << std::endl;

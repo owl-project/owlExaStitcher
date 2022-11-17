@@ -24,8 +24,8 @@
 
 namespace exa {
 
-  struct BigMeshSampler : Sampler
-  {
+  class BigMeshSampler : public Sampler {
+  public:
     typedef std::shared_ptr<BigMeshSampler> SP;
 
 #if HAVE_BIGMESH

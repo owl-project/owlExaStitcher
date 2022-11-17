@@ -108,7 +108,7 @@ namespace exa {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
       size_t numThreads = 1024;
-      computeMaxOpacitiesForABRs<<<iDivUp(numABRs, numThreads), numThreads>>>(
+      computeMaxOpacitiesForABRs<<<(uint32_t)iDivUp(numABRs, numThreads), (uint32_t)numThreads>>>(
         (float *)owlBufferGetPointer(abrMaxOpacities,0),
         (const ABR *)owlBufferGetPointer(abrBuffer,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),
@@ -125,7 +125,7 @@ namespace exa {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
       size_t numThreads = 1024;
-      computeMaxOpacitiesForBricks<<<iDivUp(model->bricks.size(), numThreads), numThreads>>>(
+      computeMaxOpacitiesForBricks<<<(uint32_t)iDivUp(model->bricks.size(), numThreads), (uint32_t)numThreads>>>(
         (float *)owlBufferGetPointer(brickMaxOpacities,0),
         (const range1f *)owlBufferGetPointer(brickValueRanges,0),
         (const vec4f *)owlBufferGetPointer(colorMap,0),

@@ -103,7 +103,7 @@ namespace exa {
     __both__
     inline void set_leaf(unsigned first_primitive_index, unsigned count)
     {
-      axis = 3 << 30;
+      axis = 3U << 30U;
       first_prim = first_primitive_index;
       num_prims |= count;
     }

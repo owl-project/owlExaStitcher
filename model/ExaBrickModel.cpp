@@ -72,8 +72,8 @@ namespace exa {
       bricks.push_back(brick);
     }
     std::cout << "#exa: done loading exabricks, found "
-              << owl::prettyDouble(bricks.size()) << " bricks with "
-              << owl::prettyDouble(indices.size()) << " cells" << std::endl;
+              << owl::prettyDouble((double)bricks.size()) << " bricks with "
+              << owl::prettyDouble((double)indices.size()) << " cells" << std::endl;
 
     // -------------------------------------------------------
     // flatten cellIDs

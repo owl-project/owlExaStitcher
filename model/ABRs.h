@@ -42,7 +42,7 @@ namespace exa {
     inline __both__
     box3f getDomain() const
     {
-      const float cellWidth = 1<<level;
+      const float cellWidth = (float)(1<<level);
       return box3f(vec3f(lower) - 0.5f*cellWidth,
                    vec3f(lower) + (vec3f(size)+0.5f)*cellWidth);
     }

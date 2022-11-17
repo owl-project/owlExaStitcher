@@ -27,8 +27,8 @@ namespace exa {
     float *maxOpacities;
   };
 
-  struct ExaBrickSampler : Sampler
-  {
+  class ExaBrickSampler : public Sampler {
+  public:
     typedef std::shared_ptr<ExaBrickSampler> SP;
 
     static int traversalMode;

@@ -101,7 +101,7 @@ namespace exa {
       buildIndices(mesh->wedges);
       buildIndices(mesh->hexes);
 
-      numElems = indices.size()/8;
+      numElems = (uint32_t)(indices.size()/8);
 
       std::cout << "Got " << numElems
                 << " elements. Value range is: " << valueRange << '\n';
@@ -193,7 +193,7 @@ namespace exa {
           valueRange.upper = std::max(valueRange.upper,value);
         }
 
-        gridlet.begin = gridletScalars.size();
+        gridlet.begin = (uint32_t)gridletScalars.size();
 
         gridletScalars.insert(gridletScalars.end(),
                               gscalars.begin(),

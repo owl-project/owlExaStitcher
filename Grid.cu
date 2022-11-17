@@ -28,13 +28,14 @@ using namespace owl;
 
 namespace exa {
 
-
-  inline int __both__ iDivUp(int a, int b)
+  template<typename T>
+  inline T __both__ iDivUp(T a, T b)
   {
     return (a + b - 1) / b;
   }
 
-  inline int __both__ iRoundUp(int a, int b)
+  template<typename T>
+  inline T __both__ iRoundUp(T a, T b)
   {
     return iDivUp(a,b) * b;
   }
@@ -325,7 +326,7 @@ namespace exa {
     {
       size_t numThreads = 1024;
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
-      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
+      initGrid<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
 
       // pre-allocating max-opacity buffer
@@ -337,7 +338,7 @@ namespace exa {
       size_t numThreads = 1024;
       size_t numAmrCells = owlBufferSizeInBytes(sampler->cellBuffer)/sizeof(AMRCell);
       std::cout << "DDA grid: adding " << numAmrCells << " AMR cells (non-dual!)\n";
-      buildGrid<<<iDivUp(numAmrCells, numThreads), numThreads>>>(
+      buildGrid<<<(uint32_t)iDivUp(numAmrCells, numThreads), (uint32_t)numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const AMRCell *)owlBufferGetPointer(sampler->cellBuffer,0),
         (const float *)owlBufferGetPointer(sampler->scalarBuffer,0),
@@ -373,7 +374,7 @@ namespace exa {
     {
       size_t numThreads = 1024;
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
-      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
+      initGrid<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
 
       // pre-allocating max-opacity buffer
@@ -386,7 +387,7 @@ namespace exa {
       size_t numThreads = 1024;
       size_t numABRs = owlBufferSizeInBytes(sampler->abrBuffer)/sizeof(ABR);
       std::cout << "DDA grid: adding " << numABRs << " ExaBrick ABRs\n";
-      buildGrid<<<iDivUp(numABRs, numThreads), numThreads>>>(
+      buildGrid<<<(uint32_t)iDivUp(numABRs, numThreads), (uint32_t)numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const ABR *)owlBufferGetPointer(sampler->abrBuffer,0),
         numABRs,dims,worldBounds);
@@ -412,7 +413,7 @@ namespace exa {
               vec3i lower = brick.lower + index3*(1<<brick.level);
               vec3i upper = lower + (1<<brick.level);
 
-              const vec3f halfCell = vec3f(1<<brick.level)*.5f;
+              const vec3f halfCell = vec3f((float)(1<<brick.level))*.5f;
 
               const vec3i loMC = projectOnGrid(vec3f(lower)-halfCell,dims,worldBounds);
               const vec3i upMC = projectOnGrid(vec3f(upper)+halfCell,dims,worldBounds);
@@ -468,7 +469,7 @@ namespace exa {
     {
       size_t numThreads = 1024;
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
-      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
+      initGrid<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
 
       // pre-allocating max-opacity buffer
@@ -480,7 +481,7 @@ namespace exa {
       size_t numThreads = 1024;
       size_t numElems = owlBufferSizeInBytes(sampler->indexBuffer)/sizeof(int[8]);
       std::cout << "DDA grid: adding " << numElems << " uelems\n";
-      buildGrid<<<iDivUp(numElems, numThreads), numThreads>>>(
+      buildGrid<<<(uint32_t)iDivUp(numElems, numThreads), (uint32_t)numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
         (const int *)owlBufferGetPointer(sampler->indexBuffer,0),
@@ -500,7 +501,7 @@ namespace exa {
       vec3i init = 0;
       cudaMemcpy(maxGridletSize,&init,sizeof(init),cudaMemcpyHostToDevice);
 
-      getMaxGridletSize<<<iDivUp(numGridlets, numThreads), numThreads>>>(
+      getMaxGridletSize<<<(uint32_t)iDivUp(numGridlets, numThreads), (uint32_t)numThreads>>>(
         (const Gridlet *)owlBufferGetPointer(sampler->gridletBuffer,0),
         numGridlets,maxGridletSize);
 
@@ -508,7 +509,8 @@ namespace exa {
       cudaMemcpy(&hMaxGridletSize,maxGridletSize,sizeof(hMaxGridletSize),
                  cudaMemcpyDeviceToHost);
 
-      dim3 gridDims(numGridlets,hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z);
+      dim3 gridDims((int)numGridlets,
+                    (int)(hMaxGridletSize.x*hMaxGridletSize.y*hMaxGridletSize.z));
       dim3 blockDims(64,16);
       dim3 numBlocks(iDivUp(gridDims.x,blockDims.x),
                      iDivUp(gridDims.y,blockDims.y));
@@ -553,7 +555,7 @@ namespace exa {
     {
       size_t numThreads = 1024;
       size_t numMCs = dims.x*size_t(dims.y)*dims.z;
-      initGrid<<<iDivUp(numMCs, numThreads), numThreads>>>
+      initGrid<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>
         ((range1f *)owlBufferGetPointer(valueRanges,0),dims);
 
       // pre-allocating max-opacity buffer
@@ -565,7 +567,7 @@ namespace exa {
       size_t numThreads = 1024;
       size_t numElems = owlBufferSizeInBytes(sampler->indexBuffer)/sizeof(int[8]);
       std::cout << "DDA grid: adding " << numElems << " uelems\n";
-      buildGrid<<<iDivUp(numElems, numThreads), numThreads>>>(
+      buildGrid<<<(uint32_t)iDivUp(numElems, numThreads), (uint32_t)numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
         (const int *)owlBufferGetPointer(sampler->indexBuffer,0),
@@ -668,7 +670,7 @@ namespace exa {
     size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
 
     size_t numThreads = 1024;
-    computeMaxOpacitiesGPU<<<iDivUp(numMCs, numThreads), numThreads>>>(
+    computeMaxOpacitiesGPU<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>(
       (float *)owlBufferGetPointer(maxOpacities,0),
       (const range1f *)owlBufferGetPointer(valueRanges,0),
       (const vec4f *)owlBufferGetPointer(colorMap,0),

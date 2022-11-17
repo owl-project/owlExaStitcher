@@ -26,8 +26,8 @@ namespace exa {
     float   *scalarBuffer;
   };
 
-  struct AMRCellSampler : Sampler
-  {
+  class AMRCellSampler : public Sampler {
+  public:
     typedef std::shared_ptr<AMRCellSampler> SP;
 
     // Launch params associated with sampler

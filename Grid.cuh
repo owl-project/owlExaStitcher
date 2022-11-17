@@ -49,7 +49,7 @@ namespace exa {
   {
     const auto stride_y = (size_t)grid.x;
     const auto stride_z = (size_t)grid.y * (size_t)grid.x;
-    return  owl::vec3i(index % stride_y, (index % stride_z) / stride_y, index / stride_z);
+    return  owl::vec3i((int)(index % stride_y), (int)((index % stride_z) / stride_y), (int)(index / stride_z));
   }
 
   __both__ inline
