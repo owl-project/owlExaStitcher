@@ -408,6 +408,14 @@ namespace exa {
     cudaFree(d_temp_storage);
   }
 
+  void reorderIndices(const uint32_t* elementIdsSorted, 
+                      const uint32_t* elementIndicesSorted, 
+                      const vec4f *d_vertices, 
+                      const int   *d_indices, 
+                      const size_t numElements)
+  {
+  }
+
   __global__ void mergeClusters(uint64_t numElements,
                                 uint32_t numClusters,
                                 uint32_t* __restrict__ flags,

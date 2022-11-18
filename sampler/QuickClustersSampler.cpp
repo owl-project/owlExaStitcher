@@ -103,24 +103,24 @@ namespace exa {
     printGPUMemory("<<<< before clustering");
     sortLeafPrimitives(d_sortedCodes, d_sortedElementIDs, d_vertices, d_indices, numElements);
 
-    // building ... macrocells ?!
-    printGPUMemory("<<<< before create macrocells");
-    OWLBuffer clusterBBoxBuffer;
-    box4f* d_clusterBBoxes = nullptr;
-    uint32_t numClusterBBoxes;
-    {
-      uint32_t* d_sortedClusterIDs = nullptr;
-      buildClusters(d_sortedCodes, numElements, 
-                    /*maxNumClusters=*/1000000,  // here, we don't care how many elements go 
-                    /*maxElementsPerCluster=*/0, // in a cluster. just for adaptive sampling...
-                    numClusterBBoxes, d_sortedClusterIDs);
-      clusterBBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numClusterBBoxes, nullptr);
-      d_clusterBBoxes = (box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
-      fillClusterBBoxBuffer(numElements, d_sortedElementIDs, d_vertices, d_indices, numClusterBBoxes, d_sortedClusterIDs, d_clusterBBoxes);
-      cudaFree(d_sortedClusterIDs);
-    }
-    owlBufferRelease(clusterBBoxBuffer);
-    printGPUMemory(">>>> after create macrocells");
+    // // building ... macrocells ?!
+    // printGPUMemory("<<<< before create macrocells");
+    // OWLBuffer clusterBBoxBuffer;
+    // box4f* d_clusterBBoxes = nullptr;
+    // uint32_t numClusterBBoxes;
+    // {
+    //   uint32_t* d_sortedClusterIDs = nullptr;
+    //   buildClusters(d_sortedCodes, numElements, 
+    //                 /*maxNumClusters=*/1000000,  // here, we don't care how many elements go 
+    //                 /*maxElementsPerCluster=*/0, // in a cluster. just for adaptive sampling...
+    //                 numClusterBBoxes, d_sortedClusterIDs);
+    //   clusterBBoxBuffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(box4f), numClusterBBoxes, nullptr);
+    //   d_clusterBBoxes = (box4f*)owlBufferGetPointer(clusterBBoxBuffer, 0);
+    //   fillClusterBBoxBuffer(numElements, d_sortedElementIDs, d_vertices, d_indices, numClusterBBoxes, d_sortedClusterIDs, d_clusterBBoxes);
+    //   cudaFree(d_sortedClusterIDs);
+    // }
+    // owlBufferRelease(clusterBBoxBuffer);
+    // printGPUMemory(">>>> after create macrocells");
 
     // // building ... leaf-clusters
     // printGPUMemory("<<<< before create leaf-clusters");
