@@ -1,6 +1,7 @@
 #include "QuickClustersSampler.h"
 
 #include <owl/common/parallel/parallel_for.h>
+#include <owl/helper/cuda.h>
 
 #include <cuda_runtime.h>
 
@@ -95,14 +96,55 @@ namespace exa
     uint32_t *d_sortedElementIDs = nullptr;
     sortElements(numElements, d_vertices, d_indices, &d_sortedCodes, &d_sortedElementIDs);
 
+    // // debug the sorted centroids
+    // linear_kernel(computeCentroidsAndIndices, numElements, centroids, elementIdsUnsorted, d_indices, d_vertices);
+    // OWL_CUDA_SYNC_CHECK();
+
+    std::vector<uint64_t> sortedElementCodes(numElements);
+    cudaMemcpy(sortedElementCodes.data(), d_sortedCodes, numElements * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+
     std::vector<uint32_t> sortedElementIDs(numElements);
     cudaMemcpy(sortedElementIDs.data(), d_sortedElementIDs, numElements * sizeof(uint32_t), cudaMemcpyDeviceToHost);
 
+    OWL_CUDA_SYNC_CHECK();
+
     int *d_sortedIndices = nullptr;
     reorderElements(numElements, d_sortedElementIDs, d_vertices, d_indices, &d_sortedIndices);
+
+    OWL_CUDA_SYNC_CHECK();
+
+    // std::vector<int> newIndices(numIndices);
+    // cudaMemcpy(newIndices.data(), d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToHost);
+    // OWL_CUDA_SYNC_CHECK();
+
+    // for (int index = 0; index < numElements; ++index) {
+    
+    //   const auto primID = sortedElementIDs[index];
+    
+    //   box4f primBounds4 = box4f();
+    
+    //   vec4f v[8];
+    //   int numVerts = 0;
+    //   for (int i=0; i<8; ++i) {
+    //     int idx = indices[primID*8+i];
+    //     if (idx != newIndices[index*8+i]) std::cout << "diff " << idx << " " << newIndices[index*8+i] << std::endl;
+    //     if (idx >= 0) {
+    //       numVerts++;
+    //       v[i] = vertices[idx];
+    //       primBounds4.extend(v[i]);
+    //     }
+    //   }
+    
+    //   // std::cout << index << " primID " <<  primID << " code " << sortedElementCodes[index] << " bound " << primBounds4 << std::endl;
+    
+    // }
+
+
     cudaMemcpy(d_indices, d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToDevice);
     cudaMemcpy(indices.data(), d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToHost);
     cudaFree(d_sortedIndices);
+
+    OWL_CUDA_SYNC_CHECK();
 
 #if 0
     // building ... macrocells

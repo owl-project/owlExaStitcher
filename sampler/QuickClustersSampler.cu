@@ -261,7 +261,7 @@ namespace exa {
 
     box4f primBounds4 = box4f();
 
-    #pragma unroll
+    // #pragma unroll
     for (int i=0; i<8; ++i) {
       const int idx = indexBuffer[primID*8+i];
       if (idx >= 0) {
@@ -376,8 +376,8 @@ namespace exa {
     cudaMalloc((void**)&codesUnsorted, numElements * sizeof(uint64_t));
     cudaMalloc((void**)&codesSorted, numElements * sizeof(uint64_t));     
     linear_kernel(assignCodes, numElements, codesUnsorted, centroids, centroidBounds);
-    cudaFree(centroids);
-    cudaFree(centroidBounds);
+    // cudaFree(centroids);
+    // cudaFree(centroidBounds);
     OWL_CUDA_SYNC_CHECK();
 
     //
@@ -413,6 +413,23 @@ namespace exa {
     cudaFree(d_temp_storage);
   }
 
+
+  // void __global__ reorderIndices(const uint64_t N, 
+  //                           const uint32_t* __restrict__ sortedElementIDs, 
+  //                           const int* __restrict__ indicesUnsorted, 
+  //                           int* __restrict__ indicesSorted)
+  // {
+  //   const uint64_t index = blockIdx.x * (uint64_t)blockDim.x + threadIdx.x;
+  //   if (index < N)
+  //   {
+  //     const uint32_t newID = sortedElementIDs[index];
+  //     for (int i=0; i<8; ++i) {
+  //       const int idx = indicesUnsorted[newID*8+i];
+  //       indicesSorted[index*8+i] = idx;
+  //     }
+  //   }
+  // }
+
   void reorderElements(const size_t numElements, 
                        const uint32_t *d_sortedElementIDs, 
                        const vec4f    *d_vertices, 
@@ -422,6 +439,8 @@ namespace exa {
     int *&d_sortedIndices = *_sortedIndices;
     cudaMalloc((void**)&d_sortedIndices, numElements * sizeof(int) * 8);
 
+    // linear_kernel(reorderIndices, numElements, d_sortedElementIDs, d_indices, d_sortedIndices);
+
     parallel_for_gpu(numElements,
     [
       N=numElements,
@@ -429,14 +448,25 @@ namespace exa {
       sortedIndices=(int *)d_sortedIndices,
       indexBuffer=d_indices
     ] 
-    __device__ (size_t oldID) {
-      const uint32_t newID = sortedElementIDs[oldID];
+    __device__ (size_t index) {
 
+      // CORRECT
+      const uint32_t newID = index;
+      const uint32_t oldID = sortedElementIDs[newID];
       #pragma unroll
       for (int i=0; i<8; ++i) {
         const int idx = indexBuffer[oldID*8+i];
         sortedIndices[newID*8+i] = idx;
       }
+
+      // // WRONG
+      // const uint32_t oldID = index;
+      // const uint32_t newID = sortedElementIDs[oldID];
+      // #pragma unroll
+      // for (int i=0; i<8; ++i) {
+      //   const int idx = indexBuffer[oldID*8+i];
+      //   sortedIndices[newID*8+i] = idx;
+      // }
     });
   }
 
