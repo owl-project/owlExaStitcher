@@ -7,7 +7,7 @@
 
 #include <set>
 
-extern "C" char embedded_ExaStitchSampler[];
+extern "C" char embedded_QuickClustersSampler[];
 
 namespace exa
 {
@@ -63,7 +63,7 @@ namespace exa
     // ==================================================================
     if (vertices.empty()) return false;
 
-    module = owlModuleCreate(context, embedded_ExaStitchSampler);
+    module = owlModuleCreate(context, embedded_QuickClustersSampler);
 
     // ==================================================================
     // setup geometry data
@@ -96,52 +96,18 @@ namespace exa
     uint32_t *d_sortedElementIDs = nullptr;
     sortElements(numElements, d_vertices, d_indices, &d_sortedCodes, &d_sortedElementIDs);
 
-    // // debug the sorted centroids
-    // linear_kernel(computeCentroidsAndIndices, numElements, centroids, elementIdsUnsorted, d_indices, d_vertices);
-    // OWL_CUDA_SYNC_CHECK();
-
-    std::vector<uint64_t> sortedElementCodes(numElements);
-    cudaMemcpy(sortedElementCodes.data(), d_sortedCodes, numElements * sizeof(uint64_t), cudaMemcpyDeviceToHost);
-
-    std::vector<uint32_t> sortedElementIDs(numElements);
-    cudaMemcpy(sortedElementIDs.data(), d_sortedElementIDs, numElements * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    // std::vector<uint64_t> sortedElementCodes(numElements);
+    // cudaMemcpy(sortedElementCodes.data(), d_sortedCodes, numElements * sizeof(uint64_t), cudaMemcpyDeviceToHost);
+    // std::vector<uint32_t> sortedElementIDs(numElements);
+    // cudaMemcpy(sortedElementIDs.data(), d_sortedElementIDs, numElements * sizeof(uint32_t), cudaMemcpyDeviceToHost);
 
     OWL_CUDA_SYNC_CHECK();
 
     int *d_sortedIndices = nullptr;
     reorderElements(numElements, d_sortedElementIDs, d_vertices, d_indices, &d_sortedIndices);
-
     OWL_CUDA_SYNC_CHECK();
-
-    // std::vector<int> newIndices(numIndices);
-    // cudaMemcpy(newIndices.data(), d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToHost);
-    // OWL_CUDA_SYNC_CHECK();
-
-    // for (int index = 0; index < numElements; ++index) {
-    
-    //   const auto primID = sortedElementIDs[index];
-    
-    //   box4f primBounds4 = box4f();
-    
-    //   vec4f v[8];
-    //   int numVerts = 0;
-    //   for (int i=0; i<8; ++i) {
-    //     int idx = indices[primID*8+i];
-    //     if (idx != newIndices[index*8+i]) std::cout << "diff " << idx << " " << newIndices[index*8+i] << std::endl;
-    //     if (idx >= 0) {
-    //       numVerts++;
-    //       v[i] = vertices[idx];
-    //       primBounds4.extend(v[i]);
-    //     }
-    //   }
-    
-    //   // std::cout << index << " primID " <<  primID << " code " << sortedElementCodes[index] << " bound " << primBounds4 << std::endl;
-    
-    // }
-
-
     cudaMemcpy(d_indices, d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToDevice);
-    cudaMemcpy(indices.data(), d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(indices.data(), d_sortedIndices, numIndices * sizeof(int), cudaMemcpyDeviceToHost); // just keep host/device consistent
     cudaFree(d_sortedIndices);
 
     OWL_CUDA_SYNC_CHECK();
@@ -202,7 +168,7 @@ namespace exa
     OWLVarDecl leafGeomVars[] = {
         {"indexBuffer", OWL_BUFPTR, OWL_OFFSETOF(QCLeafGeom, indexBuffer)},
         {"vertexBuffer", OWL_BUFPTR, OWL_OFFSETOF(QCLeafGeom, vertexBuffer)},
-        // {"maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(QCLeafGeom, maxOpacities)},
+        {"maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(QCLeafGeom, maxOpacities)},
         {"numElements", OWL_UINT, OWL_OFFSETOF(QCLeafGeom, numElements)},
         {nullptr /* sentinel to mark end of list */}};
 
@@ -215,7 +181,7 @@ namespace exa
 
     owlGeomSetBuffer(geom, "vertexBuffer", vertexBuffer);
     owlGeomSetBuffer(geom, "indexBuffer", indexBuffer);
-    // owlGeomSetBuffer(geom, "maxOpacities", umeshMaxOpacities);
+    owlGeomSetBuffer(geom, "maxOpacities", umeshMaxOpacities);
     owlGeomSet1ui(geom, "numElements", indices.size() / 8);
 
     owlBuildPrograms(context);

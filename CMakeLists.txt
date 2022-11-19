@@ -80,6 +80,17 @@ embed_ptx( # TODO: move to samplers
     sampler/programs/ExaStitchSampler.cu
 )
 
+embed_ptx( # TODO: move to samplers
+  OUTPUT_TARGET
+    embedded_QuickClustersSampler
+  EMBEDDED_SYMBOL_NAMES
+    embedded_QuickClustersSampler
+  PTX_LINK_LIBRARIES
+    owl::owl
+  SOURCES
+    sampler/programs/QuickClustersSampler.cu
+)
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/cuteeOwl)
 include_directories(${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/cuteeOwl)
 include_directories(${QT_OWL_INCLUDES})
@@ -152,6 +163,7 @@ if(EXA_STITCH_MIRROR_EXAJET)
   target_compile_definitions(embedded_AMRCellSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
   target_compile_definitions(embedded_ExaBrickSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
   target_compile_definitions(embedded_ExaStitchSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
+  target_compile_definitions(embedded_QuickClustersSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
   target_compile_definitions(witcher PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
 endif()
 
@@ -169,6 +181,7 @@ target_link_libraries(witcher embedded_deviceCode)
 target_link_libraries(witcher embedded_AMRCellSampler)
 target_link_libraries(witcher embedded_ExaBrickSampler)
 target_link_libraries(witcher embedded_ExaStitchSampler)
+target_link_libraries(witcher embedded_QuickClustersSampler)
 target_link_libraries(witcher
       owl::owl
       qtOWL

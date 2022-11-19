@@ -7,10 +7,10 @@
 namespace exa {
 
   struct QCLeafGeom {
-    enum { ELEMENTS_PER_BOX = 2, };
+    enum { ELEMENTS_PER_BOX = 1, };
     int   *indexBuffer;
     vec4f *vertexBuffer;
-    // float *maxOpacities;
+    float *maxOpacities;
     uint32_t numElements;
   };
 
@@ -36,7 +36,6 @@ namespace exa {
 
     std::string className() { return "QuickClustersSampler"; }
 
-    // still using the stitcher model ...
     QuickClustersModel::SP model = nullptr;
 
     OWLBuffer indexBuffer;
