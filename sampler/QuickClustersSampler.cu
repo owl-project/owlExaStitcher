@@ -336,9 +336,15 @@ namespace exa {
     }
   }
 
-  void sortLeafPrimitives(uint64_t* &codesSorted, uint32_t* &elementIdsSorted, 
-                          const vec4f *d_vertices, const int *d_indices, const size_t numElements)
+  void sortElements(const size_t numElements, 
+                    const vec4f *d_vertices, 
+                    const int *d_indices,
+                    uint64_t** d_sortedElementCodes, 
+                    uint32_t** d_sortedElementIDs)
   {
+    uint64_t *&codesSorted = *d_sortedElementCodes;
+    uint32_t* &elementIdsSorted = *d_sortedElementIDs;
+
     // one centroid per element
     float4* centroids;
     cudaMalloc((void**)&centroids, numElements * sizeof(float4));
@@ -359,10 +365,10 @@ namespace exa {
 
     // Compute centroid bounds 
     linear_kernel(computeCentroidBounds, numElements, centroids, centroidBounds);
-    // cudaMemcpy(&emptyBounds, centroidBounds, sizeof(box4f), cudaMemcpyDeviceToHost);
-    // printf("centroidBounds %f %f %f %f -- %f %f %f %f \n", 
-    //        emptyBounds.lower.x, emptyBounds.lower.y, emptyBounds.lower.z, emptyBounds.lower.w,
-    //        emptyBounds.upper.x, emptyBounds.upper.y, emptyBounds.upper.z, emptyBounds.upper.w);
+    cudaMemcpy(&emptyBounds, centroidBounds, sizeof(box4f), cudaMemcpyDeviceToHost);
+    printf("centroidBounds %f %f %f %f -- %f %f %f %f \n", 
+           emptyBounds.lower.x, emptyBounds.lower.y, emptyBounds.lower.z, emptyBounds.lower.w,
+           emptyBounds.upper.x, emptyBounds.upper.y, emptyBounds.upper.z, emptyBounds.upper.w);
     OWL_CUDA_SYNC_CHECK();
 
     // Project on morton curve
@@ -378,10 +384,8 @@ namespace exa {
     // Sort code
     //
 
-    // Determine temporary device storage requirements
-    static size_t oldN = 0;
-
     // Allocate temporary storage
+    static size_t oldN = 0; // Determine temporary device storage requirements
     static void *d_temp_storage = NULL;
     static size_t temp_storage_bytes = 0;
     if (oldN < numElements)
@@ -401,6 +405,7 @@ namespace exa {
                                     codesUnsorted, codesSorted, 
                                     elementIdsUnsorted, elementIdsSorted, 
                                     (int)numElements);
+    OWL_CUDA_SYNC_CHECK();
 
     // cleanup
     cudaFree(codesUnsorted);
@@ -408,12 +413,31 @@ namespace exa {
     cudaFree(d_temp_storage);
   }
 
-  void reorderIndices(const uint32_t* elementIdsSorted, 
-                      const uint32_t* elementIndicesSorted, 
-                      const vec4f *d_vertices, 
-                      const int   *d_indices, 
-                      const size_t numElements)
+  void reorderElements(const size_t numElements, 
+                       const uint32_t *d_sortedElementIDs, 
+                       const vec4f    *d_vertices, 
+                       const int      *d_indices,
+                       int **_sortedIndices)
   {
+    int *&d_sortedIndices = *_sortedIndices;
+    cudaMalloc((void**)&d_sortedIndices, numElements * sizeof(int) * 8);
+
+    parallel_for_gpu(numElements,
+    [
+      N=numElements,
+      sortedElementIDs=d_sortedElementIDs, 
+      sortedIndices=(int *)d_sortedIndices,
+      indexBuffer=d_indices
+    ] 
+    __device__ (size_t oldID) {
+      const uint32_t newID = sortedElementIDs[oldID];
+
+      #pragma unroll
+      for (int i=0; i<8; ++i) {
+        const int idx = indexBuffer[oldID*8+i];
+        sortedIndices[newID*8+i] = idx;
+      }
+    });
   }
 
   __global__ void mergeClusters(uint64_t numElements,
@@ -446,13 +470,18 @@ namespace exa {
     flags[index] = 0;
   }
 
-  void buildClusters(const uint64_t* codesSorted, 
-                     const size_t    numElements,
+  void buildClusters(const size_t    numElements,
+                     const uint64_t* d_sortedCodes, 
                      const uint32_t  maxNumClusters,
                      const uint32_t  maxElementsPerCluster,
-                     uint32_t & numClusters, 
-                     uint32_t*& sortedIndexToCluster)
+                     uint32_t*  _numClusters, 
+                     uint32_t** d_sortedIndexToCluster)
   {
+    uint32_t*& sortedIndexToCluster = *d_sortedIndexToCluster;
+    uint32_t & numClusters = *_numClusters;
+
+    const uint64_t* codesSorted = d_sortedCodes;
+
     if (maxNumClusters == 0 && maxElementsPerCluster == 0)
       throw std::runtime_error("One of 'maxNumClusters' and 'maxElementsPerCluster' must be non-zero.");
     if (maxNumClusters != 0 && maxElementsPerCluster != 0)
@@ -571,16 +600,6 @@ namespace exa {
     const uint32_t clusterID = clusterIDs[index];
     const uint32_t primID = elementIDs[index];
 
-    // vec4f v[8];
-    // int numVerts = 0;
-    // for (int i=0; i<8; ++i) {
-    //   int idx = indexBuffer[primID*8+i];
-    //   if (idx >= 0) {
-    //     numVerts++;
-    //     v[i] = vertexBuffer[idx];
-    //   }
-    // }
-    
     box4f primBounds4 = box4f();
 
     #pragma unroll

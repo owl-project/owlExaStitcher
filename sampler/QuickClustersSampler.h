@@ -7,22 +7,12 @@
 namespace exa {
 
   struct QCLeafGeom {
+    enum { ELEMENTS_PER_BOX = 2, };
     int   *indexBuffer;
     vec4f *vertexBuffer;
-    float *maxOpacities;
+    // float *maxOpacities;
+    uint32_t numElements;
   };
-
-  // struct Meshlet {
-  //   uint32_t numElements;
-  //   uint32_t numPyramids;
-  //   uint32_t numWedges;
-  //   uint32_t numHexahedra;
-  //   std::vector<uint8_t> tetrahedra;
-  //   std::vector<uint8_t> pyramids;
-  //   std::vector<uint8_t> wedges;
-  //   std::vector<uint8_t> hexahedra;
-  //   std::vector<vec4f> vertices;
-  // };
 
   class QuickClustersSampler : public Sampler {
   public:
