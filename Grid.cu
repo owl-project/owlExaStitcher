@@ -475,6 +475,7 @@ namespace exa {
     }
 
     // Add contrib from uelems
+    if (sampler->vertexBuffer && sampler->indexBuffer)
     {
       size_t numThreads = 1024;
       size_t numElems = owlBufferSizeInBytes(sampler->indexBuffer)/sizeof(int[8]);
@@ -489,6 +490,7 @@ namespace exa {
     }
 
     // Add contrib from gridlets
+    if (sampler->gridletBuffer && sampler->gridletScalarBuffer)
     {
       double tfirst = getCurrentTime();
       size_t numThreads = 1024;

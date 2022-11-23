@@ -281,6 +281,7 @@ namespace exa {
 
     model->grid->computeMaxOpacities(owl,colorMap,xfRange);
 
+    if (!model->gridlets.empty())
     {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
       size_t numThreads = 1024;
@@ -295,6 +296,7 @@ namespace exa {
       owlGroupBuildAccel(tlas);
     }
 
+    if (!model->indices.empty())
     {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
       size_t numThreads = 1024;

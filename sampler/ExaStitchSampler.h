@@ -77,10 +77,10 @@ namespace exa {
     OWLGroup tlas;
 
   public: // for grid
-    OWLBuffer indexBuffer;
-    OWLBuffer vertexBuffer;
-    OWLBuffer gridletBuffer;
-    OWLBuffer gridletScalarBuffer;
+    OWLBuffer indexBuffer{ 0 };
+    OWLBuffer vertexBuffer{ 0 };
+    OWLBuffer gridletBuffer{ 0 };
+    OWLBuffer gridletScalarBuffer{ 0 };
   private:
 
     OWLBuffer gridletValueRanges{ 0 };
