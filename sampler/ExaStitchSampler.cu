@@ -175,6 +175,7 @@ namespace exa {
     maxOpacities[threadID] = maxOpacity;
   }
 
+  template <int NumVertsMax=8>
   static __global__ void computeUmeshMaxOpacitiesGPU(float       *maxOpacities,
                                                      const vec4f *vertices,
                                                      const int   *indices,
@@ -187,10 +188,10 @@ namespace exa {
     if (threadID >= numElements)
       return;
 
-    vec4f v[8];
+    vec4f v[NumVertsMax];
     int numVerts = 0;
-    for (int i=0; i<8; ++i) {
-      int idx = indices[threadID*8+i];
+    for (int i=0; i<NumVertsMax; ++i) {
+      int idx = indices[threadID*NumVertsMax+i];
       if (idx >= 0) {
         numVerts++;
         v[i] = vertices[idx];
@@ -296,12 +297,70 @@ namespace exa {
       owlGroupBuildAccel(tlas);
     }
 
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    enum Type { TET, PYR, WEDGE, HEX };
+    std::vector<int> *indices[] = {
+      &model->tetIndices,
+      &model->pyrIndices,
+      &model->wedgeIndices,
+      &model->hexIndices
+    };
+    for (int type=0; type<4; ++type) {
+
+      if (indices[type]->empty()) {
+        continue;
+      }
+
+      size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
+      size_t numThreads = 1024;
+
+      if (type==TET) {std::cout << indices[type]->size()/4 << '\n';
+        computeUmeshMaxOpacitiesGPU<4><<<iDivUp(indices[type]->size()/4, numThreads), numThreads>>>(
+          (float *)owlBufferGetPointer(umeshMaxOpacities[type],0),
+          (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
+          (const int *)owlBufferGetPointer(indexBuffers[type],0),
+          indices[type]->size()/4,
+          (const vec4f *)owlBufferGetPointer(colorMap,0),
+          numColors,xfRange);
+      }
+      else if (type==PYR) {
+        computeUmeshMaxOpacitiesGPU<5><<<iDivUp(indices[type]->size()/5, numThreads), numThreads>>>(
+          (float *)owlBufferGetPointer(umeshMaxOpacities[type],0),
+          (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
+          (const int *)owlBufferGetPointer(indexBuffers[type],0),
+          indices[type]->size()/5,
+          (const vec4f *)owlBufferGetPointer(colorMap,0),
+          numColors,xfRange);
+      }
+      else if (type==WEDGE) {
+        computeUmeshMaxOpacitiesGPU<6><<<iDivUp(indices[type]->size()/6, numThreads), numThreads>>>(
+          (float *)owlBufferGetPointer(umeshMaxOpacities[type],0),
+          (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
+          (const int *)owlBufferGetPointer(indexBuffers[type],0),
+          indices[type]->size()/6,
+          (const vec4f *)owlBufferGetPointer(colorMap,0),
+          numColors,xfRange);
+      }
+      else if (type==HEX) {
+        computeUmeshMaxOpacitiesGPU<8><<<iDivUp(indices[type]->size()/8, numThreads), numThreads>>>(
+          (float *)owlBufferGetPointer(umeshMaxOpacities[type],0),
+          (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
+          (const int *)owlBufferGetPointer(indexBuffers[type],0),
+          indices[type]->size()/8,
+          (const vec4f *)owlBufferGetPointer(colorMap,0),
+          numColors,xfRange);
+      }
+
+      owlGroupBuildAccel(stitchGeom[type].blas);
+    }
+    owlGroupBuildAccel(tlas);
+#else
     if (!model->indices.empty())
     {
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
       size_t numThreads = 1024;
 
-      computeUmeshMaxOpacitiesGPU<<<iDivUp(model->indices.size()/8, numThreads), numThreads>>>(
+      computeUmeshMaxOpacitiesGPU<8><<<iDivUp(model->indices.size()/8, numThreads), numThreads>>>(
         (float *)owlBufferGetPointer(umeshMaxOpacities,0),
         (const vec4f *)owlBufferGetPointer(vertexBuffer,0),
         (const int *)owlBufferGetPointer(indexBuffer,0),
@@ -312,6 +371,7 @@ namespace exa {
       owlGroupBuildAccel(stitchGeom.blas);
       owlGroupBuildAccel(tlas);
     }
+#endif
   }
 } // ::exa
 
