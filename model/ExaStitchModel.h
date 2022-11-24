@@ -32,6 +32,12 @@ namespace exa {
                                    const std::string scalarFileName);
 
     std::vector<int>     indices;
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    std::vector<int>     tetIndices;
+    std::vector<int>     pyrIndices;
+    std::vector<int>     wedgeIndices;
+    std::vector<int>     hexIndices;
+#endif
     std::vector<vec4f>   vertices;
     std::vector<Gridlet> gridlets;
     // The scalars referenced by gridlet; umesh scalars

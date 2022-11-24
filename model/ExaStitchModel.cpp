@@ -28,6 +28,12 @@ namespace exa {
     ExaStitchModel::SP result = std::make_shared<ExaStitchModel>();
 
     std::vector<int> &indices          = result->indices;
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    std::vector<int> &tetIndices       = result->tetIndices;
+    std::vector<int> &pyrIndices       = result->pyrIndices;
+    std::vector<int> &wedgeIndices     = result->wedgeIndices;
+    std::vector<int> &hexIndices       = result->hexIndices;
+#endif
     std::vector<vec4f> &vertices       = result->vertices;
     std::vector<Gridlet> &gridlets     = result->gridlets;
     std::vector<float> &gridletScalars = result->gridletScalars;
@@ -149,6 +155,32 @@ namespace exa {
       indices = newIndices;
     }
 
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    // make sure to assemble per-elem lists _after_ compaction
+    for (size_t i=0; i<indices.size(); i+=8) {
+      if (indices[i+3] >= 0 && indices[i+4] < 0) {
+        for (int j=0; j<4; ++j) {
+          tetIndices.push_back(indices[i+j]);
+        }
+      }
+      else if (indices[i+4] >= 0 && indices[i+5] < 0) {
+        for (int j=0; j<5; ++j) {
+          pyrIndices.push_back(indices[i+j]);
+        }
+      }
+      else if (indices[i+5] >= 0 && indices[i+6] < 0) {
+        for (int j=0; j<6; ++j) {
+          wedgeIndices.push_back(indices[i+j]);
+        }
+      }
+      else if (indices[i+6] >= 0) {
+        for (int j=0; j<8; ++j) {
+          hexIndices.push_back(indices[i+j]);
+        }
+      }
+    }
+#endif
+
     // ==================================================================
     // Gridlets
     // ==================================================================
@@ -231,7 +263,15 @@ namespace exa {
                                 size_t &nonEmptyScalarsBytes)
   {
     elemVertexBytes = vertices.empty() ? 0 : vertices.size()*sizeof(vertices[0]);
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    elemIndexBytes = 0;
+    elemIndexBytes += tetIndices.empty() ? 0 : tetIndices.size()*sizeof(tetIndices[0]);
+    elemIndexBytes += pyrIndices.empty() ? 0 : pyrIndices.size()*sizeof(pyrIndices[0]);
+    elemIndexBytes += wedgeIndices.empty() ? 0 : wedgeIndices.size()*sizeof(wedgeIndices[0]);
+    elemIndexBytes += hexIndices.empty() ? 0 : hexIndices.size()*sizeof(hexIndices[0]);
+#else
     elemIndexBytes = indices.empty()   ? 0 : indices.size()*sizeof(indices[0]);
+#endif
     gridletBytes = gridlets.empty()    ? 0 : gridlets.size()*sizeof(gridlets[0]);
     emptyScalarsBytes = numEmptyScalars*sizeof(float);
     nonEmptyScalarsBytes = (numScalarsTotal-numEmptyScalars)*sizeof(float);

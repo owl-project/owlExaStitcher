@@ -70,9 +70,11 @@ namespace exa {
   // Stitching user geometry
   // ------------------------------------------------------------------
 
-  OPTIX_BOUNDS_PROGRAM(StitchGeomBounds)(const void* geomData,
-                                         box3f& result,
-                                         int leafID)
+  template <int NumVertsMax>
+  inline __device__
+  void StitchGeomBounds_Impl(const void* geomData,
+                             box3f& result,
+                             int leafID)
   {
     const StitchGeom &self = *(const StitchGeom *)geomData;
 
@@ -81,8 +83,8 @@ namespace exa {
       result.upper = vec3f(-1e30f);
     } else {
     result = box3f();
-      for (int i=0; i<8; ++i) {
-        int idx = self.indexBuffer[leafID*8+i];
+      for (int i=0; i<NumVertsMax; ++i) {
+        int idx = self.indexBuffer[leafID*NumVertsMax+i];
         if (idx < 0) break;
         vec3f v(self.vertexBuffer[idx]);
         result.extend(v);
@@ -90,6 +92,43 @@ namespace exa {
       }
     }
   }
+
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBounds)(const void* geomData,
+                                         box3f& result,
+                                         int leafID)
+  {
+    StitchGeomBounds_Impl<8>(geomData,result,leafID);
+  }
+
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBoundsTet)(const void* geomData,
+                                            box3f& result,
+                                            int leafID)
+  {
+    StitchGeomBounds_Impl<4>(geomData,result,leafID);
+  }
+
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBoundsPyr)(const void* geomData,
+                                            box3f& result,
+                                            int leafID)
+  {
+    StitchGeomBounds_Impl<5>(geomData,result,leafID);
+  }
+
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBoundsWedge)(const void* geomData,
+                                              box3f& result,
+                                              int leafID)
+  {
+    StitchGeomBounds_Impl<6>(geomData,result,leafID);
+  }
+
+  OPTIX_BOUNDS_PROGRAM(StitchGeomBoundsHex)(const void* geomData,
+                                            box3f& result,
+                                            int leafID)
+  {
+    StitchGeomBounds_Impl<8>(geomData,result,leafID);
+  }
+
+
 
   OPTIX_INTERSECT_PROGRAM(StitchGeomIsect)()
   {
@@ -120,6 +159,99 @@ namespace exa {
       sample.cellID = -1; // not a gridlet -> -1
     }
   }
+ 
+  OPTIX_INTERSECT_PROGRAM(StitchGeomIsectTet)()
+  {
+    const StitchGeom &self = owl::getProgramData<StitchGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+    float value = 0.f;
+
+    bool hit = intersectTet(value,pos,
+                            self.vertexBuffer[self.indexBuffer[primID*4]],
+                            self.vertexBuffer[self.indexBuffer[primID*4+1]],
+                            self.vertexBuffer[self.indexBuffer[primID*4+2]],
+                            self.vertexBuffer[self.indexBuffer[primID*4+3]]);
+
+    if (hit && optixReportIntersection(0.f,0)) {
+      Sample& sample = owl::getPRD<Sample>();
+      sample.value = value;
+      sample.primID = primID;
+      sample.cellID = -1; // not a gridlet -> -1
+    }
+  }
+
+  OPTIX_INTERSECT_PROGRAM(StitchGeomIsectPyr)()
+  {
+    const StitchGeom &self = owl::getProgramData<StitchGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+    float value = 0.f;
+
+    bool hit = intersectPyrEXT(value,pos,
+                               self.vertexBuffer[self.indexBuffer[primID*5]],
+                               self.vertexBuffer[self.indexBuffer[primID*5+1]],
+                               self.vertexBuffer[self.indexBuffer[primID*5+2]],
+                               self.vertexBuffer[self.indexBuffer[primID*5+3]],
+                               self.vertexBuffer[self.indexBuffer[primID*5+4]]);
+
+    if (hit && optixReportIntersection(0.f,0)) {
+      Sample& sample = owl::getPRD<Sample>();
+      sample.value = value;
+      sample.primID = primID;
+      sample.cellID = -1; // not a gridlet -> -1
+    }
+  }
+ 
+  OPTIX_INTERSECT_PROGRAM(StitchGeomIsectWedge)()
+  {
+    const StitchGeom &self = owl::getProgramData<StitchGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+    float value = 0.f;
+
+    bool hit = intersectWedgeEXT(value,pos,
+                                 self.vertexBuffer[self.indexBuffer[primID*6]],
+                                 self.vertexBuffer[self.indexBuffer[primID*6+1]],
+                                 self.vertexBuffer[self.indexBuffer[primID*6+2]],
+                                 self.vertexBuffer[self.indexBuffer[primID*6+3]],
+                                 self.vertexBuffer[self.indexBuffer[primID*6+4]],
+                                 self.vertexBuffer[self.indexBuffer[primID*6+5]]);
+
+    if (hit && optixReportIntersection(0.f,0)) {
+      Sample& sample = owl::getPRD<Sample>();
+      sample.value = value;
+      sample.primID = primID;
+      sample.cellID = -1; // not a gridlet -> -1
+    }
+  }
+
+  OPTIX_INTERSECT_PROGRAM(StitchGeomIsectHex)()
+  {
+    const StitchGeom &self = owl::getProgramData<StitchGeom>();
+    int primID = optixGetPrimitiveIndex();
+    vec3f pos = optixGetObjectRayOrigin();
+    float value = 0.f;
+
+    bool hit = intersectHexEXT(value,pos,
+                               self.vertexBuffer[self.indexBuffer[primID*8]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+1]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+2]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+3]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+4]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+5]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+6]],
+                               self.vertexBuffer[self.indexBuffer[primID*8+7]]);
+
+    if (hit && optixReportIntersection(0.f,0)) {
+      Sample& sample = owl::getPRD<Sample>();
+      sample.value = value;
+      sample.primID = primID;
+      sample.cellID = -1; // not a gridlet -> -1
+    }
+  }
+
+
 
   OPTIX_CLOSEST_HIT_PROGRAM(StitchGeomCH)()
   {

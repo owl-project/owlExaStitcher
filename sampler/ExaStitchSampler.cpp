@@ -47,7 +47,14 @@ namespace exa {
     if (!model)
       return false;
 
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    std::vector<int>     &tetIndices     = model->tetIndices;
+    std::vector<int>     &pyrIndices     = model->pyrIndices;
+    std::vector<int>     &wedgeIndices   = model->wedgeIndices;
+    std::vector<int>     &hexIndices     = model->hexIndices;
+#else
     std::vector<int>     &indices        = model->indices;
+#endif
     std::vector<vec4f>   &vertices       = model->vertices;
     std::vector<Gridlet> &gridlets       = model->gridlets;
     std::vector<float>   &gridletScalars = model->gridletScalars;
@@ -112,6 +119,80 @@ namespace exa {
     // stitching geom
     // ==================================================================
 
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    enum Type { TET, PYR, WEDGE, HEX };
+    int indexCount[] = {4,5,6,8};
+    const char *boundsNames[] = {
+      "StitchGeomBoundsTet",
+      "StitchGeomBoundsPyr",
+      "StitchGeomBoundsWedge",
+      "StitchGeomBoundsHex",
+    };
+    const char *isectNames[] = {
+      "StitchGeomIsectTet",
+      "StitchGeomIsectPyr",
+      "StitchGeomIsectWedge",
+      "StitchGeomIsectHex",
+    };
+
+    std::vector<int> *indices[] = {
+      &tetIndices,
+      &pyrIndices,
+      &wedgeIndices,
+      &hexIndices
+    };
+
+    for (int type=0; type<4; ++type) {
+
+      // Make sure we always _do_ build a BLAS!
+      // if (indices.empty()) {
+      //   indexBuffers[type] = {0};
+      //   umeshMaxOpacities[type] = {0};
+      //   continue;
+      // }
+
+      if (!vertexBuffer) {
+        // lazily construct the first itme we find an element type
+        vertexBuffer = owlDeviceBufferCreate(context, OWL_FLOAT4,
+                                             vertices.size(),
+                                             vertices.data());
+      }
+
+      umeshMaxOpacities[type] = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                      indices[type]->size()/indexCount[type],
+                                                      nullptr);
+
+      stitchGeom[type].geomType = owlGeomTypeCreate(context,
+                                                    OWL_GEOM_USER,
+                                                    sizeof(StitchGeom),
+                                                    stitchGeomVars, -1);
+      owlGeomTypeSetBoundsProg(stitchGeom[type].geomType, module, boundsNames[type]);
+      owlGeomTypeSetIntersectProg(stitchGeom[type].geomType,
+                                  SAMPLING_RAY_TYPE,
+                                  module,
+                                  isectNames[type]);
+      owlGeomTypeSetClosestHit(stitchGeom[type].geomType,
+                               SAMPLING_RAY_TYPE,
+                               module,
+                               "StitchGeomCH");
+
+      OWLGeom geom = owlGeomCreate(context, stitchGeom[type].geomType);
+      owlGeomSetPrimCount(geom, indices[type]->size()/indexCount[type]);
+
+      indexBuffers[type] = owlDeviceBufferCreate(context, OWL_INT,
+                                                 indices[type]->size(),
+                                                 indices[type]->data());
+
+      owlGeomSetBuffer(geom,"vertexBuffer",vertexBuffer);
+      owlGeomSetBuffer(geom,"indexBuffer",indexBuffers[type]);
+      owlGeomSetBuffer(geom,"maxOpacities",umeshMaxOpacities[type]);
+
+      owlBuildPrograms(context);
+
+      stitchGeom[type].blas = owlUserGeomGroupCreate(context, 1, &geom);
+      owlGroupBuildAccel(stitchGeom[type].blas);
+    }
+#else
     if (!vertices.empty() && !indices.empty()) {
       umeshMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT,
                                                 indices.size()/8,
@@ -151,20 +232,48 @@ namespace exa {
       stitchGeom.blas = owlUserGeomGroupCreate(context, 1, &geom);
       owlGroupBuildAccel(stitchGeom.blas);
     }
+#endif
 
-    if (gridletGeom.blas && stitchGeom.blas) {
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    bool hasStitchGeom = stitchGeom[0].blas || stitchGeom[1].blas ||
+                         stitchGeom[2].blas || stitchGeom[3].blas;
+#else
+    bool hasStitchGeom = stitchGeom.blas;
+#endif
+
+    if (gridletGeom.blas && hasStitchGeom) {
 #ifdef EXA_STITCH_MIRROR_EXAJET
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      tlas = owlInstanceGroupCreate(context, 10);
+#else
       tlas = owlInstanceGroupCreate(context, 4);
+#endif
+#else
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      tlas = owlInstanceGroupCreate(context, 5);
 #else
       tlas = owlInstanceGroupCreate(context, 2);
 #endif
+#endif
       owlInstanceGroupSetChild(tlas, 0, gridletGeom.blas);
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      for (int i=0; i<4; ++i)
+        owlInstanceGroupSetChild(tlas, i+1, stitchGeom[i].blas);
+#else
       owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
+#endif
 #ifdef EXA_STITCH_MIRROR_EXAJET
       owlInstanceGroupSetChild(tlas, 2, gridletGeom.blas);
-      owlInstanceGroupSetChild(tlas, 3, stitchGeom.blas);
       owlInstanceGroupSetTransform(tlas, 2, &mirrorTransform);
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      for (int i=0; i<4; ++i) {
+        owlInstanceGroupSetChild(tlas, i+5, stitchGeom[i].blas);
+        owlInstanceGroupSetTransform(tlas, i+5, &mirrorTransform);
+      }
+#else
+      owlInstanceGroupSetChild(tlas, 3, stitchGeom.blas);
       owlInstanceGroupSetTransform(tlas, 3, &mirrorTransform);
+#endif
 #endif
     } else if (gridletGeom.blas) {
 #ifdef EXA_STITCH_MIRROR_EXAJET
@@ -177,16 +286,35 @@ namespace exa {
       owlInstanceGroupSetChild(tlas, 1, gridletGeom.blas);
       owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
 #endif
-    } else if (stitchGeom.blas) {
+    } else if (hasStitchGeom) {
 #ifdef EXA_STITCH_MIRROR_EXAJET
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      tlas = owlInstanceGroupCreate(context, 8);
+#else
       tlas = owlInstanceGroupCreate(context, 2);
+#endif
+#else
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      tlas = owlInstanceGroupCreate(context, 4);
 #else
       tlas = owlInstanceGroupCreate(context, 1);
 #endif
+#endif
+
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+      for (int i=0; i<4; ++i) {
+        owlInstanceGroupSetChild(tlas, i, stitchGeom[i].blas);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+        owlInstanceGroupSetChild(tlas, i+4, stitchGeom[i].blas);
+        owlInstanceGroupSetTransform(tlas, i+4, &mirrorTransform);
+#endif
+      }
+#else
       owlInstanceGroupSetChild(tlas, 0, stitchGeom.blas);
 #ifdef EXA_STITCH_MIRROR_EXAJET
       owlInstanceGroupSetChild(tlas, 1, stitchGeom.blas);
       owlInstanceGroupSetTransform(tlas, 1, &mirrorTransform);
+#endif
 #endif
     } else {
       return false;

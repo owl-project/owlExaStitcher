@@ -70,6 +70,7 @@ namespace exa {
   }
 
   // UMesh overload
+  template <int NumVertsMax=8>
   __global__ void buildGrid(range1f       *valueRanges,
                             const vec4f   *vertices,
                             const int     *indices,
@@ -82,12 +83,12 @@ namespace exa {
     if (threadID >= numElems)
       return;
 
-    const int *I = &indices[threadID*8];
+    const int *I = &indices[threadID*NumVertsMax];
 
     box3f cellBounds;
     range1f valueRange{+1e30f,-1e30f};
 
-    for (int i=0; i<8; ++i) {
+    for (int i=0; i<NumVertsMax; ++i) {
       if (I[i] < 0)
         break;
 
@@ -477,11 +478,62 @@ namespace exa {
     }
 
     // Add contrib from uelems
+#ifdef EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
+    for (int i=0; i<4; ++i) {
+      if (sampler->vertexBuffer && sampler->indexBuffers[i])
+      {
+        if (owlBufferSizeInBytes(sampler->indexBuffers[i])==0)
+          continue;
+
+        size_t numThreads = 1024;
+        // TODO: use some template magic here (?)
+        if (i==0) {
+          size_t numElems = owlBufferSizeInBytes(sampler->indexBuffers[i])/sizeof(int[4]);
+          std::cout << "DDA grid: adding " << numElems << " uelems of type " << i << '\n';
+          buildGrid<4><<<iDivUp(numElems, numThreads), numThreads>>>(
+            (range1f *)owlBufferGetPointer(valueRanges,0),
+            (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
+            (const int *)owlBufferGetPointer(sampler->indexBuffers[i],0),
+            numElems,dims,worldBounds);
+        }
+        else if (i==1) {
+          size_t numElems = owlBufferSizeInBytes(sampler->indexBuffers[i])/sizeof(int[5]);
+          std::cout << "DDA grid: adding " << numElems << " uelems of type " << i << '\n';
+          buildGrid<5><<<iDivUp(numElems, numThreads), numThreads>>>(
+            (range1f *)owlBufferGetPointer(valueRanges,0),
+            (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
+            (const int *)owlBufferGetPointer(sampler->indexBuffers[i],0),
+            numElems,dims,worldBounds);
+        }
+        else if (i==2) {
+          size_t numElems = owlBufferSizeInBytes(sampler->indexBuffers[i])/sizeof(int[6]);
+          std::cout << "DDA grid: adding " << numElems << " uelems of type " << i << '\n';
+          buildGrid<6><<<iDivUp(numElems, numThreads), numThreads>>>(
+            (range1f *)owlBufferGetPointer(valueRanges,0),
+            (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
+            (const int *)owlBufferGetPointer(sampler->indexBuffers[i],0),
+            numElems,dims,worldBounds);
+        }
+        else if (i==3) {
+          size_t numElems = owlBufferSizeInBytes(sampler->indexBuffers[i])/sizeof(int[8]);
+          std::cout << "DDA grid: adding " << numElems << " uelems of type " << i << '\n';
+          buildGrid<8><<<iDivUp(numElems, numThreads), numThreads>>>(
+            (range1f *)owlBufferGetPointer(valueRanges,0),
+            (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
+            (const int *)owlBufferGetPointer(sampler->indexBuffers[i],0),
+            numElems,dims,worldBounds);
+        }
+        cudaDeviceSynchronize();
+        std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
+      }
+    }
+#else
+    if (sampler->vertexBuffer && sampler->indexBuffer)
     {
       size_t numThreads = 1024;
       size_t numElems = owlBufferSizeInBytes(sampler->indexBuffer)/sizeof(int[8]);
       std::cout << "DDA grid: adding " << numElems << " uelems\n";
-      buildGrid<<<(uint32_t)iDivUp(numElems, numThreads), (uint32_t)numThreads>>>(
+      buildGrid<8><<<iDivUp(numElems, numThreads), numThreads>>>(
         (range1f *)owlBufferGetPointer(valueRanges,0),
         (const vec4f *)owlBufferGetPointer(sampler->vertexBuffer,0),
         (const int *)owlBufferGetPointer(sampler->indexBuffer,0),
@@ -489,8 +541,10 @@ namespace exa {
       cudaDeviceSynchronize();
       std::cout << cudaGetErrorString(cudaGetLastError()) << '\n';
     }
+#endif
 
     // Add contrib from gridlets
+    if (sampler->gridletBuffer && sampler->gridletScalarBuffer)
     {
       double tfirst = getCurrentTime();
       size_t numThreads = 1024;
