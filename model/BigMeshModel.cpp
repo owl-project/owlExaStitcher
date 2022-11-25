@@ -61,6 +61,10 @@ namespace exa {
   std::shared_ptr<fun::Model> BigMeshModel::getFunModel()
   {
 #ifdef HAVE_BIGMESH
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    impl->bmModel->mirror.doMirror = true;
+    impl->bmModel->mirror.translation = cellBounds.upper;
+#endif
     return impl->bmModel;
 #else
     return nullptr;

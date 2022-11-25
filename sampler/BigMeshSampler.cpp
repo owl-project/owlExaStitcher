@@ -43,9 +43,17 @@ namespace exa {
                                                         nullptr);
     bmSampler->buildMacroCells((range1f*)owlBufferGetPointer(bmModel->grid->valueRanges,0),
                                bmModel->grid->dims, bmModel->grid->worldBounds);
+
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    owl4x3f &mirrorTransform = model->mirrorTransform;
+#endif
+
 #ifdef EXA_STITCH_MIRROR_EXAJET
     bmModel->grid->deviceTraversable.traversable.dims = dims;
     bmModel->grid->deviceTraversable.traversable.bounds = model->cellBounds;
+    bmModel->grid->deviceTraversable.mirrorInvTransform = rcp((const affine3f &)mirrorTransform);
+    bmModel->grid->deviceTraversable.mirrorPlane.axis = 1;
+    bmModel->grid->deviceTraversable.mirrorPlane.offset = model->cellBounds.upper.y;
 #else
     bmModel->grid->deviceTraversable.dims = dims;
     bmModel->grid->deviceTraversable.bounds = model->cellBounds;

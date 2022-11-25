@@ -475,7 +475,9 @@ namespace exa {
   {
 #ifdef EXA_STITCH_MIRROR_EXAJET
     if (grid.mirrorPlane.axis < 0) {
-      dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
+      // (Qi) intentionally comment this line because `grid.mirrorPlane.axis` should always be positive
+      //
+      // dda3(ray,grid.traversable.dims,grid.traversable.bounds,func);
     } else {
       float d;
       if (grid.mirrorPlane.axis == 0) {

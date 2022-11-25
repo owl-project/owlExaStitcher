@@ -57,6 +57,9 @@ namespace exa
     if (!model) return false;
     std::vector<int> &indices = model->indices;
     std::vector<vec4f> &vertices = model->vertices;
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    owl4x3f &mirrorTransform = model->mirrorTransform;
+#endif
 
     // ==================================================================
     // setup geometry data
@@ -76,8 +79,6 @@ namespace exa
     indexBuffer = owlDeviceBufferCreate(context, OWL_INT,
                                         indices.size(),
                                         indices.data());
-
-    umeshMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, indices.size() / 8, nullptr);
 
     // ==================================================================
     // setup geometry data
@@ -160,6 +161,8 @@ namespace exa
     cudaFree(d_sortedElementIDs);
     cudaFree(d_sortedCodes);
     printGPUMemory(">>>> after clustering");
+
+    umeshMaxOpacities = owlDeviceBufferCreate(context, OWL_FLOAT, indices.size() / 8, nullptr);
 
     // ==================================================================
     // setup geometry data
