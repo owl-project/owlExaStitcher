@@ -48,8 +48,9 @@ namespace exa {
     std::string kdtreeFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
-    std::string outFileName = "owlDVR.png";
+    std::string outFileName = "Witcher3.png";
     std::string fpsFileName = "fps.log";
+    range1f valueRange = {1e30f,-1e30f};
     box2f subImage = {{1e30f,1e30f},{-1e30f,-1e30f}};
     struct {
       vec3f vp = vec3f(0.f);
@@ -204,8 +205,8 @@ namespace exa {
       renderer->resetAccum();
       switch (key) {
       case '!':
-        std::cout << "saving screenshot to 'Witcher3.png'" << std::endl;
-        screenShot("Witcher3.png");
+        std::cout << "saving screenshot to '" << cmdline.outFileName << ".png'\n";
+        screenShot(cmdline.outFileName+".png");
         break;
       case 'H':
         renderer->heatMapEnabled = !renderer->heatMapEnabled;
@@ -573,6 +574,10 @@ namespace exa {
       else if (arg == "-xf") {
         cmdline.xfFileName = argv[++i];
       }
+      else if (arg == "--range") {
+        cmdline.valueRange.lower = std::atof(argv[++i]);
+        cmdline.valueRange.upper = std::atof(argv[++i]);
+      }
       else if (arg == "--subimg") {
         cmdline.subImage.lower.x = std::atof(argv[++i]);
         cmdline.subImage.lower.y = std::atof(argv[++i]);
@@ -727,6 +732,8 @@ namespace exa {
 
     qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
     range1f valueRange = renderer.valueRange;
+    if (!cmdline.valueRange.is_empty())
+      valueRange = cmdline.valueRange;
 
     QObject::connect(xfEditor,&qtOWL::XFEditor::colorMapChanged,
                      &viewer, &Viewer::colorMapChanged);
