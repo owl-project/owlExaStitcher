@@ -207,6 +207,7 @@ namespace exa {
       case '!':
         std::cout << "saving screenshot to '" << cmdline.outFileName << ".png'\n";
         screenShot(cmdline.outFileName+".png");
+        exit(0);
         break;
       case 'H':
         renderer->heatMapEnabled = !renderer->heatMapEnabled;
@@ -413,14 +414,14 @@ namespace exa {
     t_last = t_now;
 
 
-#if DUMP_FRAMES
+#if 1//DUMP_FRAMES
     // just dump the 10th frame, then hard-exit
     static int g_frameID = 0;
-    if (g_frameID % 16 == 0) {
-      std::cout << "g_frameID: " << g_frameID << std::endl;
-    }
+    // if (g_frameID % 16 == 0) {
+    //   std::cout << "g_frameID: " << g_frameID << std::endl;
+    // }
 
-    if (g_frameID++ >= 1024) {
+    if (g_frameID++ >= 256) {
       screenShot(cmdline.outFileName+".png");
       exit(0);
     }

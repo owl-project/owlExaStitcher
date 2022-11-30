@@ -473,7 +473,23 @@ namespace exa {
 
     owlParamsSet1i(lp,"accumID",accumID);
     accumID++;
-    owlParamsSet1f(lp,"render.dt",2.f);
+    if (model->cellBounds.lower.x < 190) {
+      owlParamsSet1f(lp,"render.dt",.125f);
+    } else if (model->cellBounds.lower.x < 380) {
+      owlParamsSet1f(lp,"render.dt",.25f);
+    } else if (model->cellBounds.lower.x < 760) {
+      owlParamsSet1f(lp,"render.dt",.5f);
+    } else if (model->cellBounds.lower.x < 1520) {
+      owlParamsSet1f(lp,"render.dt",1.f);
+    } else if (model->cellBounds.lower.x < 3040) {
+      owlParamsSet1f(lp,"render.dt",2.f);
+    } else if (model->cellBounds.lower.x < 6080) {
+      owlParamsSet1f(lp,"render.dt",4.f);
+    } else if (model->cellBounds.lower.x < 12160) {
+      owlParamsSet1f(lp,"render.dt",8.f);
+    } else {
+      owlParamsSet1f(lp,"render.dt",16.f);
+    }
     owlParamsSet1i(lp,"render.spp",max(spp,1));
     owlParamsSet1i(lp,"render.heatMapEnabled",heatMapEnabled);
     owlParamsSet1f(lp,"render.heatMapScale",heatMapScale);

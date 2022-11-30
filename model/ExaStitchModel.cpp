@@ -188,6 +188,7 @@ namespace exa {
     size_t numEmptyTotal = 0;
     size_t numNonEmptyTotal = 0;
     gridletScalars.clear();
+    int minLevel=3000, maxLevel=-1;
     if (!gridsFileName.empty()) {
       std::ifstream in(gridsFileName, std::ios::binary);
       while (!in.eof()) {
@@ -197,6 +198,8 @@ namespace exa {
           break;
         in.read((char *)&gridlet.level,sizeof(gridlet.level));
         in.read((char *)&gridlet.dims,sizeof(gridlet.dims));
+        if (gridlet.level<minLevel)minLevel = gridlet.level;
+        if (gridlet.level>maxLevel)maxLevel = gridlet.level;
 
         size_t numScalars = (gridlet.dims.x+1)
                     * (size_t(gridlet.dims.y)+1)

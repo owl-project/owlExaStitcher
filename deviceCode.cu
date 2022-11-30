@@ -40,7 +40,7 @@ namespace exa {
 
   typedef owl::common::LCG<4> Random;
 
-#define DEBUGGING 1
+#define DEBUGGING 0
 #define DBG_X (getLaunchDims().x/2)
 #define DBG_Y (getLaunchDims().y/2)
 
@@ -56,6 +56,7 @@ namespace exa {
   inline  __device__
   vec3f backGroundColor()
   {
+    return vec3f(1.f);
     const vec2i pixelID = owl::getLaunchIndex();
     const float t = pixelID.y / (float)optixGetLaunchDimensions().y;
     const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
@@ -610,7 +611,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/majorant;
+        t -= logf(1.f-random())/majorant*lp.render.dt;
 
         if (t >= t1) {
           break;
@@ -651,6 +652,7 @@ namespace exa {
           xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
           if (s.cellID == -1) { // uelem
             xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
+            //xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
           } else {
             const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
             vec3i imin = {
@@ -664,6 +666,8 @@ namespace exa {
               xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
             } else {
               xf.x = 0.f; xf.y = 0.f; xf.z = 0.7f;
+              //vec3f rc = randomColor(s.primID);
+              //xf = vec4f(rc,xf.w);
             }
           }
         } else if constexpr (SM==Teaser) {
