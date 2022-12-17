@@ -749,6 +749,7 @@ namespace exa {
     if (cmdline.xfFileName != "")
       xfEditor->loadFrom(cmdline.xfFileName);
     xfEditor->setAbsDomain(valueRange);
+    viewer.opacityScaleChanged(100);
 
     QMainWindow guiWindow;
     QWidget *centralWidget = new QWidget;

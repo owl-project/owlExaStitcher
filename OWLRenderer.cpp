@@ -576,7 +576,7 @@ namespace exa {
 
   void OWLRenderer::setOpacityScale(float scale)
   {
-    owlParamsSet1f(lp,"transferFunc.opacityScale",scale);
+    owlParamsSet1f(lp,"transferFunc.opacityScale",powf(1.1f,scale-100));
   }
 
   void OWLRenderer::setClipPlane(int id, bool enabled, vec3f N, float d)

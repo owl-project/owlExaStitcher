@@ -610,7 +610,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/majorant;
+        t -= logf(1.f-random())/(majorant*lp.transferFunc.opacityScale);
 
         if (t >= t1) {
           break;
@@ -735,7 +735,7 @@ namespace exa {
           Tr = 0.f;
           type = Emission;
           return false;
-        } else */if (sigmaT >= u * majorant) {
+        } else */if (sigmaT >= u * (majorant*lp.transferFunc.opacityScale)) {
           Tr = 0.f;
           type = Scattering;
           return false;
