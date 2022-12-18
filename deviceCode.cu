@@ -725,7 +725,7 @@ namespace exa {
         float u = random();
         float sigmaT = xf.w;
 
-        if (sigmaT >= u * (majorant*lp.transferFunc.opacityScale)) {
+        if (sigmaT*lp.transferFunc.opacityScale >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
           return false;
@@ -781,7 +781,7 @@ namespace exa {
         classifySample<SM>(sampler,s,xf);
 
         float sigmaT = xf.w;
-        Tr *= 1.f-sigmaT/majorant*lp.transferFunc.opacityScale;
+        Tr *= 1.f-(sigmaT*lp.transferFunc.opacityScale)/majorant;
         if (Tr <= 0.f) {
           type = Scattering;
           return false;
@@ -792,8 +792,8 @@ namespace exa {
     };
 
     if (Shadow)
-      //traverse(traversable,ray,ratioTrackingFunc);
-      traverse(traversable,ray,woodcockFunc);
+      traverse(traversable,ray,ratioTrackingFunc);
+      //traverse(traversable,ray,woodcockFunc);
     else
       traverse(traversable,ray,woodcockFunc);
 
