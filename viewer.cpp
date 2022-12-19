@@ -323,6 +323,8 @@ namespace exa {
     void rangeChanged(range1f r);
     void opacityScaleChanged(double scale);
     void lightPosChanged(owl::vec3f pos);
+    void scheduleScreenShot(double seconds);
+    void scheduleScreenShot(int frames);
 
   public:
 
@@ -335,6 +337,10 @@ namespace exa {
     std::vector<box2f> subImageUndoStack;
     int subImageUndoStackTop = 0;
     LightInteractor lightInteractor;
+    double screenShotAfterSec = -1.0;
+    double seconds = 0.0;
+    int screenShotAfterFrames = -1;
+    int frames = 0;
 
     enum class SubImageSelectionContraint {
       KeepAspect,Square,Free,
@@ -394,6 +400,12 @@ namespace exa {
   /*! gets called whenever the viewer needs us to re-render out widget */
   void Viewer::render() 
   {
+    if (screenShotAfterFrames >= 1 && frames == 0 ||
+        screenShotAfterSec >= 0.0 && seconds == 0.0)
+    {
+      renderer->resetAccum();
+    }
+
     static double t_last = getCurrentTime();
     static double t_first = t_last;
 
@@ -410,8 +422,33 @@ namespace exa {
     // setWindowTitle(title);
     // glfwSetWindowTitle(this->handle,title);
 
-    t_last = t_now;
+#ifndef HEADLESS
+    if (screenShotAfterFrames >= 0) {
+      this->frames++;
+      std::cout << frames << '\r';
+      std::cout << std::flush;
 
+      if (this->frames >= screenShotAfterFrames) {
+        screenShot(cmdline.outFileName+".png");
+        screenShotAfterFrames = -1;
+        this->frames = 0;
+      }
+    }
+
+    if (screenShotAfterSec >= 0) {
+      this->seconds +=  t_now-t_last;
+      std::cout << seconds << '\r';
+      std::cout << std::flush;
+
+      if (this->seconds >= screenShotAfterSec) {
+        screenShot(cmdline.outFileName+".png");
+        screenShotAfterSec = -1.0;
+        this->seconds = 0.0;
+      }
+    }
+#endif
+
+    t_last = t_now;
 
 #if DUMP_FRAMES
     // just dump the 10th frame, then hard-exit
@@ -535,6 +572,18 @@ namespace exa {
               << cmdline.lights[0].intensity
               << "\"\n";
     std::cout.flags(f);
+  }
+
+  void Viewer::scheduleScreenShot(double seconds)
+  {
+    screenShotAfterSec = seconds;
+    this->seconds = 0.0;
+  }
+
+  void Viewer::scheduleScreenShot(int frames)
+  {
+    screenShotAfterFrames = frames;
+    this->frames = 0;
   }
 
 
@@ -758,6 +807,40 @@ namespace exa {
     vlayout.addWidget(xfEditor);
 
     // ==================================================================
+    // Screenshot
+    // ==================================================================
+
+    QGroupBox *screenShotBox = new QGroupBox("Screen Shot");
+    vlayout.addWidget(screenShotBox);
+
+    QHBoxLayout screenShotLayout(screenShotBox);
+    QPushButton screenShotNowButton("Now");
+    screenShotLayout.addWidget(&screenShotNowButton);
+
+    QHBoxLayout screenShotFramesLayout;
+    QFrame line;
+    line.setFrameShape(QFrame::VLine);
+    line.setFrameShadow(QFrame::Sunken);
+    QLabel screenShotFramesLabel("# Frames:");
+    QSpinBox screenShotFramesSpinBox;
+    QPushButton screenShotFramesButton("Schedule...");
+    screenShotFramesLayout.addWidget(&line);
+    screenShotFramesLayout.addWidget(&screenShotFramesLabel);
+    screenShotFramesLayout.addWidget(&screenShotFramesSpinBox);
+    screenShotFramesLayout.addWidget(&screenShotFramesButton);
+    screenShotLayout.addLayout(&screenShotFramesLayout);
+
+    QHBoxLayout screenShotSecondsLayout;
+    QLabel screenShotSecondsLabel("Seconds:");
+    QDoubleSpinBox screenShotSecondsSpinBox;
+    QPushButton screenShotSecondsButton("Schedule...");
+    screenShotSecondsLayout.addWidget(&line);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsLabel);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsSpinBox);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsButton);
+    screenShotLayout.addLayout(&screenShotSecondsLayout);
+
+    // ==================================================================
     // Rendering settings
     // ==================================================================
 
@@ -937,6 +1020,24 @@ namespace exa {
       float f1 = dot(modelBounds.upper,N);
       return (1.f-d01) * f0 + d01*f1;
     };
+
+    // Screen shot now
+    QObject::connect(&screenShotNowButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(0);
+      });
+
+    // Screen shot after frames
+    QObject::connect(&screenShotFramesButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(screenShotFramesSpinBox.value());
+      });
+
+    // Screen shot after seconds
+    QObject::connect(&screenShotSecondsButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(screenShotSecondsSpinBox.value());
+      });
 
     // Renderer type select
     QObject::connect(&rendererTypeSelection, qOverload<int>(&QComboBox::currentIndexChanged),
