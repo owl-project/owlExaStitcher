@@ -64,7 +64,8 @@ namespace exa {
             maxValue = fmaxf(maxValue,val);
           }
         }
-      }std::cout << V << ',' << axis << ',' << plane << ": " << minValue << ',' << maxValue << '\n';
+      }
+      std::cout << V << ',' << axis << ',' << plane << ": " << minValue << ',' << maxValue << '\n';
     }
 
     float value(float x, float y, float z)

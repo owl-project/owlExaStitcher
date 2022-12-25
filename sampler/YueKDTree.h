@@ -140,7 +140,10 @@ void KDTree::buildRec(Volume vol, box3i V) {
     std::vector<Bin> k_delta(num_k);
 
     float k_plus_max=-1e31f, k_delta_max=-1e31f;
-    for (int i=begin+step; i<end; i+=step) {
+    int last=(end-(begin+step))/step;
+    #pragma omp parallel for
+    for (int ii=0; ii<last; ii++) {
+      int i = ii*step+begin+step;
       float minValue=1e31f, maxValue=-1e31f;
       vol.min_max(V,axis,i,minValue,maxValue,rgbaCM);
 
