@@ -95,11 +95,10 @@ namespace exa {
     void initTraversal();
   };
 
-#ifdef __CUDA_ARCH__
   template <typename Sampler>
-  inline __device__ float getScalar(const Sampler &self,
-                                    const int brickID,
-                                    const int ix, const int iy, const int iz)
+  inline __both__ float getScalar(const Sampler &self,
+                                  const int brickID,
+                                  const int ix, const int iy, const int iz)
   {
     const ExaBrick &brick = self.brickBuffer[brickID];
     const int idx
@@ -111,11 +110,11 @@ namespace exa {
   }
 
   template <typename Sampler>
-  inline __device__ void addBasisFunctions(const Sampler &self,
-                                           float &sumWeightedValues,
-                                           float &sumWeights,
-                                           const int brickID,
-                                           const vec3f pos)
+  inline __both__ void addBasisFunctions(const Sampler &self,
+                                         float &sumWeightedValues,
+                                         float &sumWeights,
+                                         const int brickID,
+                                         const vec3f pos)
   {
     const ExaBrick &brick    = self.brickBuffer[brickID];
     const float cellWidth = (1<<brick.level);
@@ -197,6 +196,7 @@ namespace exa {
     }
   }
 
+#ifdef __CUDA_ARCH__
   inline __device__
   Sample sample(const ExaBrickSampler::LP &lp,
                 const SpatialDomain &domain,

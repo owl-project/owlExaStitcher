@@ -123,6 +123,16 @@ if(BIGMESH_FOUND)
   include_directories(${umesh_include_dir})
 endif()
 
+
+# ------------------------------------------------------------------
+# Visionaray, needed for Yue partitioner
+# TODO: make this optional
+# ------------------------------------------------------------------
+
+set(vsnray_dir ${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/visionaray)
+include_directories(${vsnray_dir}/include)
+
+
 # ------------------------------------------------------------------
 # witcher lib
 # ------------------------------------------------------------------
@@ -139,6 +149,7 @@ add_library(witcher STATIC
   sampler/BigMeshSampler.cpp
   sampler/ExaBrickSampler.cpp
   sampler/ExaBrickSampler.cu
+  sampler/ExaBrickSamplerCPU.cpp
   sampler/ExaStitchSampler.cpp
   sampler/ExaStitchSampler.cu
   sampler/QuickClustersSampler.cpp
