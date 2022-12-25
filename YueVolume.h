@@ -15,7 +15,7 @@
 // ======================================================================== //
 
 #include <vector>
-#include "ExaBrickSamplerCPU.h"
+#include "sampler/ExaBrickSamplerCPU.h"
 
 namespace exa {
 
@@ -65,7 +65,7 @@ namespace exa {
           }
         }
       }
-      std::cout << V << ',' << axis << ',' << plane << ": " << minValue << ',' << maxValue << '\n';
+      // std::cout << V << ',' << axis << ',' << plane << ": " << minValue << ',' << maxValue << '\n';
     }
 
     float value(float x, float y, float z)

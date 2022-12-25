@@ -15,6 +15,7 @@
 // ======================================================================== //
 
 #include <iomanip>
+#include <fstream>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
@@ -29,6 +30,11 @@
 #ifdef HEADLESS
 #include "headless.h"
 #endif
+
+#define VOLKD_HAVE_OWN_MATH
+#include "YueKDTree.h"
+#include "YueVolume.h"
+
 
 #define DUMP_FRAMES 0
 
@@ -231,6 +237,37 @@ namespace exa {
       case 'T':
         if (xfEditor) xfEditor->saveTo("owlDVR.xf");
         break;
+      case 'Y': {
+        if (auto model = renderer->model->as<ExaBrickModel>()) {
+          YueVolume vol;
+          vol.cellBounds = box3i(vec3i(model->cellBounds.lower),
+                                 vec3i(model->cellBounds.upper));
+          vol.valueRange = model->valueRange;
+          ExaBrickSamplerCPU::SP sampler = std::make_shared<ExaBrickSamplerCPU>();
+          sampler->build(model);
+          vol.sampler = sampler;
+          std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
+          memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
+                 rgbaCM.size()*sizeof(rgbaCM[0]));
+          volkd::KDTree kdtree(vol,&rgbaCM);
+
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
+
+          std::ofstream cmFile(cmFileName);
+          uint64_t cmSize = rgbaCM.size();
+          cmFile.write((char *)&cmSize,sizeof(cmSize));
+          cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ofstream kdTreeFile(kdTreeFileName);
+          uint64_t numNodes = kdtree.nodes.size();
+          kdTreeFile.write((char *)&numNodes,sizeof(numNodes));
+          kdTreeFile.write((char *)kdtree.nodes.data(),
+                           kdtree.nodes.size()*sizeof(kdtree.nodes[0]));
+        }
+        break;
+      }
       case 'P':
         if (g_clipPlaneSelected >= 0 && cmdline.clipPlanes[g_clipPlaneSelected].enabled) {
           const vec3f N = cmdline.clipPlanes[g_clipPlaneSelected].N;

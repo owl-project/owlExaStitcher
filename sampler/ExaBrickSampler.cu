@@ -17,10 +17,6 @@
 #include "ExaBrickSampler.h"
 #include "atomicOp.cuh"
 
-#define VOLKD_HAVE_OWN_MATH
-#include "YueKDTree.h"
-#include "YueVolume.h"
-
 namespace exa {
 
   inline int64_t __both__ iDivUp(int64_t a, int64_t b)
@@ -100,22 +96,6 @@ namespace exa {
                                             OWLBuffer colorMap,
                                             range1f xfRange)
   {
-#if 0
-    // TODO: integrate Yue partitioner
-    {
-      size_t cmSize = owlBufferSizeInBytes(colorMap)/sizeof(float);
-      std::vector<float> rgbaCM(cmSize);
-      cudaMemcpy(rgbaCM.data(),(const float *)owlBufferGetPointer(colorMap,0),
-                 rgbaCM.size()*sizeof(rgbaCM[0]),cudaMemcpyDeviceToHost);
-      YueVolume vol;
-      vol.cellBounds = box3i(vec3i(model->cellBounds.lower),vec3i(model->cellBounds.upper));
-      vol.valueRange = model->valueRange;
-      ExaBrickSamplerCPU::SP sampler = std::make_shared<ExaBrickSamplerCPU>();
-      sampler->build(model);
-      vol.sampler = sampler;
-      volkd::KDTree kdtree(vol,&rgbaCM);
-    }
-#endif
     if (traversalMode == MC_DDA_TRAVERSAL || traversalMode == MC_BVH_TRAVERSAL) {
       if (!model->grid || model->grid->dims==vec3i(0))
         return;
