@@ -41,7 +41,7 @@ static Rect findLargestRectInHistogram(const Bin *bins, int numBins)
   struct /*stack*/ {
     int left;
     float h;
-  } S[128];
+  } S[1024];
   int stackPtr = 0;
   Rect R{1e30f,-1e30f};
   float maxArea = 0.f;
