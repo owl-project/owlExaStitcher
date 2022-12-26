@@ -130,7 +130,7 @@ void KDTree::buildRec(Volume vol, box3i V) {
     // ask volume to adapt the iteration range; e.g., the
     // volume might use a coarser step size b/c the cells
     // in V are all on a coarser level
-    vol.iterationRange(axis,V.lower[axis],V.upper[axis],begin,end,step);
+    vol.iterationRange(V,axis,begin,end,step);
 
     int num_k = (end-begin-step)/step;
     if (num_k <= 0)

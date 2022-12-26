@@ -31,10 +31,10 @@ namespace exa {
       return cellBounds;
     }
 
-    void iterationRange(int axis, int s, int t, int &begin, int &end, int &step)
+    void iterationRange(box3i V, int axis, int &begin, int &end, int &step)
     {
-      begin = clamp(s,cellBounds.lower[axis],cellBounds.upper[axis]);
-      end   = clamp(t,cellBounds.lower[axis],cellBounds.upper[axis]);
+      begin = clamp(V.lower[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
+      end   = clamp(V.upper[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
       step  = 1;
     }
 
