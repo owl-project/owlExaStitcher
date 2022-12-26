@@ -35,7 +35,14 @@ namespace exa {
     {
       begin = clamp(V.lower[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
       end   = clamp(V.upper[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
-      step  = 1;
+
+      int minLevel, maxLevel;
+      boundsFindMinMaxLevel(V,minLevel,maxLevel);
+      step = 1<<minLevel;
+
+      std::cout << "Iteration range: " << V << ',' << axis << ','
+                << '[' << begin << ',' << end << ':' << step << ']'
+                << '\n';
     }
 
     void min_max(box3i V, int axis, int plane, float &minValue, float &maxValue,
@@ -73,6 +80,50 @@ namespace exa {
       Sample s = sample(*sampler,{},{x,y,z});
       return s.value;
     }
+
+    void boundsFindMinMaxLevel(box3i V, int &minLevel, int &maxLevel)
+    {
+      minLevel = 1000000000;
+      maxLevel = 0;
+
+      unsigned traversalStack[128];
+      unsigned stackPtr = 0;
+      unsigned addr = 0; // root
+      traversalStack[stackPtr++] = addr;
+
+      visionaray::aabb bounds{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
+                              {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
+
+      while (stackPtr) {
+        auto node = sampler->abrBVH.node(addr);
+
+        visionaray::aabb nodeBounds = node.get_bounds();
+
+        auto I = intersect(nodeBounds,bounds);
+        if (!I.empty()) {
+          if (is_inner(node)) {
+            addr = node.get_child(0);
+            traversalStack[stackPtr++] = node.get_child(1);
+          } else {
+            for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
+              auto abr = sampler->abrBVH.primitive(i);
+              const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
+              const int  childCount = abr.leafListSize;
+              for (int childID=0;childID<childCount;childID++) {
+                const int brickID = childList[childID];
+                const ExaBrick &brick = sampler->brickBuffer[brickID];
+                minLevel = min(minLevel,brick.level);
+                maxLevel = max(maxLevel,brick.level);
+              }
+            }
+            addr = traversalStack[--stackPtr];
+          }
+        } else {
+          addr = traversalStack[--stackPtr];
+        }
+      }
+    }
+
   };
 } // ::exa
 
