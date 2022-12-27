@@ -107,6 +107,9 @@ struct KDTree
   const std::vector<float> *rgbaCM = nullptr;
 
   std::vector<KDTreeNode> nodes;
+
+  size_t numLeaves = 0;
+  uint64_t volumeInLeaves = 0;
 };
 
 template <typename Volume>
@@ -215,6 +218,12 @@ void KDTree::buildRec(Volume vol, box3i V) {
     buildRec(vol,R);
   } else {
     std::cout << "Make leaf: " << V << '\n';
+    numLeaves++;
+    volumeInLeaves += V.volume();
+    std::cout << "# leaves: " << prettyNumber(numLeaves) << '\n';
+    std::cout << "# inner: " << prettyNumber(nodes.size()) << '\n';
+    std::cout << "Volume in leaves: " << prettyNumber(volumeInLeaves)
+              << '/' << prettyNumber(vol.cellBounds.volume()) << '\n';
   }
 }
 
@@ -226,7 +235,7 @@ void KDTree::computeNR(const std::vector<Bin> &k, int begin, int end, int step,
     NR = -1e31f;
     return;
   }
-  float AR = area(r);
+  float AR = area(r)*step; // TODO: "real" area of rectangle?!
   // T(R') is 1 if at most one corner "touches" the majorant curve
   // and is 2 if both lower corners touch the curve
   float TR = 1.f;
