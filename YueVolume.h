@@ -162,26 +162,24 @@ namespace exa {
                 const int brickID = childList[childID];
                 const ExaBrick &brick = sampler->brickBuffer[brickID];
                 const float cellWidth = (float)(1<<brick.level);
-                for (int j=0; j<brick.numCells(); ++j) {
-                  for (int z=brick.lower.z; z<brick.lower.z+brick.size.z; ++z) {
-                    for (int y=brick.lower.y; y<brick.lower.y+brick.size.y; ++y) {
-                      for (int x=brick.lower.x; x<brick.lower.x+brick.size.x; ++x) {
-                        visionaray::vec3i lower(x,y,z);
-                        visionaray::vec3i upper(x+1,y+1,z+1);
-                        visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
-                                                    visionaray::vec3f(upper) + 0.5f*cellWidth);
-                        if (!intersect(cellBounds,bounds).empty()) {
-                          int idx = brick.getIndexIndex({x,y,z});
-                          float val = sampler->scalarBuffer[idx];
-                          val -= valueRange.lower;
-                          val /= valueRange.upper-valueRange.lower;
-                          if (rgbaCM) {
-                            int rgbaID = val*(cmSize-1);
-                            float a = (*rgbaCM)[rgbaID];
-                            majorant = fmaxf(majorant,a);
-                          } else {
-                            majorant = fmaxf(majorant,val);
-                          }
+                for (int z=brick.lower.z; z<brick.lower.z+brick.size.z; ++z) {
+                  for (int y=brick.lower.y; y<brick.lower.y+brick.size.y; ++y) {
+                    for (int x=brick.lower.x; x<brick.lower.x+brick.size.x; ++x) {
+                      visionaray::vec3i lower(x,y,z);
+                      visionaray::vec3i upper(x+1,y+1,z+1);
+                      visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
+                                                  visionaray::vec3f(upper) + 0.5f*cellWidth);
+                      if (!intersect(cellBounds,bounds).empty()) {
+                        int idx = brick.getIndexIndex({x,y,z});
+                        float val = sampler->scalarBuffer[idx];
+                        val -= valueRange.lower;
+                        val /= valueRange.upper-valueRange.lower;
+                        if (rgbaCM) {
+                          int rgbaID = val*(cmSize-1);
+                          float a = (*rgbaCM)[rgbaID];
+                          majorant = fmaxf(majorant,a);
+                        } else {
+                          majorant = fmaxf(majorant,val);
                         }
                       }
                     }
