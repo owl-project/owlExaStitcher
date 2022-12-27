@@ -32,6 +32,7 @@
 #endif
 
 #define VOLKD_HAVE_OWN_MATH
+#define VOLKD_PARALLEL_SWEEP
 #include "YueKDTree.h"
 #include "YueVolume.h"
 
