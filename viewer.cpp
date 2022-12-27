@@ -238,6 +238,54 @@ namespace exa {
       case 'T':
         if (xfEditor) xfEditor->saveTo("owlDVR.xf");
         break;
+      case 'y': {
+        if (auto model = renderer->model->as<ExaBrickModel>()) {
+          YueVolume vol;
+          vol.cellBounds = box3i(vec3i(model->cellBounds.lower),
+                                 vec3i(model->cellBounds.upper));
+          vol.valueRange = model->valueRange;
+          ExaBrickSamplerCPU::SP sampler = std::make_shared<ExaBrickSamplerCPU>();
+          sampler->build(model);
+          vol.sampler = sampler;
+
+          std::vector<float> rgbaCM;
+          std::vector<volkd::KDTreeNode> nodes;
+
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
+          std::ifstream cmFile(cmFileName);
+          uint64_t cmSize = 0;
+          cmFile.read((char *)&cmSize,sizeof(cmSize));
+          rgbaCM.resize(cmSize);
+          cmFile.read((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ifstream kdTreeFile(kdTreeFileName);
+          uint64_t numNodes = 0;
+          kdTreeFile.read((char *)&numNodes,sizeof(numNodes));
+          nodes.resize(numNodes);
+          kdTreeFile.read((char *)nodes.data(),nodes.size()*sizeof(nodes[0]));
+
+          std::vector<std::pair<box3i,float>> domains;
+          for (size_t i=0; i<nodes.size(); ++i) {
+            if (nodes[i].childIDs[0] < 0 && nodes[i].childIDs[1] < 0) {
+              float majorant = vol.boundsFindMajorant(nodes[i].domain,&rgbaCM);
+              std::cout << "Domain " << domains.size() << ": "
+                        << nodes[i].domain << ", majorant: "
+                        << majorant << '\n';
+              domains.push_back({nodes[i].domain,majorant});
+            }
+          }
+
+          std::ofstream domainsFile(domainsFileName);
+          uint64_t numDomains = domains.size();
+          domainsFile.write((char *)&numDomains,sizeof(numDomains));
+          domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
+        }
+        break;
+      }
       case 'Y': {
         if (auto model = renderer->model->as<ExaBrickModel>()) {
           YueVolume vol;
@@ -281,8 +329,8 @@ namespace exa {
 
           std::ofstream domainsFile(domainsFileName);
           uint64_t numDomains = domains.size();
-          kdTreeFile.write((char *)&numDomains,sizeof(numDomains));
-          kdTreeFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
+          domainsFile.write((char *)&numDomains,sizeof(numDomains));
+          domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
         }
         break;
       }
