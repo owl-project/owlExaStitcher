@@ -252,9 +252,21 @@ namespace exa {
                  rgbaCM.size()*sizeof(rgbaCM[0]));
           volkd::KDTree kdtree(vol,&rgbaCM);
 
+          std::vector<std::pair<box3i,float>> domains;
+          for (size_t i=0; i<kdtree.nodes.size(); ++i) {
+            if (kdtree.nodes[i].childIDs[0] < 0 && kdtree.nodes[i].childIDs[1] < 0) {
+              float majorant = vol.boundsFindMajorant(kdtree.nodes[i].domain,&rgbaCM);
+              std::cout << "Domain " << domains.size() << ": "
+                        << kdtree.nodes[i].domain << ", majorant: "
+                        << majorant << '\n';
+              domains.push_back({kdtree.nodes[i].domain,majorant});
+            }
+          }
+
           std::string baseFileName = cmdline.scalarFileName;
           std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
           std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
 
           std::ofstream cmFile(cmFileName);
           uint64_t cmSize = rgbaCM.size();
@@ -266,6 +278,11 @@ namespace exa {
           kdTreeFile.write((char *)&numNodes,sizeof(numNodes));
           kdTreeFile.write((char *)kdtree.nodes.data(),
                            kdtree.nodes.size()*sizeof(kdtree.nodes[0]));
+
+          std::ofstream domainsFile(domainsFileName);
+          uint64_t numDomains = domains.size();
+          kdTreeFile.write((char *)&numDomains,sizeof(numDomains));
+          kdTreeFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
         }
         break;
       }
