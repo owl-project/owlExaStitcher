@@ -198,6 +198,59 @@ namespace exa {
   }
 
 
+  // ------------------------------------------------------------------
+  // Spatial domains, in case we have own majorants
+  // ------------------------------------------------------------------
+
+  OPTIX_CLOSEST_HIT_PROGRAM(MajorantsGeomCH)()
+  {
+  }
+
+  OPTIX_BOUNDS_PROGRAM(MajorantsGeomBounds)(const void* geomData,
+                                            box3f& result,
+                                            int leafID)
+  {
+    const MajorantsGeom &self = *(const MajorantsGeom *)geomData;
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      result.lower = vec3f(self.domains[leafID].lower);
+      result.upper = vec3f(self.domains[leafID].upper);
+      // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
+      //        result.lower.x,result.lower.y,result.lower.z,
+      //        result.upper.x,result.upper.y,result.upper.z);
+    }
+  }
+
+  OPTIX_INTERSECT_PROGRAM(MajorantsGeomIsect)()
+  {
+    const MajorantsGeom &self = owl::getProgramData<MajorantsGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+    const box3i &domain = self.domains[leafID];
+    const box3f bounds(vec3f(domain.lower),vec3f(domain.upper));
+    // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
+    //        bounds.lower.x,bounds.lower.y,bounds.lower.z,
+    //        bounds.upper.x,bounds.upper.y,bounds.upper.z);
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!boxTest(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      DomainPRD& prd = owl::getPRD<DomainPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.domainID = leafID;
+    }
+  }
+
+
 
   // ------------------------------------------------------------------
   // Macro Cell Grids

@@ -41,6 +41,11 @@ namespace exa {
     vec3f *vertexBuffer;
   };
 
+  struct MajorantsGeom {
+    box3i *domains;
+    float *maxOpacities;
+  };
+
   struct MacroCellGeom {
     vec3i  dims;
     vec3f  spacing;

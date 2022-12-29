@@ -53,6 +53,7 @@ namespace exa {
     std::string bigMeshFileName = "";
     std::string quickClustersFileName = "";
     std::string kdtreeFileName = "";
+    std::string majorantsFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "Witcher3.png";
@@ -720,6 +721,9 @@ namespace exa {
       else if (arg == "-kdtree") {
         cmdline.kdtreeFileName = argv[++i];
       }
+      else if (arg == "-majorants") {
+        cmdline.majorantsFileName = argv[++i];
+      }
       else if (arg == "-mesh") {
         cmdline.meshFileName = argv[++i];
       }
@@ -827,6 +831,7 @@ namespace exa {
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
                          cmdline.kdtreeFileName,
+                         cmdline.majorantsFileName,
                          cmdline.xform.remap_from,
                          cmdline.xform.remap_to,
                          cmdline.numMCs);

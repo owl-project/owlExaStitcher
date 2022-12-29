@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <fstream>
 #include "model/AMRCellModel.h"
 #include "model/BigMeshModel.h"
 #include "model/ExaBrickModel.h"
@@ -41,6 +42,13 @@ namespace exa {
   = {
      { "indexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(MeshGeom,indexBuffer)},
      { "vertexBuffer",  OWL_BUFPTR, OWL_OFFSETOF(MeshGeom,vertexBuffer)},
+     { nullptr /* sentinel to mark end of list */ }
+  };
+
+  OWLVarDecl ownMajorantsGeomVars[]
+  = {
+     { "domains", OWL_BUFPTR, OWL_OFFSETOF(MajorantsGeom,domains) },
+     { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(MajorantsGeom,maxOpacities) },
      { nullptr /* sentinel to mark end of list */ }
   };
 
@@ -117,6 +125,7 @@ namespace exa {
                            const std::string meshFileName,
                            const std::string scalarFileName,
                            const std::string kdtreeFileName,
+                           const std::string majorantsFileName,
                            const box3f remap_from,
                            const box3f remap_to,
                            const vec3i numMCs)
@@ -174,6 +183,19 @@ namespace exa {
     std::vector<TriangleMesh::SP> meshes;
     if (!meshFileName.empty()) {
       meshes = TriangleMesh::load(meshFileName);
+    }
+
+    // ==================================================================
+    // Majorant domains
+    // ==================================================================
+
+    std::vector<std::pair<box3i,float>> majorants;
+    if (!majorantsFileName.empty()) {
+      std::ifstream majorantsFile(majorantsFileName);
+      uint64_t numMajorants = 0;
+      majorantsFile.read((char *)&numMajorants,sizeof(numMajorants));
+      majorants.resize(numMajorants);
+      majorantsFile.read((char *)majorants.data(),majorants.size()*sizeof(majorants[0]));
     }
 
     // ==================================================================
@@ -289,8 +311,66 @@ namespace exa {
             throw std::runtime_error("Building BVH from grid failed");
       }
 
+      // Case where we load our own majorants; e.g., ones that were
+      // optimized for a certain TF and then dumped to a file
+      if (!majorants.empty()) {
+        std::vector<box3i> domains(majorants.size());
+        std::vector<float> maxOpacities(majorants.size());
+        for (size_t i=0; i<majorants.size(); ++i) {
+          domains[i] = majorants[i].first;
+          maxOpacities[i] = majorants[i].second;
+        }
+        ownMajorants.domainBuffer = owlDeviceBufferCreate(owl,
+                                                          OWL_USER_TYPE(box3i),
+                                                          domains.size(),
+                                                          domains.data());
+
+        ownMajorants.maxOpacityBuffer = owlDeviceBufferCreate(owl,
+                                                              OWL_FLOAT,
+                                                              maxOpacities.size(),
+                                                              maxOpacities.data());
+
+        ownMajorants.geomType = owlGeomTypeCreate(owl,
+                                                  OWL_GEOM_USER,
+                                                  sizeof(MajorantsGeom),
+                                                  ownMajorantsGeomVars, -1);
+
+        owlGeomTypeSetBoundsProg(ownMajorants.geomType,
+                                 module,
+                                 "MajorantsGeomBounds");
+
+        owlGeomTypeSetIntersectProg(ownMajorants.geomType,
+                                    RADIANCE_RAY_TYPE,
+                                    module,
+                                    "MajorantsGeomIsect");
+
+        owlGeomTypeSetClosestHit(ownMajorants.geomType,
+                                 RADIANCE_RAY_TYPE,
+                                 module,
+                                 "MajorantsGeomCH");
+
+        OWLGeom majorantsGeom = owlGeomCreate(owl, ownMajorants.geomType);
+        owlGeomSetPrimCount(majorantsGeom, majorants.size());
+        owlGeomSetBuffer(majorantsGeom,"domains", ownMajorants.domainBuffer);
+        owlGeomSetBuffer(majorantsGeom,"maxOpacities", ownMajorants.maxOpacityBuffer);
+
+        owlBuildPrograms(owl);
+
+        ownMajorants.blas = owlUserGeomGroupCreate(owl, 1, &majorantsGeom);
+        owlGroupBuildAccel(ownMajorants.blas);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+        std::cerr << "MIRRORING FOR OWN MAJORANTS NOT IMPLEMENTED YET!\n";
+#else
+        ownMajorants.tlas = owlInstanceGroupCreate(owl, 1);
+        owlInstanceGroupSetChild(ownMajorants.tlas, 0, ownMajorants.blas);
+#endif
+        owlGroupBuildAccel(ownMajorants.tlas);
+      }
+
       // Set the traversal accel (whatever that _is_)
-      if (sampler->majorantAccel.bvh) {
+      if (ownMajorants.domainBuffer) {
+        owlParamsSetGroup(lp,"majorantBVH",ownMajorants.tlas);
+      } else if (sampler->majorantAccel.bvh) {
         owlParamsSetGroup(lp,"majorantBVH",sampler->majorantAccel.bvh);
       } else if (sampler->majorantAccel.grid) {
         owlParamsSetRaw(lp,"majorantGrid",&sampler->majorantAccel.grid->deviceTraversable);
@@ -504,7 +584,10 @@ namespace exa {
 
     sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
-    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    if (ownMajorants.maxOpacityBuffer)
+      owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+    else
+      owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
 
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
@@ -563,9 +646,12 @@ namespace exa {
     };
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
-    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
-
-    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    if (!ownMajorants.maxOpacityBuffer) {
+      sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+      owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    } else {
+      owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+    }
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
