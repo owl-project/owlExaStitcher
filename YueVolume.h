@@ -162,11 +162,11 @@ namespace exa {
                 const int brickID = childList[childID];
                 const ExaBrick &brick = sampler->brickBuffer[brickID];
                 const float cellWidth = (float)(1<<brick.level);
-                for (int z=brick.lower.z; z<brick.lower.z+brick.size.z; ++z) {
-                  for (int y=brick.lower.y; y<brick.lower.y+brick.size.y; ++y) {
-                    for (int x=brick.lower.x; x<brick.lower.x+brick.size.x; ++x) {
-                      visionaray::vec3i lower(x,y,z);
-                      visionaray::vec3i upper(x+1,y+1,z+1);
+                for (int z=0; z<+brick.size.z; ++z) {
+                  for (int y=0; y<+brick.size.y; ++y) {
+                    for (int x=0; x<+brick.size.x; ++x) {
+                      visionaray::vec3i lower(brick.lower.x+x,brick.lower.y+y,brick.lower.z+z);
+                      visionaray::vec3i upper(lower.x+1,lower.y+1,lower.z+1);
                       visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
                                                   visionaray::vec3f(upper) + 0.5f*cellWidth);
                       if (!intersect(cellBounds,bounds).empty()) {
