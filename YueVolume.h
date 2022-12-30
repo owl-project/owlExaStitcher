@@ -69,7 +69,7 @@ namespace exa {
           val /= valueRange.upper-valueRange.lower;
           if (rgbaCM) {
             int rgbaID = val*(cmSize-1);
-            float a = (*rgbaCM)[rgbaID];
+            float a = (*rgbaCM)[rgbaID*4+3];
             minValue = fminf(minValue,a);
             maxValue = fmaxf(maxValue,a);
           } else {
@@ -180,7 +180,7 @@ namespace exa {
                         val /= valueRange.upper-valueRange.lower;
                         if (rgbaCM) {
                           int rgbaID = val*(cmSize-1);
-                          float a = (*rgbaCM)[rgbaID];
+                          float a = (*rgbaCM)[rgbaID*4+3];
                           majorant = fmaxf(majorant,a);
                         } else {
                           majorant = fmaxf(majorant,val);

@@ -156,7 +156,7 @@ void KDTree::buildRec(Volume vol, box3i V) {
 
       int index = (i-begin-step)/step;
       k_plus[index] = {i,maxValue};
-      k_delta[index] = {i,maxValue+minValue};
+      k_delta[index] = {i,maxValue-minValue};
 
       // Also compute max of k-curves so we can later invert them
       k_plus_max = fmaxf(k_plus_max,k_plus[index].height);
