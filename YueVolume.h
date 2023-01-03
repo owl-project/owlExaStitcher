@@ -51,34 +51,78 @@ namespace exa {
                 << '\n';
     }
 
-    void min_max(box3i V, int axis, int plane, float &minValue, float &maxValue,
+    void min_max(box3i V, float &minValue, float &maxValue,
                  const std::vector<float> *rgbaCM)
     {
       minValue =  1e31f;
       maxValue = -1e31f;
+
       int cmSize = rgbaCM ? rgbaCM->size()/4 : 0;
 
-      vec3i tc;
-      tc[axis]=plane;
-      int a1 = (axis+1)%3;
-      int a2 = (axis+2)%3;
-      for (tc[a1]=V.lower[a1]; tc[a1]<V.upper[a1]; ++tc[a1]) {
-        for (tc[a2]=V.lower[a2]; tc[a2]<V.upper[a2]; ++tc[a2]) {
-          float val = value(tc.x,tc.y,tc.z);
-          val -= valueRange.lower;
-          val /= valueRange.upper-valueRange.lower;
-          if (rgbaCM) {
-            int rgbaID = val*(cmSize-1);
-            float a = (*rgbaCM)[rgbaID*4+3];
-            minValue = fminf(minValue,a);
-            maxValue = fmaxf(maxValue,a);
+      unsigned traversalStack[128];
+      unsigned stackPtr = 0;
+      unsigned addr = 0; // root
+      traversalStack[stackPtr++] = addr;
+
+      visionaray::aabb bounds{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
+                              {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
+
+      while (stackPtr) {
+        auto node = sampler->abrBVH.node(addr);
+
+        visionaray::aabb nodeBounds = node.get_bounds();
+
+        auto I = intersect(nodeBounds,bounds);
+        if (!I.empty()) {
+          if (is_inner(node)) {
+            addr = node.get_child(0);
+            traversalStack[stackPtr++] = node.get_child(1);
           } else {
-            minValue = fminf(minValue,val);
-            maxValue = fmaxf(maxValue,val);
+            for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
+              auto abr = sampler->abrBVH.primitive(i);
+              const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
+              const int  childCount = abr.leafListSize;
+              for (int childID=0;childID<childCount;childID++) {
+                const int brickID = childList[childID];
+                const ExaBrick &brick = sampler->brickBuffer[brickID];
+                const float cellWidth = (float)(1<<brick.level);
+                for (int z=0; z<brick.size.z; ++z) {
+                  for (int y=0; y<brick.size.y; ++y) {
+                    for (int x=0; x<brick.size.x; ++x) {
+                      visionaray::vec3i lower(brick.lower.x+x*cellWidth,
+                                              brick.lower.y+y*cellWidth,
+                                              brick.lower.z+z*cellWidth);
+                      visionaray::vec3i upper(lower.x+cellWidth,
+                                              lower.y+cellWidth,
+                                              lower.z+cellWidth);
+                      visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
+                                                  visionaray::vec3f(upper) + 0.5f*cellWidth);
+                      if (!intersect(cellBounds,bounds).empty()) {
+                        int idx = brick.getIndexIndex({x,y,z});
+                        float val = sampler->scalarBuffer[idx];
+                        val -= valueRange.lower;
+                        val /= valueRange.upper-valueRange.lower;
+                        if (rgbaCM) {
+                          int rgbaID = val*(cmSize-1);
+                          float a = (*rgbaCM)[rgbaID*4+3];
+                          minValue = fminf(minValue,a);
+                          maxValue = fmaxf(maxValue,a);
+                        } else {
+                          minValue = fminf(minValue,val);
+                          maxValue = fmaxf(maxValue,val);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            addr = traversalStack[--stackPtr];
           }
+        } else {
+          addr = traversalStack[--stackPtr];
         }
       }
-      // std::cout << V << ',' << axis << ',' << plane << ": " << minValue << ',' << maxValue << '\n';
     }
 
     float value(float x, float y, float z)
@@ -128,77 +172,6 @@ namespace exa {
           addr = traversalStack[--stackPtr];
         }
       }
-    }
-
-    float boundsFindMajorant(box3i V, const std::vector<float> *rgbaCM)
-    {
-      float majorant = 0.f;
-      int cmSize = rgbaCM ? rgbaCM->size()/4 : 0;
-
-      unsigned traversalStack[128];
-      unsigned stackPtr = 0;
-      unsigned addr = 0; // root
-      traversalStack[stackPtr++] = addr;
-
-      visionaray::aabb bounds{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
-                              {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
-
-      while (stackPtr) {
-        auto node = sampler->abrBVH.node(addr);
-
-        visionaray::aabb nodeBounds = node.get_bounds();
-
-        auto I = intersect(nodeBounds,bounds);
-        if (!I.empty()) {
-          if (is_inner(node)) {
-            addr = node.get_child(0);
-            traversalStack[stackPtr++] = node.get_child(1);
-          } else {
-            for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
-              auto abr = sampler->abrBVH.primitive(i);
-              const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
-              const int  childCount = abr.leafListSize;
-              for (int childID=0;childID<childCount;childID++) {
-                const int brickID = childList[childID];
-                const ExaBrick &brick = sampler->brickBuffer[brickID];
-                const float cellWidth = (float)(1<<brick.level);
-                for (int z=0; z<brick.size.z; ++z) {
-                  for (int y=0; y<brick.size.y; ++y) {
-                    for (int x=0; x<brick.size.x; ++x) {
-                      visionaray::vec3i lower(brick.lower.x+x*cellWidth,
-                                              brick.lower.y+y*cellWidth,
-                                              brick.lower.z+z*cellWidth);
-                      visionaray::vec3i upper(lower.x+cellWidth,
-                                              lower.y+cellWidth,
-                                              lower.z+cellWidth);
-                      visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
-                                                  visionaray::vec3f(upper) + 0.5f*cellWidth);
-                      if (!intersect(cellBounds,bounds).empty()) {
-                        int idx = brick.getIndexIndex({x,y,z});
-                        float val = sampler->scalarBuffer[idx];
-                        val -= valueRange.lower;
-                        val /= valueRange.upper-valueRange.lower;
-                        if (rgbaCM) {
-                          int rgbaID = val*(cmSize-1);
-                          float a = (*rgbaCM)[rgbaID*4+3];
-                          majorant = fmaxf(majorant,a);
-                        } else {
-                          majorant = fmaxf(majorant,val);
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            addr = traversalStack[--stackPtr];
-          }
-        } else {
-          addr = traversalStack[--stackPtr];
-        }
-      }
-
-      return majorant;
     }
 
   };

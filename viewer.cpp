@@ -273,7 +273,8 @@ namespace exa {
           std::vector<std::pair<box3i,float>> domains;
           for (size_t i=0; i<nodes.size(); ++i) {
             if (nodes[i].childIDs[0] < 0 && nodes[i].childIDs[1] < 0) {
-              float majorant = vol.boundsFindMajorant(nodes[i].domain,&rgbaCM);
+              float minorant, majorant;
+              vol.min_max(nodes[i].domain,minorant,majorant,&rgbaCM);
               std::cout << "Domain " << domains.size() << ": "
                         << nodes[i].domain << ", majorant: "
                         << majorant << '\n';
@@ -305,7 +306,8 @@ namespace exa {
           std::vector<std::pair<box3i,float>> domains;
           for (size_t i=0; i<kdtree.nodes.size(); ++i) {
             if (kdtree.nodes[i].childIDs[0] < 0 && kdtree.nodes[i].childIDs[1] < 0) {
-              float majorant = vol.boundsFindMajorant(kdtree.nodes[i].domain,&rgbaCM);
+              float minorant, majorant;
+              vol.min_max(kdtree.nodes[i].domain,minorant,majorant,&rgbaCM);
               std::cout << "Domain " << domains.size() << ": "
                         << kdtree.nodes[i].domain << ", majorant: "
                         << majorant << '\n';
