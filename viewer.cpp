@@ -33,6 +33,7 @@
 
 #define VOLKD_HAVE_OWN_MATH
 #define VOLKD_PARALLEL_SWEEP
+#define VOLKD_MAXIMUM_LEAF_SIZE 256
 #include "YueKDTree.h"
 #include "YueVolume.h"
 

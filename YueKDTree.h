@@ -201,6 +201,22 @@ void KDTree::buildRec(Volume vol, box3i V) {
     }
   }
 
+#ifdef VOLKD_MAXIMUM_LEAF_SIZE
+  if (bestNR <= 0.f) {
+    int axis = arg_max(V.size());
+    int begin = V.lower[axis];
+    int end   = V.upper[axis];
+    int step  = 1;
+    vol.iterationRange(V,axis,begin,end,step);
+    if (end-begin > VOLKD_MAXIMUM_LEAF_SIZE) {
+      // Perform a median split along the max. axis
+      bestAxis = axis;
+      bestPlane = (begin+end)/2;
+      bestNR = 1e31f;
+    }
+  }
+#endif
+
   if (bestNR > 0.f) {
     std::cout << V << ", split at: (" << bestAxis << ',' << bestPlane
               << "), benefit: " << bestNR << '\n';
@@ -225,8 +241,8 @@ void KDTree::buildRec(Volume vol, box3i V) {
     numLeaves++;
     volumeInLeaves += V.volume();
     std::cout << "# leaves: " << prettyNumber(numLeaves) << '\n';
-    std::cout << "# inner: " << prettyNumber(nodes.size()) << '\n';
-    std::cout << "Volume in leaves: " << prettyNumber(volumeInLeaves)
+    std::cout << "# nodes (total): " << prettyNumber(nodes.size()) << '\n';
+    std::cout << "Cells bound in leaves: " << prettyNumber(volumeInLeaves)
               << '/' << prettyNumber(vol.cellBounds.volume()) << '\n';
   }
 }

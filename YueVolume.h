@@ -40,11 +40,11 @@ namespace exa {
       boundsFindMinMaxLevel(V,minLevel,maxLevel);
       step = 1<<minLevel;
 
-      if ((end-begin)/step > 128) {
-        auto div_up = [](int a, int b) { return (a+b-1)/b; };
-        // 16 bins
-        step = div_up(end-begin,16);
-      }
+      // if ((end-begin)/step > 128) {
+      //   auto div_up = [](int a, int b) { return (a+b-1)/b; };
+      //   // 16 bins
+      //   step = div_up(end-begin,16);
+      // }
 
       std::cout << "Iteration range: " << V << ',' << axis << ','
                 << '[' << begin << ',' << end << ':' << step << ']'
