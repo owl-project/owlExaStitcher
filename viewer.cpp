@@ -242,27 +242,22 @@ namespace exa {
         break;
       case 'y': {
         if (auto model = renderer->model->as<ExaBrickModel>()) {
-          YueVolume vol;
-          vol.cellBounds = box3i(vec3i(model->cellBounds.lower),
-                                 vec3i(model->cellBounds.upper));
-          vol.valueRange = model->valueRange;
-          ExaBrickSamplerCPU::SP sampler = std::make_shared<ExaBrickSamplerCPU>();
-          sampler->build(model);
-          vol.sampler = sampler;
-
-          std::vector<float> rgbaCM;
-          std::vector<volkd::KDTreeNode> nodes;
-
           std::string baseFileName = cmdline.scalarFileName;
           std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
           std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
           std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
+          std::vector<float> rgbaCM;
 
           std::ifstream cmFile(cmFileName);
           uint64_t cmSize = 0;
           cmFile.read((char *)&cmSize,sizeof(cmSize));
           rgbaCM.resize(cmSize);
           cmFile.read((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          YueVolume vol(model,&rgbaCM);
+
+          std::vector<volkd::KDTreeNode> nodes;
 
           std::ifstream kdTreeFile(kdTreeFileName);
           uint64_t numNodes = 0;
@@ -291,16 +286,16 @@ namespace exa {
       }
       case 'Y': {
         if (auto model = renderer->model->as<ExaBrickModel>()) {
-          YueVolume vol;
-          vol.cellBounds = box3i(vec3i(model->cellBounds.lower),
-                                 vec3i(model->cellBounds.upper));
-          vol.valueRange = model->valueRange;
-          ExaBrickSamplerCPU::SP sampler = std::make_shared<ExaBrickSamplerCPU>();
-          sampler->build(model);
-          vol.sampler = sampler;
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
           std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
           memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
                  rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          YueVolume vol(model,&rgbaCM);
           volkd::KDTree kdtree(vol,&rgbaCM);
 
           std::vector<std::pair<box3i,float>> domains;
@@ -314,11 +309,6 @@ namespace exa {
               domains.push_back({kdtree.nodes[i].domain,majorant});
             }
           }
-
-          std::string baseFileName = cmdline.scalarFileName;
-          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
-          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
-          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
 
           std::ofstream cmFile(cmFileName);
           uint64_t cmSize = rgbaCM.size();
