@@ -18,6 +18,8 @@
 #include "model/ExaBrickModel.h"
 #include "sampler/ExaBrickSamplerCPU.h"
 
+#include "owl/common/parallel/parallel_for.h"
+
 namespace exa {
 
   // Wrapper for ExaBricks volume to compute Yue majorant kd-trees
@@ -39,6 +41,8 @@ namespace exa {
       sampler->build(model);
 
       valueRangesPerABR.resize(model->abrs.value.size());
+
+      // this code block computes the accurate value range for each ABR
       if (!rgbaCM) {
         for (size_t i=0; i<model->abrs.value.size(); ++i) {
           valueRangesPerABR[i] = model->abrs.value[i].valueRange;
@@ -48,7 +52,7 @@ namespace exa {
 
         int cmSize = rgbaCM->size()/4;
 
-        for (size_t i=0; i<sampler->abrBVH.num_primitives(); ++i) {
+        owl::parallel_for(sampler->abrBVH.num_primitives(), [&] (int i) {
           auto abr = sampler->abrBVH.primitive(i); // need to be in BVH (indirect) order!
           auto V = abr.domain;
           visionaray::aabb domain{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
@@ -86,7 +90,8 @@ namespace exa {
             }
           }
           valueRangesPerABR[i] = {minValue,maxValue};
-        }
+        });
+
         std::cout << " done\n";
       }
     }

@@ -112,6 +112,18 @@ struct KDTree
   uint64_t volumeInLeaves = 0;
 };
 
+inline int surface_area(box3i const& box)
+{
+  auto s = box.size();
+  return (s.x * s.y + s.y * s.z + s.z * s.x) * 2;
+}
+
+inline int diag(box3i const& box)
+{
+  auto s = box.size();
+  return sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
+}
+
 template <typename Volume>
 KDTree::KDTree(Volume vol, const std::vector<float> *cm)
   : rgbaCM(cm)
@@ -139,69 +151,89 @@ void KDTree::buildRec(Volume vol, box3i V) {
     if (num_k <= 0)
       continue;
 
-    std::vector<Bin> k_plus(num_k);
-    std::vector<Bin> k_delta(num_k);
+    // std::vector<Bin> k_plus (num_k);
+    // std::vector<Bin> k_delta(num_k);
 
-    float k_plus_max=-1e31f, k_delta_max=-1e31f;
-#ifdef VOLKD_PARALLEL_SWEEP
+    // float k_plus_max=-1e31f, k_delta_max=-1e31f;
+    // for (int i=begin+step; i<end; i+=step) {
+    //   float minValue=1e31f, maxValue=-1e31f;
+    //   box3i Vi = V;
+    //   Vi.lower[axis] = i-step;
+    //   Vi.upper[axis] = i;
+    //   vol.min_max(Vi,minValue,maxValue,rgbaCM);
+    // 
+    //   int index = (i-begin-step)/step;
+    //   k_plus[index] = {i,maxValue};
+    //   k_delta[index] = {i,maxValue-minValue};
+    // 
+    //   // Also compute max of k-curves so we can later invert them
+    //   k_plus_max = fmaxf(k_plus_max,k_plus[index].height);
+    //   k_delta_max = fmaxf(k_delta_max,k_delta[index].height);
+    // }
+
     int last=(end-begin-step)/step;
-    #pragma omp parallel for
-    for (int ii=0; ii<last; ii++) {
+    owl::parallel_for(last, [&] (int ii) {
       int i = ii*step+begin+step;
-#else
-    for (int i=begin+step; i<end; i+=step) {
-#endif
-      float minValue=1e31f, maxValue=-1e31f;
-      box3i Vi = V;
-      Vi.lower[axis] = i-step;
-      Vi.upper[axis] = i;
-      vol.min_max(Vi,minValue,maxValue,rgbaCM);
 
-      int index = (i-begin-step)/step;
-      k_plus[index] = {i,maxValue};
-      k_delta[index] = {i,maxValue-minValue};
+      box3i Vl = V;
+      box3i Vr = V;
+      
+      Vl.lower[axis] = begin;
+      Vl.upper[axis] = i;
 
-      // Also compute max of k-curves so we can later invert them
-      k_plus_max = fmaxf(k_plus_max,k_plus[index].height);
-      k_delta_max = fmaxf(k_delta_max,k_delta[index].height);
-    }
- 
-    // Invert, b/c the "empty" rectangles live _above_ the
-    // majorant functions, so the histograms are upside down!
-    for (size_t i=0; i<k_plus.size(); ++i) {
-      k_plus[i].height = k_plus_max-k_plus[i].height;
-      k_delta[i].height = k_delta_max-k_delta[i].height;
-    }
+      Vr.lower[axis] = i;
+      Vr.upper[axis] = end;
 
-    Rect r_plus;
-    float NR_plus = 0.f;
-    computeNR(k_plus,begin,end,step,NR_plus,r_plus);
+      float minValueL=1e31f, maxValueL=-1e31f;
+      float minValueR=1e31f, maxValueR=-1e31f;
 
-    Rect r_delta;
-    float NR_delta = 0.f;
-    computeNR(k_delta,begin,end,step,NR_delta,r_delta);
+      vol.min_max(Vl,minValueL,maxValueL,rgbaCM);
+      vol.min_max(Vr,minValueR,maxValueR,rgbaCM);
 
-    Rect r;
-    float NR = 0.f;
-    const float F = 0.7f; // magic constant from the paper
-    if (NR_plus >= NR_delta*F) {
-      r = r_plus;
-      NR = NR_plus;
-    } else {
-      r = r_delta;
-      NR = NR_delta;
-    }
+      float C = surface_area(Vl) * diag(Vl) * maxValueL + surface_area(Vr) * diag(Vr) * maxValueR;
+      if (bestNR < C) {
+        bestAxis = axis;
+        bestNR = C;
+        bestPlane = i;
+      }
+    });
 
-    if (NR > bestNR) {
-      bestAxis = axis;
-      bestNR = NR;
-      // we build kd-trees, i.e., we need one plane, not two!
-      // => pick the rectangle's side that is closer to the midpoint
-      float midpoint = (end-begin)*.5f;
-      bestPlane = fabsf(r.lower.x-midpoint)<fabsf(r.upper.x-1-midpoint)
-                        ? r.lower.x
-                        : r.upper.x-1;
-    }
+    // // Invert, b/c the "empty" rectangles live _above_ the
+    // // majorant functions, so the histograms are upside down!
+    // for (size_t i=0; i<k_plus.size(); ++i) {
+    //   k_plus[i].height = k_plus_max-k_plus[i].height;
+    //   k_delta[i].height = k_delta_max-k_delta[i].height;
+    // }
+
+    // Rect r_plus;
+    // float NR_plus = 0.f;
+    // computeNR(k_plus,begin,end,step,NR_plus,r_plus);
+
+    // Rect r_delta;
+    // float NR_delta = 0.f;
+    // computeNR(k_delta,begin,end,step,NR_delta,r_delta);
+
+    // Rect r;
+    // float NR = 0.f;
+    // const float F = 0.7f; // magic constant from the paper
+    // if (NR_plus >= NR_delta*F) {
+    //   r = r_plus;
+    //   NR = NR_plus;
+    // } else {
+    //   r = r_delta;
+    //   NR = NR_delta;
+    // }
+
+    // if (NR > bestNR) {
+    //   bestAxis = axis;
+    //   bestNR = NR;
+    //   // we build kd-trees, i.e., we need one plane, not two!
+    //   // => pick the rectangle's side that is closer to the midpoint
+    //   float midpoint = (end-begin)*.5f;
+    //   bestPlane = fabsf(r.lower.x-midpoint)<fabsf(r.upper.x-1-midpoint)
+    //                     ? r.lower.x
+    //                     : r.upper.x-1;
+    // }
   }
 
 #ifdef VOLKD_MAXIMUM_LEAF_SIZE
