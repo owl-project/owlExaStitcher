@@ -191,7 +191,7 @@ namespace exa {
 
     std::vector<std::pair<box3i,float>> majorants;
     if (!majorantsFileName.empty()) {
-      std::ifstream majorantsFile(majorantsFileName);
+      std::ifstream majorantsFile(majorantsFileName, std::ios::binary);
       uint64_t numMajorants = 0;
       majorantsFile.read((char *)&numMajorants,sizeof(numMajorants));
       majorants.resize(numMajorants);

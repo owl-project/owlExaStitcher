@@ -171,33 +171,6 @@ void KDTree::buildRec(Volume vol, box3i V) {
     //   k_delta_max = fmaxf(k_delta_max,k_delta[index].height);
     // }
 
-    int last=(end-begin-step)/step;
-    owl::parallel_for(last, [&] (int ii) {
-      int i = ii*step+begin+step;
-
-      box3i Vl = V;
-      box3i Vr = V;
-      
-      Vl.lower[axis] = begin;
-      Vl.upper[axis] = i;
-
-      Vr.lower[axis] = i;
-      Vr.upper[axis] = end;
-
-      float minValueL=1e31f, maxValueL=-1e31f;
-      float minValueR=1e31f, maxValueR=-1e31f;
-
-      vol.min_max(Vl,minValueL,maxValueL,rgbaCM);
-      vol.min_max(Vr,minValueR,maxValueR,rgbaCM);
-
-      float C = surface_area(Vl) * diag(Vl) * maxValueL + surface_area(Vr) * diag(Vr) * maxValueR;
-      if (bestNR < C) {
-        bestAxis = axis;
-        bestNR = C;
-        bestPlane = i;
-      }
-    });
-
     // // Invert, b/c the "empty" rectangles live _above_ the
     // // majorant functions, so the histograms are upside down!
     // for (size_t i=0; i<k_plus.size(); ++i) {
@@ -234,25 +207,64 @@ void KDTree::buildRec(Volume vol, box3i V) {
     //                     ? r.lower.x
     //                     : r.upper.x-1;
     // }
+
+    int last=(end-begin-step)/step;
+
+    static std::vector<float> tmp;
+    tmp.resize(last);
+
+    owl::parallel_for(last, [&] (int ii) {
+      int i = ii*step+begin+step;
+    
+      box3i Vl = V;
+      box3i Vr = V;
+    
+      Vl.lower[axis] = begin;
+      Vl.upper[axis] = i;
+    
+      Vr.lower[axis] = i;
+      Vr.upper[axis] = end;
+    
+      float minValueL=1e31f, maxValueL=-1e31f;
+      float minValueR=1e31f, maxValueR=-1e31f;
+    
+      vol.min_max(Vl,minValueL,maxValueL,rgbaCM);
+      vol.min_max(Vr,minValueR,maxValueR,rgbaCM);
+
+      float C = surface_area(Vl) * diag(Vl) * maxValueL + surface_area(Vr) * diag(Vr) * maxValueR;
+      tmp[ii] = C;
+    });
+
+    owl::serial_for(last, [&] (int ii) {
+      int i = ii*step+begin+step;
+      if (bestNR < tmp[ii]) {
+        bestNR = tmp[ii];
+        bestAxis = axis;
+        bestPlane = i;
+      }
+    });
+
   }
 
-#ifdef VOLKD_MAXIMUM_LEAF_SIZE
-  if (bestNR <= 0.f) {
-    int axis = arg_max(V.size());
-    int begin = V.lower[axis];
-    int end   = V.upper[axis];
-    int step  = 1;
-    vol.iterationRange(V,axis,begin,end,step);
-    if (end-begin > VOLKD_MAXIMUM_LEAF_SIZE) {
-      // Perform a median split along the max. axis
-      bestAxis = axis;
-      bestPlane = (begin+end)/2;
-      bestNR = 1e31f;
-    }
-  }
-#endif
+#define TH 10752 * 24 * 24ULL * 24ULL
 
-  if (bestNR > 0.f) {
+// #ifdef VOLKD_MAXIMUM_LEAF_SIZE
+//   if (bestNR <= 0.f) {
+//     int axis = arg_max(V.size());
+//     int begin = V.lower[axis];
+//     int end   = V.upper[axis];
+//     int step  = 1;
+//     vol.iterationRange(V,axis,begin,end,step);
+//     if (end-begin > VOLKD_MAXIMUM_LEAF_SIZE) {
+//       // Perform a median split along the max. axis
+//       bestAxis = axis;
+//       bestPlane = (begin+end)/2;
+//       bestNR = 1e31f;
+//     }
+//   }
+// #endif
+
+  if (bestNR > TH) {
     std::cout << V << ", split at: (" << bestAxis << ',' << bestPlane
               << "), benefit: " << bestNR << '\n';
 

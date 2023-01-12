@@ -774,6 +774,7 @@ namespace exa {
 #endif
 
         classifySample<SM>(sampler,s,xf);
+        xf = vec4f(randomColor(leafID), majorant);
 
         float u = random();
         float sigmaT = xf.w;

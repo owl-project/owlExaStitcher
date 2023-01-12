@@ -259,7 +259,7 @@ namespace exa {
 
           std::vector<volkd::KDTreeNode> nodes;
 
-          std::ifstream kdTreeFile(kdTreeFileName);
+          std::ifstream kdTreeFile(kdTreeFileName, std::ios::binary);
           uint64_t numNodes = 0;
           kdTreeFile.read((char *)&numNodes,sizeof(numNodes));
           nodes.resize(numNodes);
@@ -277,7 +277,7 @@ namespace exa {
             }
           }
 
-          std::ofstream domainsFile(domainsFileName);
+          std::ofstream domainsFile(domainsFileName, std::ios::binary);
           uint64_t numDomains = domains.size();
           domainsFile.write((char *)&numDomains,sizeof(numDomains));
           domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
@@ -310,18 +310,18 @@ namespace exa {
             }
           }
 
-          std::ofstream cmFile(cmFileName);
+          std::ofstream cmFile(cmFileName, std::ios::binary);
           uint64_t cmSize = rgbaCM.size();
           cmFile.write((char *)&cmSize,sizeof(cmSize));
           cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
 
-          std::ofstream kdTreeFile(kdTreeFileName);
+          std::ofstream kdTreeFile(kdTreeFileName, std::ios::binary);
           uint64_t numNodes = kdtree.nodes.size();
           kdTreeFile.write((char *)&numNodes,sizeof(numNodes));
           kdTreeFile.write((char *)kdtree.nodes.data(),
                            kdtree.nodes.size()*sizeof(kdtree.nodes[0]));
 
-          std::ofstream domainsFile(domainsFileName);
+          std::ofstream domainsFile(domainsFileName, std::ios::binary);
           uint64_t numDomains = domains.size();
           domainsFile.write((char *)&numDomains,sizeof(numDomains));
           domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
