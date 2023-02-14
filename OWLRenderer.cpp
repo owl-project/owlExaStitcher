@@ -189,7 +189,7 @@ namespace exa {
     // Majorant domains
     // ==================================================================
 
-    std::vector<std::pair<box3i,float>> majorants;
+    std::vector<std::pair<box3f,float>> majorants;
     if (!majorantsFileName.empty()) {
       std::ifstream majorantsFile(majorantsFileName, std::ios::binary);
       uint64_t numMajorants = 0;
@@ -314,14 +314,14 @@ namespace exa {
       // Case where we load our own majorants; e.g., ones that were
       // optimized for a certain TF and then dumped to a file
       if (!majorants.empty()) {
-        std::vector<box3i> domains(majorants.size());
+        std::vector<box3f> domains(majorants.size());
         std::vector<float> maxOpacities(majorants.size());
         for (size_t i=0; i<majorants.size(); ++i) {
           domains[i] = majorants[i].first;
           maxOpacities[i] = majorants[i].second;
         }
         ownMajorants.domainBuffer = owlDeviceBufferCreate(owl,
-                                                          OWL_USER_TYPE(box3i),
+                                                          OWL_USER_TYPE(box3f),
                                                           domains.size(),
                                                           domains.data());
 

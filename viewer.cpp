@@ -240,55 +240,10 @@ namespace exa {
       case 'T':
         if (xfEditor) xfEditor->saveTo("owlDVR.xf");
         break;
-      case 'y': {
-        if (auto model = renderer->model->as<ExaBrickModel>()) {
-          std::string baseFileName = cmdline.scalarFileName;
-          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
-          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
-          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
-
-          std::vector<float> rgbaCM;
-
-          std::ifstream cmFile(cmFileName);
-          uint64_t cmSize = 0;
-          cmFile.read((char *)&cmSize,sizeof(cmSize));
-          rgbaCM.resize(cmSize);
-          cmFile.read((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
-
-          YueVolume vol(model,&rgbaCM);
-
-          std::vector<volkd::KDTreeNode> nodes;
-
-          std::ifstream kdTreeFile(kdTreeFileName, std::ios::binary);
-          uint64_t numNodes = 0;
-          kdTreeFile.read((char *)&numNodes,sizeof(numNodes));
-          nodes.resize(numNodes);
-          kdTreeFile.read((char *)nodes.data(),nodes.size()*sizeof(nodes[0]));
-
-          std::vector<std::pair<box3i,float>> domains;
-          for (size_t i=0; i<nodes.size(); ++i) {
-            if (nodes[i].childIDs[0] < 0 && nodes[i].childIDs[1] < 0) {
-              float minorant, majorant;
-              vol.min_max(nodes[i].domain,minorant,majorant,&rgbaCM);
-              std::cout << "Domain " << domains.size() << ": "
-                        << nodes[i].domain << ", majorant: "
-                        << majorant << '\n';
-              domains.push_back({nodes[i].domain,majorant});
-            }
-          }
-
-          std::ofstream domainsFile(domainsFileName, std::ios::binary);
-          uint64_t numDomains = domains.size();
-          domainsFile.write((char *)&numDomains,sizeof(numDomains));
-          domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
-        }
-        break;
-      }
       case 'Y': {
         if (auto model = renderer->model->as<ExaBrickModel>()) {
           std::string baseFileName = cmdline.scalarFileName;
           std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
-          std::string kdTreeFileName = baseFileName+"_MajorantKDTree.bin";
           std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
 
           std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
@@ -298,28 +253,21 @@ namespace exa {
           YueVolume vol(model,&rgbaCM);
           volkd::KDTree kdtree(vol,&rgbaCM);
 
-          std::vector<std::pair<box3i,float>> domains;
-          for (size_t i=0; i<kdtree.nodes.size(); ++i) {
-            if (kdtree.nodes[i].childIDs[0] < 0 && kdtree.nodes[i].childIDs[1] < 0) {
-              float minorant, majorant;
-              vol.min_max(kdtree.nodes[i].domain,minorant,majorant,&rgbaCM);
-              std::cout << "Domain " << domains.size() << ": "
-                        << kdtree.nodes[i].domain << ", majorant: "
-                        << majorant << '\n';
-              domains.push_back({kdtree.nodes[i].domain,majorant});
-            }
+          std::vector<std::pair<box3f,float>> domains;
+          while (!kdtree.nodes.empty()) {
+            volkd::Node node = kdtree.nodes.top();
+            kdtree.nodes.pop();
+            float minorant, majorant;
+            vol.min_max(node.domain,minorant,majorant,&rgbaCM);
+            std::cout << "Domain " << domains.size() << ": "
+                      << node.domain << ", majorant: " << majorant << '\n';
+            domains.push_back({node.domain,majorant});
           }
 
           std::ofstream cmFile(cmFileName, std::ios::binary);
           uint64_t cmSize = rgbaCM.size();
           cmFile.write((char *)&cmSize,sizeof(cmSize));
           cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
-
-          std::ofstream kdTreeFile(kdTreeFileName, std::ios::binary);
-          uint64_t numNodes = kdtree.nodes.size();
-          kdTreeFile.write((char *)&numNodes,sizeof(numNodes));
-          kdTreeFile.write((char *)kdtree.nodes.data(),
-                           kdtree.nodes.size()*sizeof(kdtree.nodes[0]));
 
           std::ofstream domainsFile(domainsFileName, std::ios::binary);
           uint64_t numDomains = domains.size();

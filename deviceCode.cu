@@ -216,8 +216,7 @@ namespace exa {
       result.lower = vec3f(+1e30f);
       result.upper = vec3f(-1e30f);
     } else {
-      result.lower = vec3f(self.domains[leafID].lower);
-      result.upper = vec3f(self.domains[leafID].upper);
+      result = self.domains[leafID];
       // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
       //        result.lower.x,result.lower.y,result.lower.z,
       //        result.upper.x,result.upper.y,result.upper.z);
@@ -232,8 +231,7 @@ namespace exa {
                  optixGetObjectRayDirection(),
                  optixGetRayTmin(),
                  optixGetRayTmax());
-    const box3i &domain = self.domains[leafID];
-    const box3f bounds(vec3f(domain.lower),vec3f(domain.upper));
+    const box3f &bounds = self.domains[leafID];
     // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
     //        bounds.lower.x,bounds.lower.y,bounds.lower.z,
     //        bounds.upper.x,bounds.upper.y,bounds.upper.z);

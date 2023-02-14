@@ -96,36 +96,12 @@ namespace exa {
       }
     }
 
-    box3i getBounds()
+    box3f getBounds() const
     {
-      return cellBounds;
+      return box3f(vec3f(cellBounds.lower),vec3f(cellBounds.upper));
     }
 
-    void iterationRange(box3i V, int axis, int &begin, int &end, int &step)
-    {
-      begin = clamp(V.lower[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
-      end   = clamp(V.upper[axis],cellBounds.lower[axis],cellBounds.upper[axis]);
-
-      int minLevel, maxLevel;
-      boundsFindMinMaxLevel(V,minLevel,maxLevel);
-      step = 1<<minLevel;
-
-      // if ((end-begin)/step > 32) 
-      {
-        auto div_up = [](int a, int b) { return (a+b-1)/b; };
-        // 16 bins
-        step = div_up(end-begin,8);
-      }
-
-      step = max(1, step);
-      // step = max(16, step);
-
-      std::cout << "Iteration range: " << V << ',' << axis << ','
-                << '[' << begin << ',' << end << ':' << step << ']'
-                << '\n';
-    }
-
-    void min_max(box3i V, float &minValue, float &maxValue,
+    void min_max(box3f V, float &minValue, float &maxValue,
                  const std::vector<float> *rgbaCM)
     {
       minValue =  1e31f;
@@ -138,10 +114,8 @@ namespace exa {
       unsigned addr = 0; // root
       traversalStack[stackPtr++] = addr;
 
-      visionaray::aabb bounds{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
-                              {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
-
-      box3f Vf((vec3f)V.lower,(vec3f)V.upper);
+      visionaray::aabb bounds{{V.lower.x,V.lower.y,V.lower.z},
+                              {V.upper.x,V.upper.y,V.upper.z}};
 
       while (stackPtr) {
         auto node = sampler->abrBVH.node(addr);
@@ -163,7 +137,7 @@ namespace exa {
                 std::cout << "ABR cache hits: " << prettyNumber(cachedCount)
                           << '/' << prettyNumber(lookupCount) << std::endl;
               }
-              if (Vf.contains(abr.domain.lower) && Vf.contains(abr.domain.upper)) {
+              if (V.contains(abr.domain.lower) && V.contains(abr.domain.upper)) {
                 // access with i b/c the ranges are stored in the same order
                 // as are the ABRs in the BVH!
                 minValue = fminf(minValue,valueRangesPerABR[i].lower);
@@ -222,7 +196,7 @@ namespace exa {
       return s.value;
     }
 
-    void boundsFindMinMaxLevel(box3i V, int &minLevel, int &maxLevel)
+    void boundsFindMinMaxLevel(box3f V, int &minLevel, int &maxLevel)
     {
       minLevel = 1000000000;
       maxLevel = 0;
@@ -232,8 +206,8 @@ namespace exa {
       unsigned addr = 0; // root
       traversalStack[stackPtr++] = addr;
 
-      visionaray::aabb bounds{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
-                              {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
+      visionaray::aabb bounds{{V.lower.x,V.lower.y,V.lower.z},
+                              {V.upper.x,V.upper.y,V.upper.z}};
 
       while (stackPtr) {
         auto node = sampler->abrBVH.node(addr);

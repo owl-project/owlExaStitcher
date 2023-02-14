@@ -42,7 +42,7 @@ namespace exa {
   };
 
   struct MajorantsGeom {
-    box3i *domains;
+    box3f *domains;
     float *maxOpacities;
   };
 
