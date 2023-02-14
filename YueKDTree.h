@@ -113,9 +113,6 @@ void KDTree::buildRec(Volume vol) {
       continue;
     float step  = (end-begin)/NumBins;
 
-    static std::vector<Costs> tmp;
-    tmp.resize(NumBins-1);
-
     for (int i=0; i<NumBins-1; ++i) {
       float plane = begin+step*(i+1);
 
@@ -138,18 +135,15 @@ void KDTree::buildRec(Volume vol) {
       float CL = surface_area(L) * diag(L) * maxValueL;
       float CR = surface_area(R) * diag(R) * maxValueR;
       float C = CL+CR;
-      tmp[i] = {CL,CR,C};
 
       std::cout << "Testing axis " << axis << ", plane " << plane
                 << ", muL: " << maxValueL << ", muR: " << maxValueR
                 << ", CL: " << CL << ", CR: " << CR << ", C: " << C << '\n';
-    }
 
-    for (int i=0; i<NumBins-1; ++i) {
-      if (tmp[i].total < bestCost.total) {
+      if (C < bestCost.total) {
         bestAxis = axis;
         bestPlane = begin+step*(i+1);
-        bestCost = tmp[i];
+        bestCost = {CL,CR,C};
       }
     }
   }
