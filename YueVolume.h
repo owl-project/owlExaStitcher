@@ -26,16 +26,23 @@ namespace exa {
   struct YueVolume
   {
     box3i cellBounds;
-    range1f valueRange;
+    //range1f valueRange;
+    range1f xfDomain;
     ExaBrickSamplerCPU::SP sampler = nullptr;
     std::vector<range1f> valueRangesPerABR;
 
-    YueVolume(ExaBrickModel::SP model, const std::vector<float> *rgbaCM = nullptr)
+    YueVolume(ExaBrickModel::SP model, const std::vector<float> *rgbaCM = nullptr,
+              range1f xfAbsDomain = {0.f,1.f}, range1f xfRelDomain = {0.f,1.f})
     {
       cellBounds = box3i(vec3i(model->cellBounds.lower),
                          vec3i(model->cellBounds.upper));
 
-      valueRange = model->valueRange;
+      // valueRange = model->valueRange;
+
+      xfDomain = {
+       xfAbsDomain.lower + (xfRelDomain.lower/100.f) * (xfAbsDomain.upper-xfAbsDomain.lower),
+       xfAbsDomain.lower + (xfRelDomain.upper/100.f) * (xfAbsDomain.upper-xfAbsDomain.lower)
+      };
 
       sampler = std::make_shared<ExaBrickSamplerCPU>();
       sampler->build(model);
@@ -78,12 +85,13 @@ namespace exa {
                   if (!intersect(cellBounds,domain).empty()) {
                     int idx = brick.getIndexIndex({x,y,z});
                     float val = sampler->scalarBuffer[idx];
-                    val -= valueRange.lower;
-                    val /= valueRange.upper-valueRange.lower;
-                    int rgbaID = val*(cmSize-1);
-                    float a = (*rgbaCM)[rgbaID*4+3];
-                    minValue = fminf(minValue,a);
-                    maxValue = fmaxf(maxValue,a);
+                    val -= xfDomain.lower;
+                    val /= xfDomain.upper-xfDomain.lower;
+                    int rgbaID = val*cmSize;
+                    float a1 = (*rgbaCM)[clamp(rgbaID,0,cmSize-1)*4+3];
+                    float a2 = (*rgbaCM)[clamp(rgbaID+1,0,cmSize-1)*4+3];
+                    minValue = fminf(minValue,fminf(a1,a2));
+                    maxValue = fmaxf(maxValue,fmaxf(a1,a2));
                   }
                 }
               }
@@ -164,13 +172,14 @@ namespace exa {
                         if (!intersect(cellBounds,bounds).empty()) {
                           int idx = brick.getIndexIndex({x,y,z});
                           float val = sampler->scalarBuffer[idx];
-                          val -= valueRange.lower;
-                          val /= valueRange.upper-valueRange.lower;
+                          val -= xfDomain.lower;
+                          val /= xfDomain.upper-xfDomain.lower;
                           if (rgbaCM) {
-                            int rgbaID = val*(cmSize-1);
-                            float a = (*rgbaCM)[rgbaID*4+3];
-                            minValue = fminf(minValue,a);
-                            maxValue = fmaxf(maxValue,a);
+                            int rgbaID = int(val*cmSize);
+                            float a1 = (*rgbaCM)[clamp(rgbaID,0,cmSize-1)*4+3];
+                            float a2 = (*rgbaCM)[clamp(rgbaID+1,0,cmSize-1)*4+3];
+                            minValue = fminf(minValue,fminf(a1,a2));
+                            maxValue = fmaxf(maxValue,fmaxf(a1,a2));
                           } else {
                             minValue = fminf(minValue,val);
                             maxValue = fmaxf(maxValue,val);
