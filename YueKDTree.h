@@ -124,8 +124,8 @@ void KDTree::build(Volume vol) {
         R.lower[axis] = plane;
         R.upper[axis] = end;
 
-        float minValueL=1e31f, maxValueL=-1e31f;
-        float minValueR=1e31f, maxValueR=-1e31f;
+        float minValueL=1e31f, maxValueL=0.f;
+        float minValueR=1e31f, maxValueR=0.f;
       
         vol.min_max(L,minValueL,maxValueL,rgbaCM);
         vol.min_max(R,minValueR,maxValueR,rgbaCM);

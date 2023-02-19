@@ -25,7 +25,7 @@ namespace exa {
   // Wrapper for ExaBricks volume to compute Yue majorant kd-trees
   struct YueVolume
   {
-    box3i cellBounds;
+    box3f cellBounds;
     //range1f valueRange;
     range1f xfDomain;
     ExaBrickSamplerCPU::SP sampler = nullptr;
@@ -34,8 +34,7 @@ namespace exa {
     YueVolume(ExaBrickModel::SP model, const std::vector<float> *rgbaCM = nullptr,
               range1f xfAbsDomain = {0.f,1.f}, range1f xfRelDomain = {0.f,1.f})
     {
-      cellBounds = box3i(vec3i(model->cellBounds.lower),
-                         vec3i(model->cellBounds.upper));
+      cellBounds = model->cellBounds;
 
       // valueRange = model->valueRange;
 
@@ -62,8 +61,8 @@ namespace exa {
         owl::parallel_for(sampler->abrBVH.num_primitives(), [&] (int i) {
           auto abr = sampler->abrBVH.primitive(i); // need to be in BVH (indirect) order!
           auto V = abr.domain;
-          visionaray::aabb domain{{(float)V.lower.x,(float)V.lower.y,(float)V.lower.z},
-                                  {(float)V.upper.x,(float)V.upper.y,(float)V.upper.z}};
+          visionaray::aabb domain{{V.lower.x,V.lower.y,V.lower.z},
+                                  {V.upper.x,V.upper.y,V.upper.z}};
           const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
           const int  childCount = abr.leafListSize;
           float minValue = 1e31f, maxValue = -1e31f;
@@ -106,14 +105,14 @@ namespace exa {
 
     box3f getBounds() const
     {
-      return box3f(vec3f(cellBounds.lower),vec3f(cellBounds.upper));
+      return cellBounds;
     }
 
     void min_max(box3f V, float &minValue, float &maxValue,
                  const std::vector<float> *rgbaCM)
     {
-      minValue =  1e31f;
-      maxValue = -1e31f;
+      minValue = 1e31f;
+      maxValue = 0.f;
 
       int cmSize = rgbaCM ? rgbaCM->size()/4 : 0;
 
@@ -203,49 +202,6 @@ namespace exa {
     {
       Sample s = sample(*sampler,{},{x,y,z});
       return s.value;
-    }
-
-    void boundsFindMinMaxLevel(box3f V, int &minLevel, int &maxLevel)
-    {
-      minLevel = 1000000000;
-      maxLevel = 0;
-
-      unsigned traversalStack[128];
-      unsigned stackPtr = 0;
-      unsigned addr = 0; // root
-      traversalStack[stackPtr++] = addr;
-
-      visionaray::aabb bounds{{V.lower.x,V.lower.y,V.lower.z},
-                              {V.upper.x,V.upper.y,V.upper.z}};
-
-      while (stackPtr) {
-        auto node = sampler->abrBVH.node(addr);
-
-        visionaray::aabb nodeBounds = node.get_bounds();
-
-        auto I = intersect(nodeBounds,bounds);
-        if (!I.empty()) {
-          if (is_inner(node)) {
-            addr = node.get_child(0);
-            traversalStack[stackPtr++] = node.get_child(1);
-          } else {
-            for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
-              auto abr = sampler->abrBVH.primitive(i);
-              const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
-              const int  childCount = abr.leafListSize;
-              for (int childID=0;childID<childCount;childID++) {
-                const int brickID = childList[childID];
-                const ExaBrick &brick = sampler->brickBuffer[brickID];
-                minLevel = min(minLevel,brick.level);
-                maxLevel = max(maxLevel,brick.level);
-              }
-            }
-            addr = traversalStack[--stackPtr];
-          }
-        } else {
-          addr = traversalStack[--stackPtr];
-        }
-      }
     }
 
   };
