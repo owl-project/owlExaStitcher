@@ -118,13 +118,13 @@ namespace exa {
 
       unsigned traversalStack[128];
       unsigned stackPtr = 0;
-      unsigned addr = 0; // root
-      traversalStack[stackPtr++] = addr;
+      traversalStack[stackPtr++] = 0; // root
 
       visionaray::aabb bounds{{V.lower.x,V.lower.y,V.lower.z},
                               {V.upper.x,V.upper.y,V.upper.z}};
 
       while (stackPtr) {
+        unsigned addr = traversalStack[--stackPtr];
         auto node = sampler->abrBVH.node(addr);
 
         visionaray::aabb nodeBounds = node.get_bounds();
@@ -132,7 +132,7 @@ namespace exa {
         auto I = intersect(nodeBounds,bounds);
         if (!I.empty()) {
           if (is_inner(node)) {
-            addr = node.get_child(0);
+            traversalStack[stackPtr++] = node.get_child(0);
             traversalStack[stackPtr++] = node.get_child(1);
           } else {
             for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
@@ -190,10 +190,7 @@ namespace exa {
                 }
               }
             }
-            addr = traversalStack[--stackPtr];
           }
-        } else {
-          addr = traversalStack[--stackPtr];
         }
       }
     }
