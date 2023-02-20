@@ -125,8 +125,13 @@ namespace exa {
 
       int cmSize = rgbaCM->size()/4;
 
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
       const int idx_lo = clamp(int(valueRange.lower*cmSize),0,cmSize-1);
       const int idx_hi = clamp(int(valueRange.upper*cmSize)+1,0,cmSize-1);
+#else
+      const int idx_lo = clamp(int(valueRange.lower*cmSize-1),0,cmSize-1);
+      const int idx_hi = clamp(int(valueRange.upper*cmSize-1)+1,0,cmSize-1);
+#endif
 
       for (int i=idx_lo;i<=idx_hi;++i) {
         float alpha = (*rgbaCM)[i*4+3];

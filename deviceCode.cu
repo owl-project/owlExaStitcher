@@ -330,6 +330,29 @@ namespace exa {
     prd.kd       = vec3f(.8f);
   }
 
+  inline __device__
+  vec4f lookupTransferFunction(float f)
+  {
+    auto &lp = optixLaunchParams;
+    const range1f xfDomain = lp.transferFunc.domain;
+
+    if (xfDomain.lower >= xfDomain.upper)
+      return vec4f(0.f);
+
+    f -= xfDomain.lower;
+    f /= (xfDomain.upper-xfDomain.lower);
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
+    return tex2D<float4>(lp.transferFunc.texture,f,.5f);
+#else
+    if (lp.transferFunc.numValues == 0)
+      return vec4f(0.f);
+
+    f = max(0.f,min(1.f,f));
+    int i = min(lp.transferFunc.numValues-1,int(f * lp.transferFunc.numValues));
+    return lp.transferFunc.values[i];
+#endif
+  }
+
 
   // ------------------------------------------------------------------
   // Generic integration sampler for DVR and ISOs
@@ -360,10 +383,7 @@ namespace exa {
       if (s.primID < 0)
         continue;
 
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      const vec4f xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+      const vec4f xf = lookupTransferFunction(s.value);
 
       if constexpr (Shading) {
         const vec3f g;// = gradient(pos);
@@ -443,10 +463,7 @@ namespace exa {
         }
 
         float value = sumWeightedValues/sumWeights;
-        const range1f xfDomain = lp.transferFunc.domain;
-        value -= xfDomain.lower;
-        value /= xfDomain.upper-xfDomain.lower;
-        vec4f sample = tex2D<float4>(lp.transferFunc.texture,value,.5f);
+        vec4f sample = lookupTransferFunction(value);
 
         sample.w    = 1.f - powf(1.f-sample.w, actual_dt);
         pixelColor += (1.f-pixelColor.w)*sample.w*vec4f(vec3f(sample), 1.f);
@@ -601,8 +618,7 @@ namespace exa {
 
   inline __device__ vec3f getLe(const Sample s)
   {
-    auto& lp = optixLaunchParams;
-    vec4f xf = tex1D<float4>(lp.transferFunc.texture,s.value);
+    vec4f xf = lookupTransferFunction(s.value);
     if (s.value > .99f)
     //if (s.value < .2f)
       return {120.f,60.f,45.f};
@@ -623,17 +639,12 @@ namespace exa {
   inline __device__
   void classifySample(Sampler sampler, Sample &s, vec4f &xf) {
     auto& lp = optixLaunchParams;
+    (void)lp;
     if constexpr (SM==Default) {
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+      xf = lookupTransferFunction(s.value);
       //xf = vec4f(randomColor(leafID),0.1f);
     } else if constexpr (SM==Gridlets) {
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
+      xf = lookupTransferFunction(s.value);
       if (s.cellID == -1) { // uelem
         xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
       } else {
@@ -652,11 +663,8 @@ namespace exa {
         }
       }
     } else if constexpr (SM==Teaser) {
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
-      const vec3f rgb1(tex2D<float4>(lp.transferFunc.texture,s.value,.5f));
+      xf = lookupTransferFunction(s.value);
+      const vec3f rgb1(xf);
       vec3f rgb2;
       if (s.cellID == -1) { // uelem
         rgb2 = vec3f(1,0,0);
@@ -772,7 +780,7 @@ namespace exa {
 #endif
 
         classifySample<SM>(sampler,s,xf);
-        xf = vec4f(randomColor(leafID), majorant);
+        // xf = vec4f(randomColor(leafID), majorant);
 
         float u = random();
         float sigmaT = xf.w;

@@ -79,7 +79,12 @@ namespace exa {
     affine3f  lightSpaceTransform;
 
     struct {
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
       cudaTextureObject_t texture;
+#else
+      vec4f *values;
+      int numValues;
+#endif
       range1f             domain;
       float               opacityScale;
     } transferFunc;

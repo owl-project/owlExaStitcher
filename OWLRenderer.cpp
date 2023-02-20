@@ -71,7 +71,12 @@ namespace exa {
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
+#if EXASTITCH_CUDA_TEXTURE_TF
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
+#else
+     { "transferFunc.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc.values) },
+     { "transferFunc.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc.numValues) },
+#endif
      { "transferFunc.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc.opacityScale) },
      // render settings
      { "render.dt",           OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,render.dt) },
@@ -589,6 +594,7 @@ namespace exa {
     else
       owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
 
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
       xf.colorMapTexture = 0;
@@ -633,6 +639,10 @@ namespace exa {
                             nullptr);
 
     owlParamsSetRaw(lp,"transferFunc.texture",&xf.colorMapTexture);
+#else
+    owlParamsSetBuffer(lp,"transferFunc.values",xf.colorMapBuffer);
+    owlParamsSet1i(lp,"transferFunc.numValues",(int)newCM.size());
+#endif
 
     accumID = 0;
   }
