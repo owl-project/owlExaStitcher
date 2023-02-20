@@ -250,7 +250,7 @@ namespace exa {
           memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
                  rgbaCM.size()*sizeof(rgbaCM[0]));
 
-          YueVolume vol(model,&rgbaCM,xfEditor->getAbsDomain(),xfEditor->getRelDomain());
+          YueVolume vol(model,&rgbaCM,renderer->xf.absDomain,renderer->xf.relDomain);
           volkd::KDTree kdtree(vol,&rgbaCM);
 
           std::vector<std::pair<box3f,float>> domains;
