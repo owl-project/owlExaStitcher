@@ -25,7 +25,7 @@
 namespace volkd {
 
 constexpr static int NumBins = 8;
-constexpr static int NumLeavesDesired = 10000;
+constexpr static int NumLeavesDesired = 1500;
 
 struct Node
 {
@@ -126,21 +126,17 @@ void KDTree::build(Volume vol) {
         R.lower[axis] = plane;
         R.upper[axis] = end;
 
-        float minValueL=1e31f, maxValueL=0.f;
-        float minValueR=1e31f, maxValueR=0.f;
-      
-        vol.min_max(L,minValueL,maxValueL,rgbaCM);
-        vol.min_max(R,minValueR,maxValueR,rgbaCM);
-        //minValueL=minValueR=maxValueL=maxValueR=1.f;
+        range1f rangeL = vol.min_max(L,rgbaCM);
+        range1f rangeR = vol.min_max(R,rgbaCM);
 
-        float CL = surface_area(L) * diag(L) * maxValueL;
-        float CR = surface_area(R) * diag(R) * maxValueR;
+        float CL = surface_area(L) * diag(L) * rangeL.upper;
+        float CR = surface_area(R) * diag(R) * rangeR.upper;
         float C = CL+CR;
 
         costs[i] = {CL,CR,C};
 
         std::cout << "Testing axis " << axis << ", plane " << plane
-                  << ", muL: " << maxValueL << ", muR: " << maxValueR
+                  << ", muL: " << rangeL.upper << ", muR: " << rangeR.upper
                   << ", CL: " << CL << ", CR: " << CR << ", C: " << C << '\n';
 
       });

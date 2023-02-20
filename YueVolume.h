@@ -44,62 +44,6 @@ namespace exa {
 
       sampler = std::make_shared<ExaBrickSamplerCPU>();
       sampler->build(model);
-
-      valueRangesPerABR.resize(model->abrs.value.size());
-
-      // this code block computes the accurate value range for each ABR
-      if (!rgbaCM) {
-        for (size_t i=0; i<model->abrs.value.size(); ++i) {
-          valueRangesPerABR[i] = model->abrs.value[i].valueRange;
-        }
-      } else {
-        std::cout << "Pre-computing color map value ranges for ABRs..." << std::flush;
-
-        int cmSize = rgbaCM->size()/4;
-
-        owl::parallel_for(sampler->abrBVH.num_primitives(), [&] (int i) {
-          auto abr = sampler->abrBVH.primitive(i); // need to be in BVH (indirect) order!
-          auto V = abr.domain;
-          visionaray::aabb domain{{V.lower.x,V.lower.y,V.lower.z},
-                                  {V.upper.x,V.upper.y,V.upper.z}};
-          const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
-          const int  childCount = abr.leafListSize;
-          float minValue = 1e31f, maxValue = -1e31f;
-          for (int childID=0;childID<childCount;childID++) {
-            const int brickID = childList[childID];
-            const ExaBrick &brick = sampler->brickBuffer[brickID];
-            const float cellWidth = (float)(1<<brick.level);
-            for (int z=0; z<brick.size.z; ++z) {
-              for (int y=0; y<brick.size.y; ++y) {
-                for (int x=0; x<brick.size.x; ++x) {
-                  visionaray::vec3i lower(brick.lower.x+x*cellWidth,
-                                          brick.lower.y+y*cellWidth,
-                                          brick.lower.z+z*cellWidth);
-                  visionaray::vec3i upper(lower.x+cellWidth,
-                                          lower.y+cellWidth,
-                                          lower.z+cellWidth);
-                  visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
-                                              visionaray::vec3f(upper) + 0.5f*cellWidth);
-                  if (!intersect(cellBounds,domain).empty()) {
-                    int idx = brick.getIndexIndex({x,y,z});
-                    float val = sampler->scalarBuffer[idx];
-                    val -= xfDomain.lower;
-                    val /= xfDomain.upper-xfDomain.lower;
-                    int rgbaID = val*cmSize;
-                    float a1 = (*rgbaCM)[clamp(rgbaID,0,cmSize-1)*4+3];
-                    float a2 = (*rgbaCM)[clamp(rgbaID+1,0,cmSize-1)*4+3];
-                    minValue = fminf(minValue,fminf(a1,a2));
-                    maxValue = fmaxf(maxValue,fmaxf(a1,a2));
-                  }
-                }
-              }
-            }
-          }
-          valueRangesPerABR[i] = {minValue,maxValue};
-        });
-
-        std::cout << " done\n";
-      }
     }
 
     box3f getBounds() const
@@ -107,13 +51,9 @@ namespace exa {
       return cellBounds;
     }
 
-    void min_max(box3f V, float &minValue, float &maxValue,
-                 const std::vector<float> *rgbaCM)
+    range1f min_max(box3f V, const std::vector<float> *rgbaCM)
     {
-      minValue = 1e31f;
-      maxValue = 0.f;
-
-      int cmSize = rgbaCM ? rgbaCM->size()/4 : 0;
+      range1f valueRange(1e31f,0.f);
 
       unsigned traversalStack[128];
       unsigned stackPtr = 0;
@@ -129,75 +69,74 @@ namespace exa {
         visionaray::aabb nodeBounds = node.get_bounds();
 
         auto I = intersect(nodeBounds,bounds);
-        if (!I.empty()) {
-          if (is_inner(node)) {
-            traversalStack[stackPtr++] = node.get_child(0);
-            traversalStack[stackPtr++] = node.get_child(1);
-          } else {
-            for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
-              auto abr = sampler->abrBVH.primitive(i);
-              static uint64_t lookupCount = 0;
-              static uint64_t cachedCount = 0;
-              lookupCount++;
-              // if (lookupCount && ((lookupCount%(1ull<<22))==0)) {
-              //   std::cout << "ABR cache hits: " << prettyNumber(cachedCount)
-              //             << '/' << prettyNumber(lookupCount) << std::endl;
-              // }
-              if (V.contains(abr.domain.lower) && V.contains(abr.domain.upper)) {
-                // access with i b/c the ranges are stored in the same order
-                // as are the ABRs in the BVH!
-                minValue = fminf(minValue,valueRangesPerABR[i].lower);
-                maxValue = fmaxf(maxValue,valueRangesPerABR[i].upper);
-                cachedCount++;
-              } else {
-                const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
-                const int  childCount = abr.leafListSize;
-                for (int childID=0;childID<childCount;childID++) {
-                  const int brickID = childList[childID];
-                  const ExaBrick &brick = sampler->brickBuffer[brickID];
-                  const float cellWidth = (float)(1<<brick.level);
-                  for (int z=0; z<brick.size.z; ++z) {
-                    for (int y=0; y<brick.size.y; ++y) {
-                      for (int x=0; x<brick.size.x; ++x) {
-                        visionaray::vec3i lower(brick.lower.x+x*cellWidth,
-                                                brick.lower.y+y*cellWidth,
-                                                brick.lower.z+z*cellWidth);
-                        visionaray::vec3i upper(lower.x+cellWidth,
-                                                lower.y+cellWidth,
-                                                lower.z+cellWidth);
-                        visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
-                                                    visionaray::vec3f(upper) + 0.5f*cellWidth);
-                        if (!intersect(cellBounds,bounds).empty()) {
-                          int idx = brick.getIndexIndex({x,y,z});
-                          float val = sampler->scalarBuffer[idx];
-                          val -= xfDomain.lower;
-                          val /= xfDomain.upper-xfDomain.lower;
-                          if (rgbaCM) {
-                            int rgbaID = int(val*cmSize);
-                            float a1 = (*rgbaCM)[clamp(rgbaID,0,cmSize-1)*4+3];
-                            float a2 = (*rgbaCM)[clamp(rgbaID+1,0,cmSize-1)*4+3];
-                            minValue = fminf(minValue,fminf(a1,a2));
-                            maxValue = fmaxf(maxValue,fmaxf(a1,a2));
-                          } else {
-                            minValue = fminf(minValue,val);
-                            maxValue = fmaxf(maxValue,val);
-                          }
-                        }
+
+        if (I.empty())
+          continue;
+
+        if (is_inner(node)) {
+          traversalStack[stackPtr++] = node.get_child(0);
+          traversalStack[stackPtr++] = node.get_child(1);
+        } else {
+          for (unsigned i=node.get_indices().first; i<node.get_indices().last; ++i) {
+            auto abr = sampler->abrBVH.primitive(i);
+            if (V.contains(abr.domain.lower) && V.contains(abr.domain.upper)) {
+              valueRange.extend(abr.valueRange);
+            } else {
+              const int *childList  = &sampler->model->abrs.leafList[abr.leafListBegin];
+              const int  childCount = abr.leafListSize;
+              for (int childID=0;childID<childCount;childID++) {
+                const int brickID = childList[childID];
+                const ExaBrick &brick = sampler->brickBuffer[brickID];
+                const float cellWidth = (float)(1<<brick.level);
+
+                for (int z=0; z<brick.size.z; ++z) {
+                  for (int y=0; y<brick.size.y; ++y) {
+                    for (int x=0; x<brick.size.x; ++x) {
+                      visionaray::vec3i lower(brick.lower.x+x*cellWidth,
+                                              brick.lower.y+y*cellWidth,
+                                              brick.lower.z+z*cellWidth);
+                      visionaray::vec3i upper(lower.x+cellWidth,
+                                              lower.y+cellWidth,
+                                              lower.z+cellWidth);
+                      visionaray::aabb cellBounds(visionaray::vec3f(lower) - 0.5f*cellWidth,
+                                                  visionaray::vec3f(upper) + 0.5f*cellWidth);
+                      if (!intersect(cellBounds,bounds).empty()) {
+                        int idx = brick.getIndexIndex({x,y,z});
+                        float val = sampler->scalarBuffer[idx];
+                        valueRange.extend(val);
                       }
                     }
                   }
                 }
+
               }
             }
           }
         }
       }
-    }
 
-    float value(float x, float y, float z)
-    {
-      Sample s = sample(*sampler,{},{x,y,z});
-      return s.value;
+      assert(rgbaCM);
+
+      range1f result{1e31f,0.f};
+
+      valueRange.lower -= xfDomain.lower;
+      valueRange.lower /= (xfDomain.upper-xfDomain.lower);
+
+      valueRange.upper -= xfDomain.lower;
+      valueRange.upper /= (xfDomain.upper-xfDomain.lower);
+
+      int cmSize = rgbaCM->size()/4;
+
+      const int idx_lo = clamp(int(valueRange.lower*cmSize),0,cmSize-1);
+      const int idx_hi = clamp(int(valueRange.upper*cmSize)+1,0,cmSize-1);
+
+      for (int i=idx_lo;i<=idx_hi;++i) {
+        float alpha = (*rgbaCM)[i*4+3];
+        result.lower = fminf(result.lower,alpha);
+        result.upper = fmaxf(result.upper,alpha);
+      }
+
+      return result;
     }
 
   };

@@ -257,11 +257,10 @@ namespace exa {
           while (!kdtree.nodes.empty()) {
             volkd::Node node = kdtree.nodes.top();
             kdtree.nodes.pop();
-            float minorant, majorant;
-            vol.min_max(node.domain,minorant,majorant,&rgbaCM);
+            range1f tfRange = vol.min_max(node.domain,&rgbaCM);
             std::cout << "Domain " << domains.size() << ": "
-                      << node.domain << ", majorant: " << majorant << '\n';
-            domains.push_back({node.domain,majorant});
+                      << node.domain << ", majorant: " << tfRange.upper << '\n';
+            domains.push_back({node.domain,tfRange.upper});
           }
 
           std::ofstream cmFile(cmFileName, std::ios::binary);
