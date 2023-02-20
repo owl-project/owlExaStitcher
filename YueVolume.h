@@ -31,7 +31,7 @@ namespace exa {
     std::vector<range1f> valueRangesPerABR;
 
     YueVolume(ExaBrickModel::SP model, const std::vector<float> *rgbaCM = nullptr,
-              range1f xfAbsDomain = {0.f,1.f}, range1f xfRelDomain = {0.f,1.f})
+              range1f xfAbsDomain = {0.f,1.f}, range1f xfRelDomain = {0.f,100.f})
     {
       cellBounds = model->cellBounds;
 
