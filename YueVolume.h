@@ -85,6 +85,16 @@ namespace exa {
               for (int childID=0;childID<childCount;childID++) {
                 const int brickID = childList[childID];
                 const ExaBrick &brick = sampler->brickBuffer[brickID];
+
+                box3f bd = brick.getDomain();
+                visionaray::aabb brickBounds(visionaray::vec3f(bd.lower.x,bd.lower.y,bd.lower.z),
+                                             visionaray::vec3f(bd.upper.x,bd.upper.y,bd.upper.z));
+
+                auto II = intersect(nodeBounds,brickBounds);
+
+                if (II.empty())
+                  continue;
+
                 const float cellWidth = (float)(1<<brick.level);
 
                 for (int z=0; z<brick.size.z; ++z) {
