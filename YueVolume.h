@@ -15,10 +15,9 @@
 // ======================================================================== //
 
 #include <vector>
+#include "owl/common/parallel/parallel_for.h"
 #include "model/ExaBrickModel.h"
 #include "sampler/ExaBrickSamplerCPU.h"
-
-#include "owl/common/parallel/parallel_for.h"
 
 namespace exa {
 
@@ -140,10 +139,10 @@ namespace exa {
               static uint64_t lookupCount = 0;
               static uint64_t cachedCount = 0;
               lookupCount++;
-              if (lookupCount && ((lookupCount%(1ull<<22))==0)) {
-                std::cout << "ABR cache hits: " << prettyNumber(cachedCount)
-                          << '/' << prettyNumber(lookupCount) << std::endl;
-              }
+              // if (lookupCount && ((lookupCount%(1ull<<22))==0)) {
+              //   std::cout << "ABR cache hits: " << prettyNumber(cachedCount)
+              //             << '/' << prettyNumber(lookupCount) << std::endl;
+              // }
               if (V.contains(abr.domain.lower) && V.contains(abr.domain.upper)) {
                 // access with i b/c the ranges are stored in the same order
                 // as are the ABRs in the BVH!

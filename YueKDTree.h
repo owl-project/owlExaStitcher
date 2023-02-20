@@ -20,6 +20,7 @@
 #include <ostream>
 #include <queue>
 #include <vector>
+#include "owl/common/parallel/parallel_for.h"
 
 namespace volkd {
 
@@ -112,7 +113,8 @@ void KDTree::build(Volume vol) {
         continue;
       float step  = (end-begin)/NumBins;
 
-      for (int i=0; i<NumBins-1; ++i) {
+      static Costs costs[NumBins-1];
+      owl::parallel_for(NumBins-1, [&] (int i) {
         float plane = begin+step*(i+1);
 
         box3f L = V;
@@ -135,10 +137,18 @@ void KDTree::build(Volume vol) {
         float CR = surface_area(R) * diag(R) * maxValueR;
         float C = CL+CR;
 
+        costs[i] = {CL,CR,C};
+
         std::cout << "Testing axis " << axis << ", plane " << plane
                   << ", muL: " << maxValueL << ", muR: " << maxValueR
                   << ", CL: " << CL << ", CR: " << CR << ", C: " << C << '\n';
 
+      });
+
+      for (int i=0; i<NumBins-1; ++i) {
+        float CL = costs[i].left;
+        float CR = costs[i].right;
+        float C = costs[i].total;
         if (C < bestCost.total) {
           bestAxis = axis;
           bestPlane = begin+step*(i+1);
