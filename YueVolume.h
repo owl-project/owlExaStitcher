@@ -25,10 +25,8 @@ namespace exa {
   struct YueVolume
   {
     box3f cellBounds;
-    //range1f valueRange;
     range1f xfDomain;
     ExaBrickSamplerCPU::SP sampler = nullptr;
-    std::vector<range1f> valueRangesPerABR;
 
     YueVolume(ExaBrickModel::SP model, const std::vector<float> *rgbaCM = nullptr,
               range1f xfAbsDomain = {0.f,1.f}, range1f xfRelDomain = {0.f,100.f})
@@ -51,7 +49,7 @@ namespace exa {
       return cellBounds;
     }
 
-    range1f min_max(box3f V, const std::vector<float> *rgbaCM)
+    range1f min_max(box3f V, const std::vector<float> *rgbaCM) const
     {
       range1f valueRange(1e31f,0.f);
 

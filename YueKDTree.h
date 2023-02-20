@@ -41,10 +41,10 @@ struct Node
 struct KDTree
 {
   template <typename Volume>
-  KDTree(Volume vol, const std::vector<float> *cm = nullptr);
+  KDTree(const Volume &vol, const std::vector<float> *cm = nullptr);
 
   template <typename Volume>
-  void build(Volume vol);
+  void build(const Volume &vol);
 
   /*! an optional RGBA colormap that can be used for classification
     (4-tuples for convenience, only the alpha components are relevant) */
@@ -52,9 +52,6 @@ struct KDTree
 
   // nodes with priority used for splitting
   std::priority_queue<Node> nodes;
-
-  size_t numLeaves = 0;
-  uint64_t volumeInLeaves = 0;
 };
 
 inline float surface_area(box3f const& box)
@@ -70,7 +67,7 @@ inline float diag(box3f const& box)
 }
 
 template <typename Volume>
-KDTree::KDTree(Volume vol, const std::vector<float> *cm)
+KDTree::KDTree(const Volume &vol, const std::vector<float> *cm)
   : rgbaCM(cm)
 {
   box3f V = vol.getBounds();
@@ -79,7 +76,7 @@ KDTree::KDTree(Volume vol, const std::vector<float> *cm)
 }
 
 template <typename Volume>
-void KDTree::build(Volume vol) {
+void KDTree::build(const Volume &vol) {
   while (nodes.size() < NumLeavesDesired) {
 
     std::cout << "Leaf nodes generated so far: " << nodes.size() << ", picking another node to split...\n";
@@ -113,7 +110,7 @@ void KDTree::build(Volume vol) {
         continue;
       float step  = (end-begin)/NumBins;
 
-      static Costs costs[NumBins-1];
+      Costs costs[NumBins-1];
       owl::parallel_for(NumBins-1, [&] (int i) {
         float plane = begin+step*(i+1);
 
