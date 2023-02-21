@@ -72,5 +72,22 @@ namespace exa {
     size_t used = total-free;
     std::cout << str << ": " << prettyNumber(used) << '\n';
   }
+
+#ifdef __CUDA_ARCH__
+
+#define DEBUGGING 1
+#define DBG_X (owl::getLaunchDims().x/2)
+#define DBG_Y (owl::getLaunchDims().y/2)
+
+  __device__ inline bool debug()
+  {
+#if DEBUGGING
+    return (owl::getLaunchIndex().x == DBG_X && owl::getLaunchIndex().y == DBG_Y);
+#else
+     return false;
+#endif
+  }
+
+#endif
 } // ::exa
 

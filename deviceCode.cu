@@ -40,19 +40,6 @@ namespace exa {
 
   typedef owl::common::LCG<4> Random;
 
-#define DEBUGGING 1
-#define DBG_X (getLaunchDims().x/2)
-#define DBG_Y (getLaunchDims().y/2)
-
-  __device__ inline bool debug()
-  {
-#if DEBUGGING
-    return (getLaunchIndex().x == DBG_X && getLaunchIndex().y == DBG_Y);
-#else
-     return false;
-#endif
-  }
-
   inline  __device__
   vec3f backGroundColor()
   {
