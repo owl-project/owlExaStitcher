@@ -51,7 +51,7 @@ namespace exa {
 
     range1f min_max(box3f V, const std::vector<float> *rgbaCM) const
     {
-      range1f valueRange(1e31f,0.f);
+      range1f valueRange(1e31f,-1e31f);
 
       unsigned traversalStack[128];
       unsigned stackPtr = 0;
@@ -123,9 +123,12 @@ namespace exa {
         }
       }
 
+      if (valueRange.lower > valueRange.upper)
+        return range1f{0.f,0.f};
+
       assert(rgbaCM);
 
-      range1f result{1e31f,0.f};
+      range1f result{1e31f,-1e31f};
 
       valueRange.lower -= xfDomain.lower;
       valueRange.lower /= (xfDomain.upper-xfDomain.lower);
