@@ -275,6 +275,43 @@ namespace exa {
         }
         break;
       }
+      case 'y': {
+        if (auto model = renderer->model->as<ExaBrickModel>()) {
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
+          std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
+          memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
+                 rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ifstream domainsFileIN(domainsFileName, std::ios::binary);
+          uint64_t numDomains = 0;
+          domainsFileIN.read((char *)&numDomains,sizeof(numDomains));
+          std::vector<std::pair<box3f,float>> domains(numDomains);
+          domainsFileIN.read((char *)domains.data(),domains.size()*sizeof(domains[0]));
+
+          YueVolume vol(model,&rgbaCM,renderer->xf.absDomain,renderer->xf.relDomain);
+
+          std::vector<std::pair<box3f,float>> newDomains;
+          for (size_t i=0; i<domains.size(); ++i) {
+            range1f tfRange = vol.min_max(domains[i].first,&rgbaCM);
+            std::cout << "Domain " << i << ": " << domains[i].first
+                      << ", majorant: " << tfRange.upper << '\n';
+            newDomains.push_back({domains[i].first,tfRange.upper});
+          }
+
+          std::ofstream cmFile(cmFileName, std::ios::binary);
+          uint64_t cmSize = rgbaCM.size();
+          cmFile.write((char *)&cmSize,sizeof(cmSize));
+          cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ofstream domainsFile(domainsFileName, std::ios::binary);
+          domainsFile.write((char *)&numDomains,sizeof(numDomains));
+          domainsFile.write((char *)newDomains.data(),newDomains.size()*sizeof(newDomains[0]));
+        }
+        break;
+      }
       case 'P':
         if (g_clipPlaneSelected >= 0 && cmdline.clipPlanes[g_clipPlaneSelected].enabled) {
           const vec3f N = cmdline.clipPlanes[g_clipPlaneSelected].N;
