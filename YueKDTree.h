@@ -26,7 +26,6 @@
 namespace volkd {
 
 constexpr static int NumBins = 8;
-constexpr static int NumLeavesDesired = 1500;
 
 struct Node
 {
@@ -42,10 +41,10 @@ struct Node
 struct KDTree
 {
   template <typename Volume>
-  KDTree(const Volume &vol, const std::vector<float> *cm = nullptr);
+  KDTree(const Volume &vol, const std::vector<float> *cm = nullptr, int numLeavesDesired = 100);
 
   template <typename Volume>
-  void build(const Volume &vol);
+  void build(const Volume &vol, int numLeavesDesired);
 
   /*! an optional RGBA colormap that can be used for classification
     (4-tuples for convenience, only the alpha components are relevant) */
@@ -68,17 +67,17 @@ inline float diag(box3f const& box)
 }
 
 template <typename Volume>
-KDTree::KDTree(const Volume &vol, const std::vector<float> *cm)
+KDTree::KDTree(const Volume &vol, const std::vector<float> *cm, int numLeavesDesired)
   : rgbaCM(cm)
 {
   box3f V = vol.getBounds();
   nodes.push({V,FLT_MAX});
-  build(vol);
+  build(vol,numLeavesDesired);
 }
 
 template <typename Volume>
-void KDTree::build(const Volume &vol) {
-  while (nodes.size() < NumLeavesDesired) {
+void KDTree::build(const Volume &vol, int numLeavesDesired) {
+  while (nodes.size() < numLeavesDesired) {
 
     std::cout << "Leaf nodes generated so far: " << nodes.size() << ", picking another node to split...\n";
 

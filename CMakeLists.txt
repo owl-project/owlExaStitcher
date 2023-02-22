@@ -242,3 +242,10 @@ target_link_libraries(exaStitchHeadlessViewer witcher)
 target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
 # QT_OWL_LINK(exaStitchViewer)
 
+
+# ------------------------------------------------------------------
+# tools
+# ------------------------------------------------------------------
+
+add_executable(exaBrickKdtreeBuilder tools/kdtreeBuilder.cpp)
+target_link_libraries(exaBrickKdtreeBuilder witcher)
