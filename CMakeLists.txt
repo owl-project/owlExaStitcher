@@ -199,8 +199,11 @@ target_compile_definitions(witcher PUBLIC -DEXA_STITCH_EXA_BRICK_TRAVERSAL_MODE=
 option(EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM
        "ExaStitch model/sampler use separate buffers per stitching/uelem type (otherwise we just have buffers for gridlets and general uelems"
        OFF)
-target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM=${EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM})
-target_compile_definitions(witcher PUBLIC -DEXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM=${EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM})
+if(EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM=${EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM})
+  target_compile_definitions(witcher PUBLIC -DEXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM=${EXA_STITCH_SEPARATE_INDEX_BUFFERS_PER_UELEM})
+endif()
+
 #--- options ----------------------------------------------
 
 target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/fakeOwl/submodules/cuteeOwl/qtOWL)
