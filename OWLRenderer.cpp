@@ -332,6 +332,9 @@ namespace exa {
           domains[i] = majorants[i].first;
           maxOpacities[i] = majorants[i].second;
         }
+
+        std::cout << "Using own majorants. Number of domains: " << domains.size() << '\n';
+
         ownMajorants.domainBuffer = owlDeviceBufferCreate(owl,
                                                           OWL_USER_TYPE(box3f),
                                                           domains.size(),
