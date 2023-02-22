@@ -68,8 +68,6 @@ namespace exa {
 
   };
 
-#ifdef __CUDA_ARCH__
-  typedef owl::RayT<SAMPLING_RAY_TYPE,2> SamplingRay;
 
   struct Sample {
     int primID;
@@ -84,6 +82,9 @@ namespace exa {
     /* ID of the domain; not always set to sth. useful */
     int domainID;
   };
+
+#ifdef __CUDA_ARCH__
+  typedef owl::RayT<SAMPLING_RAY_TYPE,2> SamplingRay;
 
   template <typename DeviceSampler>
   inline __device__

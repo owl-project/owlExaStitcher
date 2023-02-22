@@ -36,6 +36,7 @@ namespace exa {
                 const std::string meshFileName = "",
                 const std::string scalarFileName = "",
                 const std::string kdtreeFileName = "",
+                const std::string majorantsFileName = "",
                 const box3f remap_from = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
                 const box3f remap_to = {{0.f,0.f,0.f},{1.f,1.f,1.f}},
                 const vec3i numMCs = {128,128,128});
@@ -77,6 +78,14 @@ namespace exa {
       OWLGeomType geomType;
       OWLGroup tlas;
     } meshGeom;
+
+    struct {
+      OWLGeomType geomType;
+      OWLGroup blas;
+      OWLGroup tlas;
+      OWLBuffer domainBuffer { 0 };
+      OWLBuffer maxOpacityBuffer { 0 };
+    } ownMajorants;
 
     struct {
       std::vector<vec4f> colorMap;

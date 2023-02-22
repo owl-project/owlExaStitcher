@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <fstream>
 #include "model/AMRCellModel.h"
 #include "model/BigMeshModel.h"
 #include "model/ExaBrickModel.h"
@@ -44,6 +45,13 @@ namespace exa {
      { nullptr /* sentinel to mark end of list */ }
   };
 
+  OWLVarDecl ownMajorantsGeomVars[]
+  = {
+     { "domains", OWL_BUFPTR, OWL_OFFSETOF(MajorantsGeom,domains) },
+     { "maxOpacities", OWL_BUFPTR, OWL_OFFSETOF(MajorantsGeom,maxOpacities) },
+     { nullptr /* sentinel to mark end of list */ }
+  };
+
   std::vector<OWLVarDecl> commonLPVars
   = {
      { "fbPointer",   OWL_RAW_POINTER, OWL_OFFSETOF(LaunchParams,fbPointer) },
@@ -63,7 +71,12 @@ namespace exa {
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
      // xf data
      { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
+#if EXASTITCH_CUDA_TEXTURE_TF
      { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
+#else
+     { "transferFunc.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc.values) },
+     { "transferFunc.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc.numValues) },
+#endif
      { "transferFunc.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc.opacityScale) },
      // render settings
      { "render.dt",           OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,render.dt) },
@@ -117,6 +130,7 @@ namespace exa {
                            const std::string meshFileName,
                            const std::string scalarFileName,
                            const std::string kdtreeFileName,
+                           const std::string majorantsFileName,
                            const box3f remap_from,
                            const box3f remap_to,
                            const vec3i numMCs)
@@ -174,6 +188,26 @@ namespace exa {
     std::vector<TriangleMesh::SP> meshes;
     if (!meshFileName.empty()) {
       meshes = TriangleMesh::load(meshFileName);
+    }
+
+    // ==================================================================
+    // Majorant domains
+    // ==================================================================
+
+    std::vector<std::pair<box3f,float>> majorants;
+    if (!majorantsFileName.empty()) {
+      auto mdl = model->as<ExaBrickModel>();
+      if (!mdl)
+        throw std::runtime_error("own majorants only supported in ExaBricks mode!");
+
+      if (mdl->traversalMode != EXABRICK_BVH_TRAVERSAL)
+        throw std::runtime_error("compile with EXABRICK_BVH_TRAVERSAL for own majorants!");
+
+      std::ifstream majorantsFile(majorantsFileName, std::ios::binary);
+      uint64_t numMajorants = 0;
+      majorantsFile.read((char *)&numMajorants,sizeof(numMajorants));
+      majorants.resize(numMajorants);
+      majorantsFile.read((char *)majorants.data(),majorants.size()*sizeof(majorants[0]));
     }
 
     // ==================================================================
@@ -289,8 +323,69 @@ namespace exa {
             throw std::runtime_error("Building BVH from grid failed");
       }
 
+      // Case where we load our own majorants; e.g., ones that were
+      // optimized for a certain TF and then dumped to a file
+      if (!majorants.empty()) {
+        std::vector<box3f> domains(majorants.size());
+        std::vector<float> maxOpacities(majorants.size());
+        for (size_t i=0; i<majorants.size(); ++i) {
+          domains[i] = majorants[i].first;
+          maxOpacities[i] = majorants[i].second;
+        }
+
+        std::cout << "Using own majorants. Number of domains: " << domains.size() << '\n';
+
+        ownMajorants.domainBuffer = owlDeviceBufferCreate(owl,
+                                                          OWL_USER_TYPE(box3f),
+                                                          domains.size(),
+                                                          domains.data());
+
+        ownMajorants.maxOpacityBuffer = owlDeviceBufferCreate(owl,
+                                                              OWL_FLOAT,
+                                                              maxOpacities.size(),
+                                                              maxOpacities.data());
+
+        ownMajorants.geomType = owlGeomTypeCreate(owl,
+                                                  OWL_GEOM_USER,
+                                                  sizeof(MajorantsGeom),
+                                                  ownMajorantsGeomVars, -1);
+
+        owlGeomTypeSetBoundsProg(ownMajorants.geomType,
+                                 module,
+                                 "MajorantsGeomBounds");
+
+        owlGeomTypeSetIntersectProg(ownMajorants.geomType,
+                                    RADIANCE_RAY_TYPE,
+                                    module,
+                                    "MajorantsGeomIsect");
+
+        owlGeomTypeSetClosestHit(ownMajorants.geomType,
+                                 RADIANCE_RAY_TYPE,
+                                 module,
+                                 "MajorantsGeomCH");
+
+        OWLGeom majorantsGeom = owlGeomCreate(owl, ownMajorants.geomType);
+        owlGeomSetPrimCount(majorantsGeom, majorants.size());
+        owlGeomSetBuffer(majorantsGeom,"domains", ownMajorants.domainBuffer);
+        owlGeomSetBuffer(majorantsGeom,"maxOpacities", ownMajorants.maxOpacityBuffer);
+
+        owlBuildPrograms(owl);
+
+        ownMajorants.blas = owlUserGeomGroupCreate(owl, 1, &majorantsGeom);
+        owlGroupBuildAccel(ownMajorants.blas);
+#ifdef EXA_STITCH_MIRROR_EXAJET
+        std::cerr << "MIRRORING FOR OWN MAJORANTS NOT IMPLEMENTED YET!\n";
+#else
+        ownMajorants.tlas = owlInstanceGroupCreate(owl, 1);
+        owlInstanceGroupSetChild(ownMajorants.tlas, 0, ownMajorants.blas);
+#endif
+        owlGroupBuildAccel(ownMajorants.tlas);
+      }
+
       // Set the traversal accel (whatever that _is_)
-      if (sampler->majorantAccel.bvh) {
+      if (ownMajorants.domainBuffer) {
+        owlParamsSetGroup(lp,"majorantBVH",ownMajorants.tlas);
+      } else if (sampler->majorantAccel.bvh) {
         owlParamsSetGroup(lp,"majorantBVH",sampler->majorantAccel.bvh);
       } else if (sampler->majorantAccel.grid) {
         owlParamsSetRaw(lp,"majorantGrid",&sampler->majorantAccel.grid->deviceTraversable);
@@ -520,8 +615,12 @@ namespace exa {
 
     sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
-    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    if (ownMajorants.maxOpacityBuffer)
+      owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+    else
+      owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
 
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
     if (xf.colorMapTexture != 0) {
       cudaDestroyTextureObject(xf.colorMapTexture);
       xf.colorMapTexture = 0;
@@ -566,6 +665,10 @@ namespace exa {
                             nullptr);
 
     owlParamsSetRaw(lp,"transferFunc.texture",&xf.colorMapTexture);
+#else
+    owlParamsSetBuffer(lp,"transferFunc.values",xf.colorMapBuffer);
+    owlParamsSet1i(lp,"transferFunc.numValues",(int)newCM.size());
+#endif
 
     accumID = 0;
   }
@@ -581,7 +684,11 @@ namespace exa {
 
     sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
-    owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    if (!ownMajorants.maxOpacityBuffer) {
+      owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+    } else {
+      owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+    }
   }
 
   void OWLRenderer::setRelDomain(interval<float> relDomain)
@@ -592,7 +699,7 @@ namespace exa {
 
   void OWLRenderer::setOpacityScale(float scale)
   {
-    owlParamsSet1f(lp,"transferFunc.opacityScale",scale);
+    owlParamsSet1f(lp,"transferFunc.opacityScale",powf(1.1f,scale-100));
   }
 
   void OWLRenderer::setClipPlane(int id, bool enabled, vec3f N, float d)

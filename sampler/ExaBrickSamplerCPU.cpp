@@ -14,39 +14,35 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
-#pragma once
-
-#include <vector>
-#include <common.h>
-#include <Grid.h>
-#include "Model.h"
-#include "ABRs.h"
+#include "ExaBrickSamplerCPU.h"
 
 namespace exa {
 
-  struct ExaBrickModel : Model
+  bool ExaBrickSamplerCPU::build(ExaBrickModel::SP model)
   {
-    typedef std::shared_ptr<ExaBrickModel> SP;
+    using namespace visionaray;
 
-    static ExaBrickModel::SP load(const std::string brickFileName,
-                                  const std::string scalarFileName,
-                                  const std::string kdTreeFileName);
+    this->model = model;
+    brickBuffer = model->bricks.data();
+    scalarBuffer = model->scalars.data();
 
-    std::vector<ExaBrick> bricks;
-    std::vector<float>    scalars;
-    ABRs                  abrs;
-    KDTree::SP            kdtree; // optional kd-tree over bricks
-    std::vector<std::vector<int>> adjacentBricks; // adjacency list to splat majorants into neighboring bricks
+    std::vector<ABRPrimitive> prims(model->abrs.value.size());
 
-    // Statistics
-    void memStats(size_t &bricksBytes,
-                  size_t &scalarsBytes,
-                  size_t &abrsBytes,
-                  size_t &abrLeafListBytes);
-  
-    static int traversalMode;
-    static int samplerMode;
-  };
+    for (unsigned i=0; i<prims.size(); ++i) {
+      prims[i].prim_id = i;
+      prims[i].domain = model->abrs.value[i].domain;
+      prims[i].valueRange = model->abrs.value[i].valueRange;
+      prims[i].leafListBegin = model->abrs.value[i].leafListBegin;
+      prims[i].leafListSize = model->abrs.value[i].leafListSize;
+      prims[i].finestLevelCellWidth = model->abrs.value[i].finestLevelCellWidth;
+    }
+
+    binned_sah_builder builder;
+    builder.enable_spatial_splits(false);
+    abrBVH = builder.build(index_bvh<ABRPrimitive>{}, prims.data(), prims.size());
+
+    return true;
+  }
 
 } // ::exa
 

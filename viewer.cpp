@@ -15,6 +15,7 @@
 // ======================================================================== //
 
 #include <iomanip>
+#include <fstream>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
@@ -29,6 +30,10 @@
 #ifdef HEADLESS
 #include "headless.h"
 #endif
+
+#include "YueKDTree.h"
+#include "YueVolume.h"
+
 
 #define DUMP_FRAMES 0
 
@@ -46,6 +51,7 @@ namespace exa {
     std::string bigMeshFileName = "";
     std::string quickClustersFileName = "";
     std::string kdtreeFileName = "";
+    std::string majorantsFileName = "";
     std::string meshFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "Witcher3.png";
@@ -232,6 +238,78 @@ namespace exa {
       case 'T':
         if (xfEditor) xfEditor->saveTo("owlDVR.xf");
         break;
+      case 'Y': {
+        if (auto model = renderer->model->as<ExaBrickModel>()) {
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
+          std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
+          memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
+                 rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          YueVolume vol(model,&rgbaCM,renderer->xf.absDomain,renderer->xf.relDomain);
+          volkd::KDTree kdtree(vol,&rgbaCM);
+
+          std::vector<std::pair<box3f,float>> domains;
+          while (!kdtree.nodes.empty()) {
+            volkd::Node node = kdtree.nodes.top();
+            kdtree.nodes.pop();
+            range1f tfRange = vol.min_max(node.domain,&rgbaCM);
+            std::cout << "Domain " << domains.size() << ": "
+                      << node.domain << ", majorant: " << tfRange.upper << '\n';
+            domains.push_back({node.domain,tfRange.upper});
+          }
+
+          std::ofstream cmFile(cmFileName, std::ios::binary);
+          uint64_t cmSize = rgbaCM.size();
+          cmFile.write((char *)&cmSize,sizeof(cmSize));
+          cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ofstream domainsFile(domainsFileName, std::ios::binary);
+          uint64_t numDomains = domains.size();
+          domainsFile.write((char *)&numDomains,sizeof(numDomains));
+          domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
+        }
+        break;
+      }
+      case 'y': {
+        if (auto model = renderer->model->as<ExaBrickModel>()) {
+          std::string baseFileName = cmdline.scalarFileName;
+          std::string cmFileName = baseFileName+"_MajorantColorMap.bin";
+          std::string domainsFileName = baseFileName+"_MajorantDomains.bin";
+
+          std::vector<float> rgbaCM(xfEditor->getColorMap().size()*4);
+          memcpy(rgbaCM.data(),xfEditor->getColorMap().data(),
+                 rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ifstream domainsFileIN(domainsFileName, std::ios::binary);
+          uint64_t numDomains = 0;
+          domainsFileIN.read((char *)&numDomains,sizeof(numDomains));
+          std::vector<std::pair<box3f,float>> domains(numDomains);
+          domainsFileIN.read((char *)domains.data(),domains.size()*sizeof(domains[0]));
+
+          YueVolume vol(model,&rgbaCM,renderer->xf.absDomain,renderer->xf.relDomain);
+
+          std::vector<std::pair<box3f,float>> newDomains;
+          for (size_t i=0; i<domains.size(); ++i) {
+            range1f tfRange = vol.min_max(domains[i].first,&rgbaCM);
+            std::cout << "Domain " << i << ": " << domains[i].first
+                      << ", majorant: " << tfRange.upper << '\n';
+            newDomains.push_back({domains[i].first,tfRange.upper});
+          }
+
+          std::ofstream cmFile(cmFileName, std::ios::binary);
+          uint64_t cmSize = rgbaCM.size();
+          cmFile.write((char *)&cmSize,sizeof(cmSize));
+          cmFile.write((char *)rgbaCM.data(),rgbaCM.size()*sizeof(rgbaCM[0]));
+
+          std::ofstream domainsFile(domainsFileName, std::ios::binary);
+          domainsFile.write((char *)&numDomains,sizeof(numDomains));
+          domainsFile.write((char *)newDomains.data(),newDomains.size()*sizeof(newDomains[0]));
+        }
+        break;
+      }
       case 'P':
         if (g_clipPlaneSelected >= 0 && cmdline.clipPlanes[g_clipPlaneSelected].enabled) {
           const vec3f N = cmdline.clipPlanes[g_clipPlaneSelected].N;
@@ -324,6 +402,8 @@ namespace exa {
     void rangeChanged(range1f r);
     void opacityScaleChanged(double scale);
     void lightPosChanged(owl::vec3f pos);
+    void scheduleScreenShot(double seconds);
+    void scheduleScreenShot(int frames);
 
   public:
 
@@ -336,6 +416,10 @@ namespace exa {
     std::vector<box2f> subImageUndoStack;
     int subImageUndoStackTop = 0;
     LightInteractor lightInteractor;
+    double screenShotAfterSec = -1.0;
+    double seconds = 0.0;
+    int screenShotAfterFrames = -1;
+    int frames = 0;
 
     enum class SubImageSelectionContraint {
       KeepAspect,Square,Free,
@@ -395,6 +479,12 @@ namespace exa {
   /*! gets called whenever the viewer needs us to re-render out widget */
   void Viewer::render() 
   {
+    if (screenShotAfterFrames >= 1 && frames == 0 ||
+        screenShotAfterSec >= 0.0 && seconds == 0.0)
+    {
+      renderer->resetAccum();
+    }
+
     static double t_last = getCurrentTime();
     static double t_first = t_last;
 
@@ -411,8 +501,33 @@ namespace exa {
     // setWindowTitle(title);
     // glfwSetWindowTitle(this->handle,title);
 
-    t_last = t_now;
+#ifndef HEADLESS
+    if (screenShotAfterFrames >= 0) {
+      this->frames++;
+      std::cout << frames << '\r';
+      std::cout << std::flush;
 
+      if (this->frames >= screenShotAfterFrames) {
+        screenShot(cmdline.outFileName+".png");
+        screenShotAfterFrames = -1;
+        this->frames = 0;
+      }
+    }
+
+    if (screenShotAfterSec >= 0) {
+      this->seconds +=  t_now-t_last;
+      std::cout << seconds << '\r';
+      std::cout << std::flush;
+
+      if (this->seconds >= screenShotAfterSec) {
+        screenShot(cmdline.outFileName+".png");
+        screenShotAfterSec = -1.0;
+        this->seconds = 0.0;
+      }
+    }
+#endif
+
+    t_last = t_now;
 
 #if 1//DUMP_FRAMES
     // just dump the 10th frame, then hard-exit
@@ -538,6 +653,18 @@ namespace exa {
     std::cout.flags(f);
   }
 
+  void Viewer::scheduleScreenShot(double seconds)
+  {
+    screenShotAfterSec = seconds;
+    this->seconds = 0.0;
+  }
+
+  void Viewer::scheduleScreenShot(int frames)
+  {
+    screenShotAfterFrames = frames;
+    this->frames = 0;
+  }
+
 
   extern "C" int main(int argc, char** argv)
   {
@@ -568,6 +695,9 @@ namespace exa {
       }
       else if (arg == "-kdtree") {
         cmdline.kdtreeFileName = argv[++i];
+      }
+      else if (arg == "-majorants") {
+        cmdline.majorantsFileName = argv[++i];
       }
       else if (arg == "-mesh") {
         cmdline.meshFileName = argv[++i];
@@ -676,6 +806,7 @@ namespace exa {
                          cmdline.meshFileName,
                          cmdline.scalarFileName,
                          cmdline.kdtreeFileName,
+                         cmdline.majorantsFileName,
                          cmdline.xform.remap_from,
                          cmdline.xform.remap_to,
                          cmdline.numMCs);
@@ -750,12 +881,47 @@ namespace exa {
     if (cmdline.xfFileName != "")
       xfEditor->loadFrom(cmdline.xfFileName);
     xfEditor->setAbsDomain(valueRange);
+    viewer.opacityScaleChanged(xfEditor->getOpacityScale());
 
     QMainWindow guiWindow;
     QWidget *centralWidget = new QWidget;
     QVBoxLayout vlayout(centralWidget);
 
     vlayout.addWidget(xfEditor);
+
+    // ==================================================================
+    // Screenshot
+    // ==================================================================
+
+    QGroupBox *screenShotBox = new QGroupBox("Screen Shot");
+    vlayout.addWidget(screenShotBox);
+
+    QHBoxLayout screenShotLayout(screenShotBox);
+    QPushButton screenShotNowButton("Now");
+    screenShotLayout.addWidget(&screenShotNowButton);
+
+    QHBoxLayout screenShotFramesLayout;
+    QFrame line;
+    line.setFrameShape(QFrame::VLine);
+    line.setFrameShadow(QFrame::Sunken);
+    QLabel screenShotFramesLabel("# Frames:");
+    QSpinBox screenShotFramesSpinBox;
+    QPushButton screenShotFramesButton("Schedule...");
+    screenShotFramesLayout.addWidget(&line);
+    screenShotFramesLayout.addWidget(&screenShotFramesLabel);
+    screenShotFramesLayout.addWidget(&screenShotFramesSpinBox);
+    screenShotFramesLayout.addWidget(&screenShotFramesButton);
+    screenShotLayout.addLayout(&screenShotFramesLayout);
+
+    QHBoxLayout screenShotSecondsLayout;
+    QLabel screenShotSecondsLabel("Seconds:");
+    QDoubleSpinBox screenShotSecondsSpinBox;
+    QPushButton screenShotSecondsButton("Schedule...");
+    screenShotSecondsLayout.addWidget(&line);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsLabel);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsSpinBox);
+    screenShotSecondsLayout.addWidget(&screenShotSecondsButton);
+    screenShotLayout.addLayout(&screenShotSecondsLayout);
 
     // ==================================================================
     // Rendering settings
@@ -937,6 +1103,24 @@ namespace exa {
       float f1 = dot(modelBounds.upper,N);
       return (1.f-d01) * f0 + d01*f1;
     };
+
+    // Screen shot now
+    QObject::connect(&screenShotNowButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(0);
+      });
+
+    // Screen shot after frames
+    QObject::connect(&screenShotFramesButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(screenShotFramesSpinBox.value());
+      });
+
+    // Screen shot after seconds
+    QObject::connect(&screenShotSecondsButton, &QPushButton::pressed,
+      [&]() {
+        viewer.scheduleScreenShot(screenShotSecondsSpinBox.value());
+      });
 
     // Renderer type select
     QObject::connect(&rendererTypeSelection, qOverload<int>(&QComboBox::currentIndexChanged),

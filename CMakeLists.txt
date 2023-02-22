@@ -123,6 +123,16 @@ if(BIGMESH_FOUND)
   include_directories(${umesh_include_dir})
 endif()
 
+
+# ------------------------------------------------------------------
+# Visionaray, needed for Yue partitioner
+# TODO: make this optional
+# ------------------------------------------------------------------
+
+set(vsnray_dir ${PROJECT_SOURCE_DIR}/submodules/fakeOwl/submodules/visionaray)
+include_directories(${vsnray_dir}/include)
+
+
 # ------------------------------------------------------------------
 # witcher lib
 # ------------------------------------------------------------------
@@ -139,6 +149,7 @@ add_library(witcher STATIC
   sampler/BigMeshSampler.cpp
   sampler/ExaBrickSampler.cpp
   sampler/ExaBrickSampler.cu
+  sampler/ExaBrickSamplerCPU.cpp
   sampler/ExaStitchSampler.cpp
   sampler/ExaStitchSampler.cu
   sampler/QuickClustersSampler.cpp
@@ -165,6 +176,16 @@ if(EXA_STITCH_MIRROR_EXAJET)
   target_compile_definitions(embedded_ExaStitchSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
   target_compile_definitions(embedded_QuickClustersSampler_ptx PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
   target_compile_definitions(witcher PUBLIC -DEXA_STITCH_MIRROR_EXAJET=1)
+endif()
+
+option(EXASTITCH_CUDA_TEXTURE_TF "Use CUDA texture for transfer function" ON)
+if(EXASTITCH_CUDA_TEXTURE_TF)
+  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
+  target_compile_definitions(embedded_AMRCellSampler_ptx PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
+  target_compile_definitions(embedded_ExaBrickSampler_ptx PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
+  target_compile_definitions(embedded_ExaStitchSampler_ptx PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
+  target_compile_definitions(embedded_QuickClustersSampler_ptx PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
+  target_compile_definitions(witcher PUBLIC -DEXASTITCH_CUDA_TEXTURE_TF=1)
 endif()
 
 set(EXA_STITCH_EXA_BRICK_SAMPLER_MODE 0 CACHE STRING "ABR-BVH: 0, ext.brick-BVH: 1")
@@ -221,3 +242,10 @@ target_link_libraries(exaStitchHeadlessViewer witcher)
 target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
 # QT_OWL_LINK(exaStitchViewer)
 
+
+# ------------------------------------------------------------------
+# tools
+# ------------------------------------------------------------------
+
+add_executable(exaBrickKdtreeBuilder tools/kdtreeBuilder.cpp)
+target_link_libraries(exaBrickKdtreeBuilder witcher)

@@ -40,23 +40,9 @@ namespace exa {
 
   typedef owl::common::LCG<4> Random;
 
-#define DEBUGGING 0
-#define DBG_X (getLaunchDims().x/2)
-#define DBG_Y (getLaunchDims().y/2)
-
-  __device__ inline bool debug()
-  {
-#if DEBUGGING
-    return (getLaunchIndex().x == DBG_X && getLaunchIndex().y == DBG_Y);
-#else
-     return false;
-#endif
-  }
-
   inline  __device__
   vec3f backGroundColor()
   {
-    return vec3f(1.f);
     const vec2i pixelID = owl::getLaunchIndex();
     const float t = pixelID.y / (float)optixGetLaunchDimensions().y;
     const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
@@ -199,6 +185,57 @@ namespace exa {
   }
 
 
+  // ------------------------------------------------------------------
+  // Spatial domains, in case we have own majorants
+  // ------------------------------------------------------------------
+
+  OPTIX_CLOSEST_HIT_PROGRAM(MajorantsGeomCH)()
+  {
+  }
+
+  OPTIX_BOUNDS_PROGRAM(MajorantsGeomBounds)(const void* geomData,
+                                            box3f& result,
+                                            int leafID)
+  {
+    const MajorantsGeom &self = *(const MajorantsGeom *)geomData;
+
+    if (self.maxOpacities[leafID] == 0.f) {
+      result.lower = vec3f(+1e30f);
+      result.upper = vec3f(-1e30f);
+    } else {
+      result = self.domains[leafID];
+      // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
+      //        result.lower.x,result.lower.y,result.lower.z,
+      //        result.upper.x,result.upper.y,result.upper.z);
+    }
+  }
+
+  OPTIX_INTERSECT_PROGRAM(MajorantsGeomIsect)()
+  {
+    const MajorantsGeom &self = owl::getProgramData<MajorantsGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+    const box3f &bounds = self.domains[leafID];
+    // printf("%i, %f,%f,%f %f,%f,%f\n",leafID,
+    //        bounds.lower.x,bounds.lower.y,bounds.lower.z,
+    //        bounds.upper.x,bounds.upper.y,bounds.upper.z);
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!boxTest(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      DomainPRD& prd = owl::getPRD<DomainPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.domainID = leafID;
+    }
+  }
+
+
 
   // ------------------------------------------------------------------
   // Macro Cell Grids
@@ -280,6 +317,29 @@ namespace exa {
     prd.kd       = vec3f(.8f);
   }
 
+  inline __device__
+  vec4f lookupTransferFunction(float f)
+  {
+    auto &lp = optixLaunchParams;
+    const range1f xfDomain = lp.transferFunc.domain;
+
+    if (xfDomain.lower >= xfDomain.upper)
+      return vec4f(0.f);
+
+    f -= xfDomain.lower;
+    f /= (xfDomain.upper-xfDomain.lower);
+#ifdef EXASTITCH_CUDA_TEXTURE_TF
+    return tex2D<float4>(lp.transferFunc.texture,f,.5f);
+#else
+    if (lp.transferFunc.numValues == 0)
+      return vec4f(0.f);
+
+    f = max(0.f,min(1.f,f));
+    int i = min(lp.transferFunc.numValues-1,int(f * lp.transferFunc.numValues));
+    return lp.transferFunc.values[i];
+#endif
+  }
+
 
   // ------------------------------------------------------------------
   // Generic integration sampler for DVR and ISOs
@@ -310,10 +370,7 @@ namespace exa {
       if (s.primID < 0)
         continue;
 
-      const range1f xfDomain = lp.transferFunc.domain;
-      s.value -= xfDomain.lower;
-      s.value /= xfDomain.upper-xfDomain.lower;
-      const vec4f xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
+      const vec4f xf = lookupTransferFunction(s.value);
 
       if constexpr (Shading) {
         const vec3f g;// = gradient(pos);
@@ -393,10 +450,7 @@ namespace exa {
         }
 
         float value = sumWeightedValues/sumWeights;
-        const range1f xfDomain = lp.transferFunc.domain;
-        value -= xfDomain.lower;
-        value /= xfDomain.upper-xfDomain.lower;
-        vec4f sample = tex2D<float4>(lp.transferFunc.texture,value,.5f);
+        vec4f sample = lookupTransferFunction(value);
 
         sample.w    = 1.f - powf(1.f-sample.w, actual_dt);
         pixelColor += (1.f-pixelColor.w)*sample.w*vec4f(vec3f(sample), 1.f);
@@ -551,8 +605,7 @@ namespace exa {
 
   inline __device__ vec3f getLe(const Sample s)
   {
-    auto& lp = optixLaunchParams;
-    vec4f xf = tex1D<float4>(lp.transferFunc.texture,s.value);
+    vec4f xf = lookupTransferFunction(s.value);
     if (s.value > .99f)
     //if (s.value < .2f)
       return {120.f,60.f,45.f};
@@ -569,7 +622,81 @@ namespace exa {
     Teaser,   /* paper teaser */
   };
 
-  template <ShadeMode SM, typename Traversable, typename Sampler>
+  template <ShadeMode SM, typename Sampler>
+  inline __device__
+  void classifySample(Sampler sampler, Sample &s, vec4f &xf) {
+    auto& lp = optixLaunchParams;
+    (void)lp;
+    if constexpr (SM==Default) {
+      xf = lookupTransferFunction(s.value);
+      //xf = vec4f(randomColor(leafID),0.1f);
+    } else if constexpr (SM==Gridlets) {
+      xf = lookupTransferFunction(s.value);
+      if (s.cellID == -1) { // uelem
+        xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
+      } else {
+        const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
+        vec3i imin = {
+          s.cellID%gridlet.dims.x,
+          s.cellID/gridlet.dims.x%gridlet.dims.y,
+          s.cellID/(gridlet.dims.x*gridlet.dims.y)
+        };
+        int col_index = imin.x % 2 == imin.y  % 2;
+        col_index = imin.z % 2 == 0 ? col_index : !col_index;
+        if (col_index==0) {
+          xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
+        } else {
+          xf.x = 0.f; xf.y = 0.f; xf.z = 0.7f;
+        }
+      }
+    } else if constexpr (SM==Teaser) {
+      xf = lookupTransferFunction(s.value);
+      const vec3f rgb1(xf);
+      vec3f rgb2;
+      if (s.cellID == -1) { // uelem
+        rgb2 = vec3f(1,0,0);
+      } else {
+        const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
+        vec3i imin = {
+          s.cellID%gridlet.dims.x,
+          s.cellID/gridlet.dims.x%gridlet.dims.y,
+          s.cellID/(gridlet.dims.x*gridlet.dims.y)
+        };
+        int col_index = imin.x % 2 == imin.y  % 2;
+        col_index = imin.z % 2 == 0 ? col_index : !col_index;
+        if (col_index==0) {
+          rgb2.x = 1.f; rgb2.y = 1.f; rgb2.z = 1.f;
+        } else {
+          rgb2.x = 0.f; rgb2.y = 0.f; rgb2.z = 0.7f;
+        }
+      }
+
+      const vec2f cpOne(.4f,.6f);
+      const vec2f cpTwo(.6f,.4f);
+
+      const vec2i viewportSize = owl::getLaunchDims();
+      const vec2i pixelIndex = owl::getLaunchIndex();
+      const vec2f pixelUV(pixelIndex.x/float(viewportSize.x),
+                          pixelIndex.y/float(viewportSize.y));
+   
+      const float A  = cpTwo.x-cpOne.x;
+      const float B  = cpTwo.y-cpOne.y;
+      const float C1 = A*cpOne.x+B*cpOne.y;
+      const float C2 = A*cpTwo.x+B*cpTwo.y;
+      const float C  = A*pixelUV.x+B*pixelUV.y;
+      if (C <= C1) {
+        xf.x = rgb1.x; xf.y = rgb1.y; xf.z = rgb1.z;
+      } else if (C >= C2) {
+        xf.x = rgb2.x; xf.y = rgb2.y; xf.z = rgb2.z;
+      } else {
+        xf.x = (rgb1.x * (C2-C) + rgb2.x * (C-C1))/(C2-C1);
+        xf.y = (rgb1.y * (C2-C) + rgb2.y * (C-C1))/(C2-C1);
+        xf.z = (rgb1.z * (C2-C) + rgb2.z * (C-C1))/(C2-C1);
+      }
+    }
+  }
+
+  template <ShadeMode SM, bool Shadow=false, typename Traversable, typename Sampler>
   inline __device__
   void sampleInteraction(const Traversable &traversable,
                          Ray                ray,
@@ -611,7 +738,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/majorant*lp.render.dt;
+        t -= logf(1.f-random())/(majorant*lp.transferFunc.opacityScale);
 
         if (t >= t1) {
           break;
@@ -639,107 +766,13 @@ namespace exa {
           continue;
 #endif
 
-        if constexpr (SM==Default) {
-          const range1f xfDomain = lp.transferFunc.domain;
-          s.value -= xfDomain.lower;
-          s.value /= xfDomain.upper-xfDomain.lower;
-          xf = tex2D<float4>(lp.transferFunc.texture,s.value,.5f);
-          //xf = vec4f(randomColor(leafID),0.1f);
-        } else if constexpr (SM==Gridlets) {
-          const range1f xfDomain = lp.transferFunc.domain;
-          s.value -= xfDomain.lower;
-          s.value /= xfDomain.upper-xfDomain.lower;
-          xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
-          if (s.cellID == -1) { // uelem
-            xf.x = 1.f; xf.y = 0.f; xf.z = 0.f;
-            //xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
-          } else {
-            const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
-            vec3i imin = {
-              s.cellID%gridlet.dims.x,
-              s.cellID/gridlet.dims.x%gridlet.dims.y,
-              s.cellID/(gridlet.dims.x*gridlet.dims.y)
-            };
-            int col_index = imin.x % 2 == imin.y  % 2;
-            col_index = imin.z % 2 == 0 ? col_index : !col_index;
-            if (col_index==0) {
-              xf.x = 1.f; xf.y = 1.f; xf.z = 1.f;
-            } else {
-              xf.x = 0.f; xf.y = 0.f; xf.z = 0.7f;
-              //vec3f rc = randomColor(s.primID);
-              //xf = vec4f(rc,xf.w);
-            }
-          }
-        } else if constexpr (SM==Teaser) {
-          const range1f xfDomain = lp.transferFunc.domain;
-          s.value -= xfDomain.lower;
-          s.value /= xfDomain.upper-xfDomain.lower;
-          xf.w = tex2D<float4>(lp.transferFunc.texture,s.value,.5f).w;
-          const vec3f rgb1(tex2D<float4>(lp.transferFunc.texture,s.value,.5f));
-          vec3f rgb2;
-          if (s.cellID == -1) { // uelem
-            rgb2 = vec3f(1,0,0);
-          } else {
-            const Gridlet &gridlet = sampler.gridletBuffer[s.primID];
-            vec3i imin = {
-              s.cellID%gridlet.dims.x,
-              s.cellID/gridlet.dims.x%gridlet.dims.y,
-              s.cellID/(gridlet.dims.x*gridlet.dims.y)
-            };
-            int col_index = imin.x % 2 == imin.y  % 2;
-            col_index = imin.z % 2 == 0 ? col_index : !col_index;
-            if (col_index==0) {
-              rgb2.x = 1.f; rgb2.y = 1.f; rgb2.z = 1.f;
-            } else {
-              rgb2.x = 0.f; rgb2.y = 0.f; rgb2.z = 0.7f;
-            }
-          }
-
-          const vec2f cpOne(.4f,.6f);
-          const vec2f cpTwo(.6f,.4f);
-
-          const vec2i viewportSize = owl::getLaunchDims();
-          const vec2i pixelIndex = owl::getLaunchIndex();
-          const vec2f pixelUV(pixelIndex.x/float(viewportSize.x),
-                              pixelIndex.y/float(viewportSize.y));
-       
-          const float A  = cpTwo.x-cpOne.x;
-          const float B  = cpTwo.y-cpOne.y;
-          const float C1 = A*cpOne.x+B*cpOne.y;
-          const float C2 = A*cpTwo.x+B*cpTwo.y;
-          const float C  = A*pixelUV.x+B*pixelUV.y;
-          if (C <= C1) {
-            xf.x = rgb1.x; xf.y = rgb1.y; xf.z = rgb1.z;
-          } else if (C >= C2) {
-            xf.x = rgb2.x; xf.y = rgb2.y; xf.z = rgb2.z;
-          } else {
-            xf.x = (rgb1.x * (C2-C) + rgb2.x * (C-C1))/(C2-C1);
-            xf.y = (rgb1.y * (C2-C) + rgb2.y * (C-C1))/(C2-C1);
-            xf.z = (rgb1.z * (C2-C) + rgb2.z * (C-C1))/(C2-C1);
-          }
-        }
+        classifySample<SM>(sampler,s,xf);
+        // xf = vec4f(randomColor(leafID), majorant);
 
         float u = random();
-
-        // if (s.cellTag == ELEM_TAG) {
-        //   vec3f color = randomColor((unsigned)s.primID);
-        //   xf.x = color.x; xf.y = color.y; xf.z = color.z;
-        // } else if (s.cellTag == GRID_TAG) {
-        //   xf.x = xf.y = xf.z = .8f;
-        // }
-        // xf.w *= lp.transferFunc.opacityScale;
-        // vec3f N = normalize(s.gradient);
-        // N += 1.f;
-        // N /= 2.f;
-        // xf.x = N.x; xf.y = N.y; xf.z = N.z;
         float sigmaT = xf.w;
-        // float sigmaA = sigmaT/2.f;
-        /*if (u < sigmaA/sigmaT) {
-          Le = getLe(s);
-          Tr = 0.f;
-          type = Emission;
-          return false;
-        } else */if (sigmaT >= u * majorant) {
+
+        if (sigmaT*lp.transferFunc.opacityScale >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
           return false;
@@ -749,7 +782,67 @@ namespace exa {
       return true;
     };
 
-    traverse(traversable,ray,woodcockFunc);
+    auto ratioTrackingFunc = [&](const int leafID, float t0, float t1) {
+      const float majorant = optixLaunchParams.maxOpacities[leafID];
+
+      float t = t0;
+
+#define CACHING 1
+#ifdef CACHING
+      int primID = -1;
+#endif
+
+      while (1) { // Delta tracking loop
+
+        if (majorant <= 0.f)
+          break;
+        
+        t -= logf(1.f-random())/(majorant*lp.transferFunc.opacityScale);
+
+        if (t >= t1) {
+          break;
+        }
+
+#ifdef CACHING
+        pos = ray.origin+ray.direction*t;
+        Sample s = testSample(sampler,pos,primID);
+        if (s.primID < 0) {
+          SpatialDomain dom{t0,t1,leafID};
+          s = sample(sampler,dom,pos);
+        }
+
+        if (s.primID < 0)
+          continue;
+
+        // remember for next time!
+        if (s.cellID != -1) // only girdlets for now
+          primID = s.primID;
+#else
+        SpatialDomain dom{t0,t1,leafID};
+        pos = ray.origin+ray.direction*t;
+        Sample s = sample(sampler,dom,pos);
+        if (s.primID < 0)
+          continue;
+#endif
+
+        classifySample<SM>(sampler,s,xf);
+
+        float sigmaT = xf.w;
+        Tr *= 1.f-(sigmaT*lp.transferFunc.opacityScale)/majorant;
+        if (Tr <= 0.f) {
+          type = Scattering;
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    if (Shadow)
+      traverse(traversable,ray,ratioTrackingFunc);
+      //traverse(traversable,ray,woodcockFunc);
+    else
+      traverse(traversable,ray,woodcockFunc);
 
     // TODO: instead of transforming this back, keep both the world space
     // and voxel space rays around, and cmpute pos = ray.ori+t*ray.dir in
@@ -815,15 +908,15 @@ namespace exa {
     vec3f newPos;
     float Tr;
     vec4f xf = 0.f; // albedo and extinction coefficient (ignored)
-    sampleInteraction<SM>(traversable,
-                          ray,
-                          sampler,
-                          ctype,
-                          newPos,
-                          Tr,
-                          Le,
-                          xf,
-                          random);
+    sampleInteraction<SM,true>(traversable,
+                               ray,
+                               sampler,
+                               ctype,
+                               newPos,
+                               Tr,
+                               Le,
+                               xf,
+                               random);
 
     if (ctype==Boundary && meshPRD.primID >= 0) {
       return max(0.f,dot(meshPRD.Ng,lightDir)) * Tr / (ld*ld) * lp.lights[lightID].intensity;
