@@ -663,8 +663,9 @@ namespace exa {
     };
     owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
 
+    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+
     if (!ownMajorants.maxOpacityBuffer) {
-      sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
       owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
     } else {
       owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
