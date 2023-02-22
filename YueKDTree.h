@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cfloat>
 #include <iostream>
 #include <ostream>
 #include <queue>
