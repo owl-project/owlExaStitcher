@@ -516,7 +516,7 @@ namespace exa {
       const box3f bounds = brick.getBounds(); // use strict domain
 
       float t0 = 1e30f, t1 = -1e30f;
-      if (intersect(ray,bounds,t0,t1)) {
+      if (boxTest(ray,bounds,t0,t1)) {
         t0 = max(t0, tmin);
         t1 = min(t1, tmax);
         hitRec.hit = !func(primID,t0,t1);
@@ -1380,7 +1380,7 @@ namespace exa {
     auto& lp = optixLaunchParams;
 #if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == MC_DDA_TRAVERSAL
     renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.ebs);
-#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE ==  EXABRICK_KDTREE_TRAVERSAL
+#elif EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_KDTREE_TRAVERSAL
     renderFrame_SelectIntegrator<Default>(lp.majorantKDTree,lp.sampler.ebs);
 #else
     renderFrame_SelectIntegrator<Default>(lp.majorantBVH,lp.sampler.ebs);
