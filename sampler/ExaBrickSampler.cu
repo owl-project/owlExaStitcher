@@ -120,6 +120,7 @@ namespace exa {
 
     if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
         traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_EXT_BVH_TRAVERSAL ||
         traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
 
       size_t numColors = owlBufferSizeInBytes(colorMap)/sizeof(vec4f);
@@ -131,7 +132,8 @@ namespace exa {
         (const vec4f *)owlBufferGetPointer(colorMap,0),
         model->bricks.size(),numColors,xfRange);
 
-      if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH) {
+      if (traversalMode == EXABRICK_EXT_BVH_TRAVERSAL ||
+          samplerMode == EXA_BRICK_SAMPLER_EXT_BVH) {
         owlGroupBuildAccel(extBlas);
         owlGroupBuildAccel(extTlas);
       }

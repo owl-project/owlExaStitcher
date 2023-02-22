@@ -113,6 +113,29 @@ namespace exa {
     }
   }
 
+  OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomIsect)() // for non-zero length rays
+  {
+    const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();
+    int leafID = optixGetPrimitiveIndex();
+    owl::Ray ray(optixGetObjectRayOrigin(),
+                 optixGetObjectRayDirection(),
+                 optixGetRayTmin(),
+                 optixGetRayTmax());
+    const ExaBrick &brick = self.brickBuffer[leafID];
+    const box3f bounds = brick.getBounds(); // use strict domain here
+
+    float t0 = ray.tmin, t1 = ray.tmax;
+    if (!boxTest(ray,bounds,t0,t1))
+      return;
+
+    if (optixReportIntersection(t0, 0)) {
+      DomainPRD& prd = owl::getPRD<DomainPRD>();
+      prd.t0 = t0;
+      prd.t1 = t1;
+      prd.domainID = leafID;
+    }
+  }
+
   OPTIX_INTERSECT_PROGRAM(ExaBrickExtGeomSamplingIsect)() // sampling rays with zero length
   {
     const ExaBrickGeom &self = owl::getProgramData<ExaBrickGeom>();

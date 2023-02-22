@@ -99,10 +99,12 @@ namespace exa {
       owlGroupBuildAccel(abrTlas);
     }
 
-    if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ) {
+    if (traversalMode == EXABRICK_EXT_BVH_TRAVERSAL || samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ) {
       // extended brick geometry //
       extGeomType = owlGeomTypeCreate(context, OWL_GEOM_USER, sizeof(ExaBrickGeom), geomVars, -1);
       owlGeomTypeSetBoundsProg   (extGeomType, module, "ExaBrickExtGeomBounds");
+      owlGeomTypeSetIntersectProg(extGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickExtGeomIsect");
+      owlGeomTypeSetClosestHit   (extGeomType, RADIANCE_RAY_TYPE, module, "ExaBrickGeomCH");
       owlGeomTypeSetIntersectProg(extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickExtGeomSamplingIsect");
       owlGeomTypeSetClosestHit   (extGeomType, SAMPLING_RAY_TYPE, module, "ExaBrickGeomCH");
       OWLGeom extGeom = owlGeomCreate(context, extGeomType);
@@ -189,6 +191,7 @@ namespace exa {
 
     if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
         traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_EXT_BVH_TRAVERSAL ||
         traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
 
       std::vector<range1f> hValueRanges(bricks.size());
@@ -306,6 +309,12 @@ namespace exa {
     // Set the majorant traversal accel and majorants buffer
     switch (traversalMode) {
     
+      case EXABRICK_ABR_TRAVERSAL: {
+        Sampler::majorantAccel.bvh = abrTlas;
+        Sampler::maxOpacities = abrMaxOpacities;
+        break;
+      }
+
       case MC_DDA_TRAVERSAL: {
         Sampler::majorantAccel.grid = model->grid;
         Sampler::maxOpacities = model->grid->maxOpacities;
@@ -318,9 +327,9 @@ namespace exa {
         break;
       }
 
-      case EXABRICK_ABR_TRAVERSAL: {
-        Sampler::majorantAccel.bvh = abrTlas;
-        Sampler::maxOpacities = abrMaxOpacities;
+      case EXABRICK_KDTREE_TRAVERSAL: {
+        Sampler::majorantAccel.kdtree = model->kdtree;
+        Sampler::maxOpacities = brickMaxOpacities;
         break;
       }
 
@@ -330,8 +339,8 @@ namespace exa {
         break;
       }
 
-      case EXABRICK_KDTREE_TRAVERSAL: {
-        Sampler::majorantAccel.kdtree = model->kdtree;
+      case EXABRICK_EXT_BVH_TRAVERSAL: {
+        Sampler::majorantAccel.bvh = extTlas;
         Sampler::maxOpacities = brickMaxOpacities;
         break;
       }

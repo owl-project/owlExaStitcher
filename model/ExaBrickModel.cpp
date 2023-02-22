@@ -138,6 +138,7 @@ namespace exa {
 
     if (samplerMode == EXA_BRICK_SAMPLER_EXT_BVH ||
         traversalMode == EXABRICK_BVH_TRAVERSAL ||
+        traversalMode == EXABRICK_EXT_BVH_TRAVERSAL ||
         traversalMode == EXABRICK_KDTREE_TRAVERSAL) {
       std::cout << "Building adjacent brick list...\n";
       adjacentBricks.resize(bricks.size());

@@ -49,11 +49,12 @@ typedef owl::interval<float> range1f;
 #define SHADE_MODE_GRIDLETS 1
 #define SHADE_MODE_TEASER   2
 
-#define EXABRICK_ABR_TRAVERSAL    0
-#define MC_DDA_TRAVERSAL          1
-#define MC_BVH_TRAVERSAL          2
-#define EXABRICK_KDTREE_TRAVERSAL 3
-#define EXABRICK_BVH_TRAVERSAL    4
+#define EXABRICK_ABR_TRAVERSAL     0
+#define MC_DDA_TRAVERSAL           1
+#define MC_BVH_TRAVERSAL           2
+#define EXABRICK_KDTREE_TRAVERSAL  3
+#define EXABRICK_BVH_TRAVERSAL     4
+#define EXABRICK_EXT_BVH_TRAVERSAL 5
 
 namespace exa {
   typedef int SamplingMode;
