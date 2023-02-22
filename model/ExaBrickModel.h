@@ -44,8 +44,6 @@ namespace exa {
                   size_t &abrsBytes,
                   size_t &abrLeafListBytes);
   
-  private:
-
     static int traversalMode;
     static int samplerMode;
   };

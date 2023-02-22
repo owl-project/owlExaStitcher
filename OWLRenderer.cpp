@@ -196,6 +196,13 @@ namespace exa {
 
     std::vector<std::pair<box3f,float>> majorants;
     if (!majorantsFileName.empty()) {
+      auto mdl = model->as<ExaBrickModel>();
+      if (!mdl)
+        throw std::runtime_error("own majorants only supported in ExaBricks mode!");
+
+      if (mdl->traversalMode != EXABRICK_BVH_TRAVERSAL)
+        throw std::runtime_error("compile with EXABRICK_BVH_TRAVERSAL for own majorants!");
+
       std::ifstream majorantsFile(majorantsFileName, std::ios::binary);
       uint64_t numMajorants = 0;
       majorantsFile.read((char *)&numMajorants,sizeof(numMajorants));
