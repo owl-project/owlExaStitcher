@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cfloat>
 #include <iostream>
 #include <ostream>
@@ -41,10 +42,10 @@ struct Node
 struct KDTree
 {
   template <typename Volume>
-  KDTree(const Volume &vol, const std::vector<float> *cm = nullptr, int numLeavesDesired = 100);
+  KDTree(const Volume &vol, const std::vector<float> *cm, std::vector<int> &numLeavesDesired);
 
   template <typename Volume>
-  void build(const Volume &vol, int numLeavesDesired);
+  void build(const Volume &vol, const std::vector<int> &numLeavesDesired);
 
   /*! an optional RGBA colormap that can be used for classification
     (4-tuples for convenience, only the alpha components are relevant) */
@@ -52,6 +53,9 @@ struct KDTree
 
   // nodes with priority used for splitting
   std::priority_queue<Node> nodes;
+
+  // the resulting nodes
+  std::vector<std::priority_queue<Node>> finalNodes;
 };
 
 inline float surface_area(box3f const& box)
@@ -67,17 +71,23 @@ inline float diag(box3f const& box)
 }
 
 template <typename Volume>
-KDTree::KDTree(const Volume &vol, const std::vector<float> *cm, int numLeavesDesired)
+KDTree::KDTree(const Volume &vol, const std::vector<float> *cm, std::vector<int> &numLeavesDesired)
   : rgbaCM(cm)
 {
+  std::sort(numLeavesDesired.begin(),numLeavesDesired.end());
+
   box3f V = vol.getBounds();
   nodes.push({V,FLT_MAX});
   build(vol,numLeavesDesired);
 }
 
 template <typename Volume>
-void KDTree::build(const Volume &vol, int numLeavesDesired) {
-  while (nodes.size() < numLeavesDesired) {
+void KDTree::build(const Volume &vol, const std::vector<int> &numLeavesDesired) {
+  while (nodes.size() < numLeavesDesired.back()) {
+
+    if (std::find(numLeavesDesired.begin(),numLeavesDesired.end(),(int)nodes.size()) != numLeavesDesired.end()) {
+      finalNodes.push_back(nodes);
+    }
 
     std::cout << "Leaf nodes generated so far: " << nodes.size() << ", picking another node to split...\n";
 
@@ -167,6 +177,8 @@ void KDTree::build(const Volume &vol, int numLeavesDesired) {
     R.lower[bestAxis] = bestPlane;
     nodes.push({R,CR});
   }
+
+  finalNodes.push_back(nodes);
 }
 
 } // namespace volkd

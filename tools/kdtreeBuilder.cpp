@@ -29,11 +29,26 @@ namespace exa {
     std::string exaBrickFileName = "";
     std::string xfFileName = "";
     std::string outFileName = "majorants.bin";
-    int numLeaves = 100;
+    std::vector<int> numLeaves;
   } cmdline;
+
+  static std::vector<std::string> string_split(std::string s, char delim)
+  {
+    std::vector<std::string> result;
+
+    std::istringstream stream(s);
+
+    for (std::string token; std::getline(stream, token, delim); )
+    {
+      result.push_back(token);
+    }
+
+    return result;
+  }
 
   extern "C" int main(int argc, char** argv)
   {
+    std::string numLeaves;
     for (int i=1;i<argc;i++) {
       const std::string arg = argv[i];
 
@@ -50,7 +65,7 @@ namespace exa {
         cmdline.outFileName = argv[++i];
       }
       else if (arg == "-n") {
-        cmdline.numLeaves = std::atoi(argv[++i]);
+        numLeaves = argv[++i];
       }
     }
 
@@ -72,6 +87,10 @@ namespace exa {
 
     if (!model) {
       throw std::runtime_error("Could not load exabrick model");
+    }
+
+    if (numLeaves.empty()) {
+      throw std::runtime_error("No num leaves given (-n=N1,N2,N3,...)");
     }
 
     // Load TF
@@ -118,23 +137,33 @@ namespace exa {
       model->valueRange.lower + (relDomain.upper/100.f) * (model->valueRange.upper-model->valueRange.lower),
     };
 
+    auto splt = string_split(numLeaves,',');
+    for (auto s : splt) {
+      cmdline.numLeaves.push_back(stoi(s));
+    }
+
     YueVolume vol(model,&colorMap,r,relDomain);
     volkd::KDTree kdtree(vol,&colorMap,cmdline.numLeaves);
 
-    std::vector<std::pair<box3f,float>> domains;
-    while (!kdtree.nodes.empty()) {
-      volkd::Node node = kdtree.nodes.top();
-      kdtree.nodes.pop();
-      range1f tfRange = vol.min_max(node.domain,&colorMap);
-      std::cout << "Domain " << domains.size() << ": "
-                << node.domain << ", majorant: " << tfRange.upper << '\n';
-      domains.push_back({node.domain,tfRange.upper});
-    }
+    for (size_t i=0; i<kdtree.finalNodes.size(); ++i) {
+      int numLeaves = kdtree.finalNodes[i].size();
+      std::vector<std::pair<box3f,float>> domains;
+      while (!kdtree.finalNodes[i].empty()) {
+        volkd::Node node = kdtree.finalNodes[i].top();
+        kdtree.finalNodes[i].pop();
+        range1f tfRange = vol.min_max(node.domain,&colorMap);
+        std::cout << "Domain " << domains.size() << ": "
+                  << node.domain << ", majorant: " << tfRange.upper << '\n';
+        domains.push_back({node.domain,tfRange.upper});
+      }
 
-    std::ofstream domainsFile(cmdline.outFileName, std::ios::binary);
-    uint64_t numDomains = domains.size();
-    domainsFile.write((char *)&numDomains,sizeof(numDomains));
-    domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
+      std::string suffix = ".n"+std::to_string(numLeaves);
+      std::cout << "Writing to file: " << cmdline.outFileName+suffix << "\n\n";
+      std::ofstream domainsFile(cmdline.outFileName+suffix, std::ios::binary);
+      uint64_t numDomains = domains.size();
+      domainsFile.write((char *)&numDomains,sizeof(numDomains));
+      domainsFile.write((char *)domains.data(),domains.size()*sizeof(domains[0]));
+    }
   }
 } // ::exa
 
