@@ -477,6 +477,11 @@ namespace exa {
     tfe.drawImmediate();
     ImGui::End();
 
+    static bool first=true;
+    if (first) {
+    volumeLineWidget.resize(768,128);
+    first=false;
+    }
     auto surf = volumeLineWidget.map();
     VolumeLines vl;
     vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());

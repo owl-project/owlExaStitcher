@@ -91,6 +91,12 @@ namespace exa
         cudaGraphicsUnmapResources(1, &resource_);
     }
 
+    void ImGuiCUDAGLWidget::resize(int w, int h)
+    {
+        canvasSize_ = {w,h};
+        createTexture();
+    }
+
     void ImGuiCUDAGLWidget::createTexture()
     {
         glGenTextures(1, &texture_);

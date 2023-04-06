@@ -26,6 +26,9 @@ namespace exa
         //! Unmap graphics resource
         void unmap();
 
+        // Resize canvas
+        void resize(int w, int h);
+
         //! Return canvas width
         int width() const
         { return canvasSize_.x; }
