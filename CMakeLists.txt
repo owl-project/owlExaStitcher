@@ -105,6 +105,18 @@ set(CMAKE_AUTOMOC ON)
 add_subdirectory(submodules/umesh EXCLUDE_FROM_ALL)
 
 # ------------------------------------------------------------------
+# volkit and imgui
+# ------------------------------------------------------------------
+
+set(volkit_dir ${PROJECT_SOURCE_DIR}/submodules/volkit)
+set(vsnray_dir ${volkit_dir}/src/3rdparty/visionaray)
+set(imgui_dir ${vsnray_dir}//src/3rdparty/imgui)
+set(VKT_ENABLE_CUDA OFF)
+set(VSNRAY_ENABLE_CUDA OFF)
+set(VSNRAY_ENABLE_PBRT_PARSER OFF)
+add_subdirectory(${volkit_dir})
+
+# ------------------------------------------------------------------
 # bigmesh (FIXME!)
 # ------------------------------------------------------------------
 
@@ -250,8 +262,26 @@ target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
 # "visual analysis" viewer
 # ------------------------------------------------------------------
 
-add_executable(vaViewer va/viewer.cpp)
-target_link_libraries(vaViewer witcher owl_viewer)
+add_executable(vaViewer
+  ${imgui_dir}/imgui.cpp
+  ${imgui_dir}/imgui_draw.cpp
+  ${imgui_dir}/imgui_tables.cpp
+  ${imgui_dir}/imgui_widgets.cpp
+  ${imgui_dir}/backends/imgui_impl_glfw.cpp
+  ${imgui_dir}/backends/imgui_impl_opengl2.cpp
+  ${volkit_dir}/src/vkt/TransfuncEditor.cpp
+  va/viewer.cpp
+)
+target_include_directories(vaViewer
+  PRIVATE
+  ${imgui_dir}
+  ${volkit_dir}/../
+  ${volkit_dir}/include/c
+  ${volkit_dir}/include/cpp
+  ${volkit_dir}/include/shared
+  ${CMAKE_CURRENT_BINARY_DIR}/submodules/volkit/config
+)
+target_link_libraries(vaViewer witcher owl_viewer volkit)
 set_target_properties(vaViewer PROPERTIES MACOSX_BUNDLE YES)
 # QT_OWL_LINK(exaStitchViewer)
 

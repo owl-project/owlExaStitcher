@@ -16,8 +16,13 @@
 
 #include <iomanip>
 #include <fstream>
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl2.h>
 #include "samples/common/owlViewer/InspectMode.h"
 #include "samples/common/owlViewer/OWLViewer.h"
+#include <vkt/LookupTable.hpp>
+#include "volkit/src/vkt/TransfuncEditor.hpp"
 #include "OWLRenderer.h"
 
 // #include "YueKDTree.h"
@@ -173,6 +178,32 @@ namespace exa {
       : inherited("exastitch", cmdline.windowSize)
       , renderer(renderer)
     {
+      if (!initImGui()) {
+        std::cerr << "failed to initialize Dear ImGui!\n";
+        exit(EXIT_FAILURE); // not much use in carrying on then..
+      }
+    }
+
+    bool initImGui()
+    {
+      IMGUI_CHECKVERSION();
+      ImGui::CreateContext();
+
+      ImGuiIO& io = ImGui::GetIO();
+
+      //io.Fonts->AddFontFromFileTTF(
+      //    fontName.c_str(),
+      //    24.0f * highDPIscaleFactor,
+      //    NULL,
+      //    NULL
+      //    );
+      //setImGuiStyle(highDPIscaleFactor);
+
+      // setup platform/renderer bindings
+      if (!ImGui_ImplGlfw_InitForOpenGL(inherited::handle, true)) { return false; }
+      if (!ImGui_ImplOpenGL2_Init()) { return false; }
+
+      return true;
     }
 
     /*! this function gets called whenever the viewer widget changes
@@ -302,12 +333,28 @@ namespace exa {
       }
     }
 
+    void mouseMotion(const vec2i &where)
+    {
+      ImGuiIO& io = ImGui::GetIO();
+      io.MousePos = ImVec2((float)where.x, (float)where.y);
+      if (io.WantCaptureMouse) {
+        return;
+      }
+    }
+
     void mouseButtonLeft(const vec2i &where, bool pressed)
     {
+      ImGuiIO& io = ImGui::GetIO();
+      io.MousePos = ImVec2((float)where.x, (float)where.y);
+      int imgui_button = 0; // left (right is 1, middle is 2)
+      io.MouseDown[imgui_button] = pressed;
     }
 
     void mouseDragLeft(const vec2i &where, const vec2i &delta)
     {
+      ImGuiIO& io = ImGui::GetIO();
+      io.MousePos = ImVec2((float)where.x, (float)where.y);
+      int imgui_button = 0; // left (right is 1, middle is 2)
     }
 
   public:
@@ -322,6 +369,8 @@ namespace exa {
     int screenShotAfterFrames = -1;
     int frames = 0;
 
+    vkt::LookupTable vktLUT;
+    vkt::TransfuncEditor tfe;
   };
 
   void Viewer::resize(const vec2i &newSize) 
@@ -415,39 +464,40 @@ namespace exa {
   /*! draw framebuffer using OpenGL */
   void Viewer::draw()
   {
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-
     inherited::draw();
 
-    const Camera &camera = inherited::getCamera();
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
 
-    float distToCenter = length(renderer->modelBounds.center() - camera.getFrom());
-    float zNear = distToCenter - length(renderer->modelBounds.span())/2.f;
-    float zFar  = distToCenter + length(renderer->modelBounds.span())/2.f;
-    Mat4 view = lookAt(camera.getFrom(),
-                       camera.getAt(),
-                       camera.getUp());
-    Mat4 proj = perspective(camera.getFovyInDegrees()*M_PI/180.f,
-                            float(fbSize.x)/fbSize.y,
-                            zNear,zFar);
+    ImGui::Begin("TFE");
+    tfe.drawImmediate();
+    ImGui::End();
 
-    
-    glViewport(0, 0, fbSize.x, fbSize.y);
+    ImGui::Render();
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(view.m);
+    if (tfe.updated()) {
+      vkt::LookupTable *lut = tfe.getUpdatedLookupTable();
+      if (lut != nullptr) {
+        auto dims = lut->getDims();
+        auto lutData = (float*)lut->getData();
+        float* colorVals = new float[dims.x*3];
+        float* alphaVals = new float[dims.x];
+        for (int i=0; i<dims.x; ++i) {
+          colorVals[i*3] = lutData[i*4];
+          colorVals[i*3+1] = lutData[i*4+1];
+          colorVals[i*3+2] = lutData[i*4+2];
+          alphaVals[i] = lutData[i*4+3];
+        }
+        // Apply transfer function
+        //updateLUT(colorVals,alphaVals,dims.x);
+        delete[] alphaVals;
+        delete[] colorVals;
+      }
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadMatrixf(proj.m);
-
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_LIGHTING);
-    glDisable(GL_BLEND);
-    glDisable(GL_TEXTURE_2D);
-
-  // draw sth. here?!
-
-    glPopAttrib();
+      // reset accum?!
+    }
 
   }
 
@@ -636,6 +686,17 @@ namespace exa {
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
 
+    // Set up the volkit TFE
+    float rgba[] = {
+            1.f, 1.f, 1.f, .005f,
+            0.f, .1f, .1f, .25f,
+            .5f, .5f, .7f, .5f,
+            .7f, .7f, .07f, .75f,
+            1.f, .3f, .3f, 1.f
+            };
+    viewer.vktLUT = vkt::LookupTable(5,1,1,vkt::ColorFormat::RGBA32F);
+    viewer.vktLUT.setData((uint8_t*)rgba);
+    viewer.tfe.setLookupTableResource(viewer.vktLUT.getResourceHandle());
     // qtOWL::XFEditor *xfEditor = new qtOWL::XFEditor;
     // range1f valueRange = renderer.valueRange;
     // if (!cmdline.valueRange.is_empty())

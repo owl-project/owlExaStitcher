@@ -7,3 +7,6 @@
 [submodule "submodules/umesh"]
 	path = submodules/umesh
 	url = https://gitlab.com/ingowald/umesh
+[submodule "submodules/volkit"]
+	path = submodules/volkit
+	url = https://github.com/volkit/volkit
