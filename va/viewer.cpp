@@ -24,6 +24,8 @@
 #include <vkt/LookupTable.hpp>
 #include "volkit/src/vkt/TransfuncEditor.hpp"
 #include "OWLRenderer.h"
+#include "ImGuiCUDAGLWidget.h"
+#include "VolumeLines.h"
 
 // #include "YueKDTree.h"
 // #include "YueVolume.h"
@@ -371,6 +373,7 @@ namespace exa {
 
     vkt::LookupTable vktLUT;
     vkt::TransfuncEditor tfe;
+    ImGuiCUDAGLWidget volumeLineWidget;
   };
 
   void Viewer::resize(const vec2i &newSize) 
@@ -473,6 +476,12 @@ namespace exa {
     ImGui::Begin("TFE");
     tfe.drawImmediate();
     ImGui::End();
+
+    auto surf = volumeLineWidget.map();
+    VolumeLines vl;
+    vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());
+    volumeLineWidget.unmap();
+    volumeLineWidget.show();
 
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());

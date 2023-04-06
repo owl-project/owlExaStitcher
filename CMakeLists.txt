@@ -270,7 +270,9 @@ add_executable(vaViewer
   ${imgui_dir}/backends/imgui_impl_glfw.cpp
   ${imgui_dir}/backends/imgui_impl_opengl2.cpp
   ${volkit_dir}/src/vkt/TransfuncEditor.cpp
+  va/ImGuiCUDAGLWidget.cpp
   va/viewer.cpp
+  va/VolumeLines.cu
 )
 target_include_directories(vaViewer
   PRIVATE
