@@ -247,6 +247,17 @@ target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
 
 
 # ------------------------------------------------------------------
+# "visual analysis" viewer
+# ------------------------------------------------------------------
+
+add_executable(vaViewer va/viewer.cpp)
+target_link_libraries(vaViewer witcher owl_viewer)
+set_target_properties(vaViewer PROPERTIES MACOSX_BUNDLE YES)
+# QT_OWL_LINK(exaStitchViewer)
+
+
+
+# ------------------------------------------------------------------
 # tools
 # ------------------------------------------------------------------
 
