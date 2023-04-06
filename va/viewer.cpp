@@ -483,7 +483,7 @@ namespace exa {
     first=false;
     }
     auto surf = volumeLineWidget.map();
-    VolumeLines vl;
+    static VolumeLines vl;
     vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());
     volumeLineWidget.unmap();
     volumeLineWidget.show();

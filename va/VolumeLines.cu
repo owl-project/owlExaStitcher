@@ -64,22 +64,9 @@ namespace exa {
   {
     polyLines.resize(2);
     for (size_t i=0; i<polyLines.size(); ++i) {
-      std::vector<owl::vec2f> pl(10);
-      pl[0] = 0.f; // x-coords not used (yet??), ok that they're bogus..
-      pl[1] = 1.f;
-      pl[2] = 0.25f;
-      pl[3] = 0.75f;
-      pl[4] = 0.5f;
-      pl[5] = 0.25f;
-      pl[6] = 0.25f;
-      pl[7] = 0.35f;
-      pl[8] = 0.25f;
-      pl[9] = 0.35f;
-
-      if (i>0) {
-        for (size_t j=0; j<pl.size(); ++j) {
-          pl[j].y = 1.f-pl[j].y;
-        }
+      std::vector<owl::vec2f> pl(2000000);
+      for (size_t j=0; j<pl.size(); ++j) {
+        pl[j] = {(float)j,j/float(pl.size())/2};
       }
 
       cudaMalloc(&polyLines[i], pl.size()*sizeof(pl[0]));
