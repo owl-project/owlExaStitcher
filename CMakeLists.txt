@@ -273,6 +273,7 @@ add_executable(vaViewer
   va/ImGuiCUDAGLWidget.cpp
   va/viewer.cpp
   va/VolumeLines.cu
+  va/TFEditor.cpp
 )
 target_include_directories(vaViewer
   PRIVATE
