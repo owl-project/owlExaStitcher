@@ -112,6 +112,10 @@ namespace exa {
     for (size_t i=0; i<cells.size(); ++i) {
       cudaFree(cells[i]);
     }
+
+    for (size_t i=0; i<grids1D.size(); ++i) {
+      cudaFree(grids1D[i]);
+    }
   }
 
   void VolumeLines::reset(const ExaBrickModel::SP &model)
@@ -145,6 +149,7 @@ namespace exa {
     cudaMalloc(&cells[0], cs.size()*sizeof(cs[0]));
     cudaMemcpy(cells[0], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
     numCells = cs.size();
+    updated_ = true;
   }
 
   void VolumeLines::draw(cudaSurfaceObject_t surfaceObj, int w, int h)
@@ -162,27 +167,34 @@ namespace exa {
       fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h);
     }
 
-    // raster cells onto 1D grids
-    std::vector<float *> grids1D;
-    for (size_t i=0; i<cells.size(); ++i) {
-      float *grid;
-      cudaMalloc(&grid, sizeof(float)*w);
-      cudaMemset(grid, 0, sizeof(float)*w);
+    if (updated_) {
+      for (size_t i=0; i<grids1D.size(); ++i) {
+        cudaFree(grids1D[i]);
+      }
 
-      float *weights;
-      cudaMalloc(&weights, sizeof(float)*w);
-      cudaMemset(weights, 0, sizeof(float)*w);
+      // raster cells onto 1D grids
+      for (size_t i=0; i<cells.size(); ++i) {
+        float *grid;
+        cudaMalloc(&grid, sizeof(float)*w);
+        cudaMemset(grid, 0, sizeof(float)*w);
 
-      size_t numThreads = 1024;
-      basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-        grid, weights, w, cells[i], numCells, cellBounds);
+        float *weights;
+        cudaMalloc(&weights, sizeof(float)*w);
+        cudaMemset(weights, 0, sizeof(float)*w);
 
-      grids1D.push_back(grid);
+        size_t numThreads = 1024;
+        basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
+          grid, weights, w, cells[i], numCells, cellBounds);
 
-      basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
-        grid, weights, w);
+        grids1D.push_back(grid);
 
-      cudaFree(weights);
+        basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
+          grid, weights, w);
+
+        cudaFree(weights);
+      }
+
+      updated_ = false;
     }
 
     // render to texture
@@ -190,11 +202,6 @@ namespace exa {
       size_t numThreads = 1024;
       renderGPU<<<iDivUp(w,numThreads),numThreads>>>(
         surfaceObj,grids1D[i],w,h);
-    }
-
-    // temp. grids aren't needed anymore
-    for (size_t i=0; i<grids1D.size(); ++i) {
-      cudaFree(grids1D[i]);
     }
   }
 } // ::exa

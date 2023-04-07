@@ -40,6 +40,9 @@ namespace exa {
     std::vector<Cell *> cells;
     int numCells{0}; // same for each channel!
     range1f cellBounds;
+
+    std::vector<float *> grids1D;
+    bool updated_ = true;
   };
 } // ::exa
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
