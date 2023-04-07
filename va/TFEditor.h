@@ -43,7 +43,7 @@ namespace exa{
 
     int selectedCMapID;
 
-    void selectCMap(int cmapID);
+    void selectCMap(int cmapID, bool keepAlpha);
   };
 
 }
