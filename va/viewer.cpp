@@ -342,6 +342,7 @@ namespace exa {
       if (io.WantCaptureMouse) {
         return;
       }
+      inherited::mouseMotion(where);
     }
 
     void mouseButtonLeft(const vec2i &where, bool pressed)
@@ -350,6 +351,7 @@ namespace exa {
       io.MousePos = ImVec2((float)where.x, (float)where.y);
       int imgui_button = 0; // left (right is 1, middle is 2)
       io.MouseDown[imgui_button] = pressed;
+      inherited::mouseButtonLeft(where, pressed);
     }
 
     void mouseDragLeft(const vec2i &where, const vec2i &delta)
@@ -357,6 +359,7 @@ namespace exa {
       ImGuiIO& io = ImGui::GetIO();
       io.MousePos = ImVec2((float)where.x, (float)where.y);
       int imgui_button = 0; // left (right is 1, middle is 2)
+      inherited::mouseDragLeft(where, delta);
     }
 
   public:
