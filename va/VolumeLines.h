@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include <owl/common/math/vec.h>
 #include "common.h"
+#include "model/ExaBrickModel.h"
 
 namespace exa {
   struct VolumeLines {
@@ -31,6 +32,8 @@ namespace exa {
 
     VolumeLines();
    ~VolumeLines();
+
+    void reset(const ExaBrickModel::SP &model);
 
     void draw(cudaSurfaceObject_t surfaceObj, int w, int h);
 

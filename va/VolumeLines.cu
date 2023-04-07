@@ -89,22 +89,22 @@ __global__ void basisAverageGridCells(float *grid,
 namespace exa {
   VolumeLines::VolumeLines()
   {
-    cells.resize(2);
-    for (size_t i=0; i<cells.size(); ++i) {
-      std::vector<Cell> cs(2000000);
-      for (size_t j=0; j<cs.size(); ++j) {
-        int level=0;
-        //float value(cs.size()/2);
-        float value = rand()/float(RAND_MAX);
-        cs[j] = {(int)j,value,level};
-        cellBounds.extend(cs[j].getBounds());
-      }
+    // cells.resize(2);
+    // for (size_t i=0; i<cells.size(); ++i) {
+    //   std::vector<Cell> cs(2000000);
+    //   for (size_t j=0; j<cs.size(); ++j) {
+    //     int level=0;
+    //     //float value(cs.size()/2);
+    //     float value = rand()/float(RAND_MAX);
+    //     cs[j] = {(int)j,value,level};
+    //     cellBounds.extend(cs[j].getBounds());
+    //   }
 
-      cudaMalloc(&cells[i], cs.size()*sizeof(cs[0]));
-      cudaMemcpy(cells[i], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
+    //   cudaMalloc(&cells[i], cs.size()*sizeof(cs[0]));
+    //   cudaMemcpy(cells[i], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
 
-      numCells = cs.size();
-    }
+    //   numCells = cs.size();
+    // }
   }
 
   VolumeLines::~VolumeLines()
@@ -112,6 +112,33 @@ namespace exa {
     for (size_t i=0; i<cells.size(); ++i) {
       cudaFree(cells[i]);
     }
+  }
+
+  void VolumeLines::reset(const ExaBrickModel::SP &model)
+  {
+    for (size_t i=0; i<cells.size(); ++i) {
+      cudaFree(cells[i]);
+    }
+
+    cells.resize(1);
+    cellBounds = {};
+    std::vector<Cell> cs;
+    for (size_t i=0; i<model->bricks.size(); ++i) {
+      const ExaBrick &brick = model->bricks[i];
+      for (int z=0; z<brick.size.z; ++z) {
+        for (int y=0; y<brick.size.y; ++y) {
+          for (int x=0; x<brick.size.x; ++x) {
+            int idx = brick.getIndexIndex({x,y,z});
+            cs.push_back({idx,model->scalars[idx],brick.level});
+            cellBounds.extend(cs.back().getBounds());
+          }
+        }
+      }
+    }
+
+    cudaMalloc(&cells[0], cs.size()*sizeof(cs[0]));
+    cudaMemcpy(cells[0], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
+    numCells = cs.size();
   }
 
   void VolumeLines::draw(cudaSurfaceObject_t surfaceObj, int w, int h)

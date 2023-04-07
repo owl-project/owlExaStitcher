@@ -26,6 +26,7 @@
 #include "OWLRenderer.h"
 #include "ImGuiCUDAGLWidget.h"
 #include "VolumeLines.h"
+#include "model/ExaBrickModel.h"
 
 // #include "YueKDTree.h"
 // #include "YueVolume.h"
@@ -477,16 +478,20 @@ namespace exa {
     tfe.drawImmediate();
     ImGui::End();
 
-    static bool first=true;
-    if (first) {
-    volumeLineWidget.resize(768,128);
-    first=false;
+    // volume line widget
+    if (renderer->model && renderer->model->as<ExaBrickModel>()) {
+      static bool first=true;
+      static VolumeLines vl;
+      if (first) {
+      volumeLineWidget.resize(768,128);
+      vl.reset(renderer->model->as<ExaBrickModel>());
+      first=false;
+      }
+      auto surf = volumeLineWidget.map();
+      vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());
+      volumeLineWidget.unmap();
+      volumeLineWidget.show();
     }
-    auto surf = volumeLineWidget.map();
-    static VolumeLines vl;
-    vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());
-    volumeLineWidget.unmap();
-    volumeLineWidget.show();
 
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
