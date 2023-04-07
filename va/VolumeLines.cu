@@ -1,5 +1,6 @@
 #include <vector>
 #include "VolumeLines.h"
+#include "atomicOp.cuh"
 
 inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {
@@ -19,67 +20,97 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
     surf2Dwrite(make_float4(.9f,.9f,.9f,.9f), surfaceObj, x * sizeof(float4), h-y-1);
 }
 
-__global__ void rasterPolyLines(cudaSurfaceObject_t surfaceObj,
-                                int w,
-                                int h,
-                                const owl::vec2f *polyLines,
-                                int numLineSegments)
+__global__ void renderGPU(cudaSurfaceObject_t surfaceObj, float *grid, int w, int h)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
+  
   if (x >= w)
     return;
 
-  int N=10;
-  float incf = 1.f/N;
-  float xf = x;
-  float minValue =  1e30f;
-  float maxValue = -1e30f;
-  float avg = 0.f;
-  for (int i=0; i<N; ++i) {
-    int l = (xf/w)*numLineSegments;
-    int p1 = l*(w/numLineSegments);
-    float f = (xf-p1)/(w/float(numLineSegments));
-    float val1 = polyLines[l].y;
-    float val2 = polyLines[l+1].y;
-    float v = (1-f)*val1 + f*val2;
-    minValue = fminf(minValue,v);
-    maxValue = fmaxf(maxValue,v);
-    avg += v;
-    xf += incf;
+  int H=owl::clamp(int(grid[x]*h),0,h-1);
+  for (int y=0; y<=H; ++y) {
+    float4 src;
+    surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
+    owl::vec3f c(0.f);
+    float4 color = make_float4(src.x*0.5f+c.x*0.5f,
+                               src.y*0.5f+c.y*0.5f,
+                               src.z*0.5f+c.z*0.5f,
+                               1.f);
+    surf2Dwrite(color, surfaceObj, x * sizeof(float4), h-y-1);
   }
-  avg /= N;
-  int Y = avg*h;
+}
 
-  for (int y=Y-2; y<=Y+2; ++y) {
-    float dist = fabsf(float(y)-avg*h)/2;
-    float4 prev;
-    surf2Dread(&prev, surfaceObj, x * sizeof(float4), owl::clamp(h-y-1,0,h-1));
-    owl::vec3f c = (1-dist)*owl::vec3f(0.f) + dist*owl::vec3f(prev.x,prev.y,prev.z);
-    surf2Dwrite(make_float4(c.x,c.y,c.z,1.f), surfaceObj, x * sizeof(float4), owl::clamp(h-y-1,0,h-1));
+__global__ void basisRasterCells(float *grid,
+                                 float *weights,
+                                 int dims,
+                                 const exa::VolumeLines::Cell *cells,
+                                 int numCells,
+                                 range1f cellBounds)
+{
+  int primID = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (primID >= numCells)
+    return;
+
+  const auto &cell = cells[primID];
+  range1f bounds = cell.getBounds();
+  float p1 = bounds.lower;
+  float p2 = bounds.upper;
+
+  // Project onto grid (TODO: move to function..)
+  float x1_01 = (p1-cellBounds.lower)/(cellBounds.upper-cellBounds.lower);
+  float x2_01 = (p2-cellBounds.lower)/(cellBounds.upper-cellBounds.lower);
+
+  int x1 = owl::clamp(int(x1_01*float(dims)),0,dims-1);
+  int x2 = owl::clamp(int(x2_01*float(dims)),0,dims-1);
+
+  for (int x=x1; x<=x2; ++x) {
+    // TODO: that's a box-shaped basis function
+    // this _might_ be ok, but only if we have
+    // many cells..
+    atomicAdd(&grid[x], cell.value);
+    atomicAdd(&weights[x], 1.f);
   }
+}
+
+__global__ void basisAverageGridCells(float *grid,
+                                      float *weights,
+                                      int dims)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (x >= dims)
+    return;
+
+  if (weights[x] > 0.f)
+    grid[x] /= weights[x];
 }
 
 namespace exa {
   VolumeLines::VolumeLines()
   {
-    polyLines.resize(2);
-    for (size_t i=0; i<polyLines.size(); ++i) {
-      std::vector<owl::vec2f> pl(2000000);
-      for (size_t j=0; j<pl.size(); ++j) {
-        pl[j] = {(float)j,j/float(pl.size())/2};
+    cells.resize(2);
+    for (size_t i=0; i<cells.size(); ++i) {
+      std::vector<Cell> cs(2000000);
+      for (size_t j=0; j<cs.size(); ++j) {
+        int level=0;
+        //float value(cs.size()/2);
+        float value = rand()/float(RAND_MAX);
+        cs[j] = {(int)j,value,level};
+        cellBounds.extend(cs[j].getBounds());
       }
 
-      cudaMalloc(&polyLines[i], pl.size()*sizeof(pl[0]));
-      cudaMemcpy(polyLines[i], pl.data(), pl.size()*sizeof(pl[0]), cudaMemcpyHostToDevice);
+      cudaMalloc(&cells[i], cs.size()*sizeof(cs[0]));
+      cudaMemcpy(cells[i], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
 
-      numLineSegments = pl.size()-1;
+      numCells = cs.size();
     }
   }
 
   VolumeLines::~VolumeLines()
   {
-    for (size_t i=0; i<polyLines.size(); ++i) {
-      cudaFree(polyLines[i]);
+    for (size_t i=0; i<cells.size(); ++i) {
+      cudaFree(cells[i]);
     }
   }
 
@@ -98,11 +129,39 @@ namespace exa {
       fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h);
     }
 
-    // raster polylines on a 1D grid
-    for (size_t i=0; i<polyLines.size(); ++i) {
+    // raster cells onto 1D grids
+    std::vector<float *> grids1D;
+    for (size_t i=0; i<cells.size(); ++i) {
+      float *grid;
+      cudaMalloc(&grid, sizeof(float)*w);
+      cudaMemset(grid, 0, sizeof(float)*w);
+
+      float *weights;
+      cudaMalloc(&weights, sizeof(float)*w);
+      cudaMemset(weights, 0, sizeof(float)*w);
+
       size_t numThreads = 1024;
-      rasterPolyLines<<<iDivUp(w,numThreads),numThreads>>>(
-        surfaceObj, w, h, polyLines[i], numLineSegments);
+      basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
+        grid, weights, w, cells[i], numCells, cellBounds);
+
+      grids1D.push_back(grid);
+
+      basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
+        grid, weights, w);
+
+      cudaFree(weights);
+    }
+
+    // render to texture
+    for (size_t i=0; i<grids1D.size(); ++i) {
+      size_t numThreads = 1024;
+      renderGPU<<<iDivUp(w,numThreads),numThreads>>>(
+        surfaceObj,grids1D[i],w,h);
+    }
+
+    // temp. grids aren't needed anymore
+    for (size_t i=0; i<grids1D.size(); ++i) {
+      cudaFree(grids1D[i]);
     }
   }
 } // ::exa
