@@ -3,6 +3,7 @@
 #include <vector>
 #include "owl/common.h"
 #include "volkit/src/vkt/TransfuncEditor.hpp"
+#include <qtOWL/ColorMaps.h>
 
 namespace exa{
   class TFEditor
@@ -20,6 +21,9 @@ namespace exa{
     owl::interval<float> getRange() const { return range; }
     owl::interval<float> getRelDomain() const { return relDomain; }
     float getOpacityScale() const {return opacityScale;}
+    void setRange(owl::interval<float> r) { range = r; }
+
+    void loadFromFile(const char* fname);
 
   private:
     vkt::LookupTable vktLUT;
@@ -33,6 +37,13 @@ namespace exa{
     owl::interval<float> range;
     owl::interval<float> relDomain;
     float opacityScale;
+
+    qtOWL::ColorMapLibrary cmapLib;
+    std::vector<std::string> cmapNames;
+
+    int selectedCMapID;
+
+    void selectCMap(int cmapID);
   };
 
 }

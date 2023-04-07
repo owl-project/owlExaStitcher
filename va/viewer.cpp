@@ -728,6 +728,10 @@ namespace exa {
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
 
+    if (!cmdline.xfFileName.empty())
+      viewer.tfe.loadFromFile(cmdline.xfFileName.c_str());
+    viewer.tfe.setRange(renderer.valueRange);
+
     // Set up the volkit TFE
 //    float rgba[] = {
 //            1.f, 1.f, 1.f, .005f,

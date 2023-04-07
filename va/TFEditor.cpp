@@ -1,40 +1,33 @@
 #include "TFEditor.h"
 
+#include <fstream>
 #include <imgui.h>
+
+#include <qtOWL/ColorMaps.h>
+
 
 namespace exa{
   using namespace owl;
 
   TFEditor::TFEditor(){
-    float rgba[] = {
-        1.f, 1.f, 1.f, .005f,
-        0.f, .1f, .1f, .25f,
-        .5f, .5f, .7f, .5f,
-        .7f, .7f, .07f, .75f,
-        1.f, .3f, .3f, 1.f
-    };
-    vktLUT = vkt::LookupTable(5,1,1,vkt::ColorFormat::RGBA32F);
-    vktLUT.setData((uint8_t*)rgba);
-    vktTFE.setLookupTableResource(vktLUT.getResourceHandle());
+    cmapNames = cmapLib.getNames();
+    selectedCMapID = -1;
+    selectCMap(0);
 
     range = {0.f, 1.f};
     relDomain = {0.f, 100.f};
     opacityScale = 100.f;
 
     firstFrame = true;
-    cmapUpdated_ = true;
-    opacityUpdated_ = true;
-    rangeUpdated_ = true;
   }
 
   void TFEditor::drawImmediate() {
-    if (!firstFrame) {
-      cmapUpdated_ = false;
-      opacityUpdated_ = false;
-      rangeUpdated_ = false;
-    } else {
+    cmapUpdated_ = firstFrame;
+    opacityUpdated_ = firstFrame;
+    rangeUpdated_ = firstFrame;
+
+    if (firstFrame)
       firstFrame = false;
-    }
 
     vktTFE.drawImmediate();
 
@@ -67,6 +60,23 @@ namespace exa{
       opacityUpdated_ = true;
       opacityScale = curOpacityScale;
     }
+
+    int curCMapID = selectedCMapID;
+
+    if (ImGui::BeginCombo("CMap", cmapNames[curCMapID].c_str()))
+    {
+      for (int i = 0; i < cmapNames.size(); ++i)
+      {
+        bool isSelected = curCMapID == i;
+        if (ImGui::Selectable(cmapNames[i].c_str(), isSelected))
+            curCMapID = i;
+        if (isSelected)
+            ImGui::SetItemDefaultFocus();
+      }
+      ImGui::EndCombo();
+    }
+
+    selectCMap(curCMapID);
   }
 
   std::vector<vec4f> TFEditor::getColorMap(){
@@ -82,5 +92,60 @@ namespace exa{
     }
 
     return {};
-}
+  }
+
+
+  void TFEditor::loadFromFile(const char *fname) {
+    std::ifstream xfFile(fname, std::ios::binary);
+
+    if (!xfFile.good())
+      throw std::runtime_error("Could not open TF");
+
+    static const size_t xfFileFormatMagic = 0x1235abc000;
+    size_t magic;
+    xfFile.read((char*)&magic,sizeof(xfFileFormatMagic));
+    if (magic != xfFileFormatMagic) {
+      throw std::runtime_error("Not a valid TF file");
+    }
+
+    xfFile.read((char*)&opacityScale,sizeof(opacityScale));
+
+    xfFile.read((char*)&range.lower,sizeof(range.lower));
+    xfFile.read((char*)&range.upper,sizeof(range.upper));
+
+    xfFile.read((char*)&relDomain,sizeof(relDomain));
+
+    std::vector<float> colorMap;
+    int numColorMapValues;
+    xfFile.read((char*)&numColorMapValues,sizeof(numColorMapValues));
+    colorMap.resize(numColorMapValues*4);
+    xfFile.read((char*)colorMap.data(),colorMap.size()*sizeof(colorMap[0]));
+
+    vktLUT = vkt::LookupTable(numColorMapValues,1,1,vkt::ColorFormat::RGBA32F);
+    vktLUT.setData((uint8_t*)colorMap.data());
+    vktTFE.setLookupTableResource(vktLUT.getResourceHandle());
+
+    firstFrame = true;
+  }
+
+  void TFEditor::selectCMap(int cmapID){
+    if (cmapID == selectedCMapID)
+      return;
+
+    selectedCMapID = cmapID;
+
+    auto map = cmapLib.getMap(cmapID);//.resampledTo(numColors);
+
+    vktLUT = vkt::LookupTable(map.size(),1,1,vkt::ColorFormat::RGBA32F);
+    vktLUT.setData((uint8_t*)map.data());
+    vktTFE.setLookupTableResource(vktLUT.getResourceHandle());
+
+    auto updatedLUT = vktTFE.getUpdatedLookupTable();
+    if (updatedLUT != nullptr){
+      auto rmap = map.resampledTo(updatedLUT->getDims().x);
+      updatedLUT->setData((uint8_t*)&rmap[0]);
+    }
+
+    cmapUpdated_ = true;
+  }
 }
