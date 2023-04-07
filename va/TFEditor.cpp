@@ -12,7 +12,7 @@ namespace exa{
   TFEditor::TFEditor(){
     cmapNames = cmapLib.getNames();
     selectedCMapID = -1;
-    selectCMap(0);
+    selectCMap(0, false);
 
     range = {0.f, 1.f};
     relDomain = {0.f, 100.f};
@@ -76,7 +76,7 @@ namespace exa{
       ImGui::EndCombo();
     }
 
-    selectCMap(curCMapID);
+    selectCMap(curCMapID, true);
   }
 
   std::vector<vec4f> TFEditor::getColorMap(){
@@ -128,7 +128,7 @@ namespace exa{
     firstFrame = true;
   }
 
-  void TFEditor::selectCMap(int cmapID){
+  void TFEditor::selectCMap(int cmapID, bool keepAlpha){
     if (cmapID == selectedCMapID)
       return;
 
@@ -143,6 +143,17 @@ namespace exa{
     auto updatedLUT = vktTFE.getUpdatedLookupTable();
     if (updatedLUT != nullptr){
       auto rmap = map.resampledTo(updatedLUT->getDims().x);
+
+      if (keepAlpha){
+        auto currentCMap = getColorMap();
+
+        if (rmap.size() != currentCMap.size())
+            throw std::runtime_error("TFE error");
+
+        for (int i=0; i<rmap.size(); ++i)
+          rmap[i].w = currentCMap[i].w;
+      }
+
       updatedLUT->setData((uint8_t*)&rmap[0]);
     }
 
