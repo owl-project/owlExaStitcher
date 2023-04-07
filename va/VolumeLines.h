@@ -13,6 +13,7 @@ namespace exa {
       int lower;
       float value;
       int level;
+      uint64_t hilbertID;
 
       inline __both__
       range1f getBounds() const

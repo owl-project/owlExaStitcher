@@ -1,6 +1,7 @@
 #include <vector>
 #include "VolumeLines.h"
 #include "atomicOp.cuh"
+#include "hilbert.h"
 
 inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {
@@ -162,12 +163,32 @@ namespace exa {
             #else
             float val = (model->scalars[idx]-vr.lower)/(vr.upper-vr.lower);
             #endif
-            cs.push_back({idx,val,brick.level});
-            cellBounds.extend(cs.back().getBounds());
+            Cell c{idx,val,brick.level};
+            cs.push_back(c);
+            cellBounds.extend(c.getBounds());
           }
         }
       }
     }
+
+    for (Cell &c : cs) {
+      vec3i centroid = c.getBounds().center();
+      vec3f centroid01(centroid);
+      centroid01 = (centroid01-vec3f(cellBounds.lower)) / vec3f(cellBounds.upper-cellBounds.lower);
+      vec3f quantized(centroid01);
+      quantized *= float(1<<16);
+      const bitmask_t coord[3] = {
+        bitmask_t(quantized.x),
+        bitmask_t(quantized.y),
+        bitmask_t(quantized.z)
+      };
+      c.hilbertID = hilbert_c2i(3, 16, coord);
+    }
+
+    std::sort(cs.begin(),cs.end(),
+              [](const Cell &a, const Cell &b)
+              { return a.hilbertID < b.hilbertID; }
+            );
 
     cudaMalloc(&cells[0], cs.size()*sizeof(cs[0]));
     cudaMemcpy(cells[0], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
