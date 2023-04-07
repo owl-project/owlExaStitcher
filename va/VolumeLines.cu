@@ -129,7 +129,13 @@ namespace exa {
         for (int y=0; y<brick.size.y; ++y) {
           for (int x=0; x<brick.size.x; ++x) {
             int idx = brick.getIndexIndex({x,y,z});
-            cs.push_back({idx,model->scalars[idx],brick.level});
+            range1f vr = model->valueRange;
+            #if 0
+            float val = model->scalars[idx];
+            #else
+            float val = (model->scalars[idx]-vr.lower)/(vr.upper-vr.lower);
+            #endif
+            cs.push_back({idx,val,brick.level});
             cellBounds.extend(cs.back().getBounds());
           }
         }
