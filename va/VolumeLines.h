@@ -37,12 +37,25 @@ namespace exa {
 
     void draw(cudaSurfaceObject_t surfaceObj, int w, int h);
 
+    void setColorMap(const std::vector<vec4f> &newCM);
+    void setRange(interval<float> xfDomain);
+    void setRelDomain(interval<float> relDomain);
+    void setOpacityScale(float scale);
+
     std::vector<Cell *> cells;
     int numCells{0}; // same for each channel!
     range1f cellBounds;
 
     std::vector<float *> grids1D;
     bool updated_ = true;
+
+    struct {
+      std::vector<vec4f> colorMap;
+      range1f absDomain { 0.f, 1.f };
+      range1f relDomain { 0.f, 100.f };
+      float opacityScale{ 1.f };
+      vec4f *deviceColorMap{ nullptr };
+    } xf;
   };
 } // ::exa
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

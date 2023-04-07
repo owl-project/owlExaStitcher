@@ -40,12 +40,34 @@ __global__ void renderGPU(cudaSurfaceObject_t surfaceObj, float *grid, int w, in
   }
 }
 
+inline __device__
+vec4f lookupTransferFunction(float f,
+                             const vec4f *colorMap,
+                             const int numColors,
+                             const range1f xfDomain)
+{
+  if (xfDomain.lower >= xfDomain.upper)
+    return vec4f(0.f);
+
+  f -= xfDomain.lower;
+  f /= (xfDomain.upper-xfDomain.lower);
+  if (numColors == 0)
+    return vec4f(0.f);
+
+  f = max(0.f,min(1.f,f));
+  int i = min(numColors-1,int(f * numColors));
+  return colorMap[i];
+}
+
 __global__ void basisRasterCells(float *grid,
                                  float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
                                  int numCells,
-                                 range1f cellBounds)
+                                 range1f cellBounds,
+                                 const vec4f *colorMap,
+                                 const int numColors,
+                                 const range1f xfDomain)
 {
   int primID = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -68,7 +90,8 @@ __global__ void basisRasterCells(float *grid,
     // TODO: that's a box-shaped basis function
     // this _might_ be ok, but only if we have
     // many cells..
-    atomicAdd(&grid[x], cell.value);
+    const vec4f color = lookupTransferFunction(cell.value,colorMap,numColors,xfDomain);
+    atomicAdd(&grid[x], color.w);
     atomicAdd(&weights[x], 1.f);
   }
 }
@@ -82,8 +105,8 @@ __global__ void basisAverageGridCells(float *grid,
   if (x >= dims)
     return;
 
-  if (weights[x] > 0.f)
-    grid[x] /= weights[x];
+  //if (weights[x] > 0.f)
+  //  grid[x] /= weights[x];
 }
 
 namespace exa {
@@ -134,7 +157,7 @@ namespace exa {
           for (int x=0; x<brick.size.x; ++x) {
             int idx = brick.getIndexIndex({x,y,z});
             range1f vr = model->valueRange;
-            #if 0
+            #if 1
             float val = model->scalars[idx];
             #else
             float val = (model->scalars[idx]-vr.lower)/(vr.upper-vr.lower);
@@ -167,10 +190,12 @@ namespace exa {
       fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h);
     }
 
-    if (updated_) {
+    if (updated_ && xf.deviceColorMap) {
       for (size_t i=0; i<grids1D.size(); ++i) {
         cudaFree(grids1D[i]);
       }
+
+      grids1D.clear();
 
       // raster cells onto 1D grids
       for (size_t i=0; i<cells.size(); ++i) {
@@ -182,9 +207,16 @@ namespace exa {
         cudaMalloc(&weights, sizeof(float)*w);
         cudaMemset(weights, 0, sizeof(float)*w);
 
+        // TODO: set per channel!
+        range1f r{
+         xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+         xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+        };
+
         size_t numThreads = 1024;
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], numCells, cellBounds);
+          grid, weights, w, cells[i], numCells, cellBounds,
+          xf.deviceColorMap, xf.colorMap.size(), r);
 
         grids1D.push_back(grid);
 
@@ -203,6 +235,36 @@ namespace exa {
       renderGPU<<<iDivUp(w,numThreads),numThreads>>>(
         surfaceObj,grids1D[i],w,h);
     }
+  }
+
+  void VolumeLines::setColorMap(const std::vector<vec4f> &newCM)
+  {
+    xf.colorMap = newCM;
+
+    cudaFree(xf.deviceColorMap);
+    cudaMalloc(&xf.deviceColorMap, newCM.size()*sizeof(newCM[0]));
+    cudaMemcpy(xf.deviceColorMap, newCM.data(), newCM.size()*sizeof(newCM[0]),
+               cudaMemcpyHostToDevice);
+
+    updated_ = true;
+  }
+
+  void VolumeLines::setRange(interval<float> xfDomain)
+  {
+    xf.absDomain = xfDomain;
+    updated_ = true;
+  }
+
+  void VolumeLines::setRelDomain(interval<float> relDomain)
+  {
+    xf.relDomain = relDomain;
+    updated_ = true;
+  }
+
+  void VolumeLines::setOpacityScale(float scale)
+  {
+    xf.opacityScale = scale;
+    updated_ = true;
   }
 } // ::exa
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

@@ -483,9 +483,9 @@ namespace exa {
 
 
     // volume line widget
+    static VolumeLines vl;
     if (renderer->model && renderer->model->as<ExaBrickModel>()) {
       static bool first=true;
-      static VolumeLines vl;
       if (first) {
       volumeLineWidget.resize(768,128);
       vl.reset(renderer->model->as<ExaBrickModel>());
@@ -501,17 +501,20 @@ namespace exa {
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
     if (tfe.cmapUpdated()) {
+      vl.setColorMap(tfe.getColorMap());
       renderer->setColorMap(tfe.getColorMap());
       renderer->resetAccum();
     }
 
     if (tfe.rangeUpdated()){
+      vl.setRange(tfe.getRange());
       renderer->setRange(tfe.getRange());
       renderer->setRelDomain(tfe.getRelDomain());
       renderer->resetAccum();
     }
 
     if (tfe.opacityUpdated()){
+      vl.setOpacityScale(tfe.getOpacityScale());
       renderer->setOpacityScale(tfe.getOpacityScale());
       renderer->resetAccum();
     }
