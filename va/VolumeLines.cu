@@ -1,4 +1,5 @@
 #include <vector>
+#include <cub/cub.cuh>
 #include "VolumeLines.h"
 #include "atomicOp.cuh"
 #include "hilbert.h"
@@ -7,6 +8,16 @@ inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {
   return (a + b - 1) / b;
 }
+
+// CustomMin functor
+struct CustomMin
+{
+  template <typename T>
+    CUB_RUNTIME_FUNCTION __forceinline__ __device__
+    T operator()(const T &a, const T &b) const {
+      return (b < a) ? b : a;
+    }
+};
 
 __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
 {
@@ -59,6 +70,25 @@ vec4f lookupTransferFunction(float f,
   f = max(0.f,min(1.f,f));
   int i = min(numColors-1,int(f * numColors));
   return colorMap[i];
+}
+
+__global__ void assignImportance(exa::VolumeLines::Cell *cells,
+                                 float *importance,
+                                 int numCells,
+                                 // for the moment use TF to assign importance..
+                                 const vec4f *colorMap,
+                                 const int numColors,
+                                 const range1f xfDomain,
+                                 float P)
+{
+  int primID = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (primID >= numCells)
+    return;
+
+  vec4f color = lookupTransferFunction(cells[primID].value,colorMap,numColors,xfDomain);
+  // this will later become the diff of two time steps
+  importance[primID] = fmaxf(0.025f, powf(color.w,P));
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
@@ -251,8 +281,36 @@ namespace exa {
         };
 
         size_t numThreads = 1024;
+
+        float P=1.f; // TODO: user param
+        float *importance;
+        cudaMalloc(&importance, sizeof(float)*numCells);
+        assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
+          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, P);
+
+        // TODO: alloc once (all these arrays!!)
+        void *tempStorage = nullptr;
+        size_t tempStorageBytes = 0;
+        float *cumulativeImportance;
+        cudaMalloc(&cumulativeImportance, sizeof(float)*numCells);
+        CustomMin min_op;
+        cub::DeviceScan::ExclusiveSum(tempStorage, tempStorageBytes, importance,
+                                      cumulativeImportance, numCells);
+        cudaMalloc(&tempStorage, tempStorageBytes);
+        cub::DeviceScan::ExclusiveSum(tempStorage, tempStorageBytes, importance,
+                                      cumulativeImportance, numCells);
+        cudaFree(importance);
+        cudaFree(tempStorage);
+        //std::vector<float> cumImp(numCells);
+        //cudaMemcpy(cumImp.data(),cumulativeImportance,sizeof(float)*numCells,cudaMemcpyDeviceToHost);
+        //for (size_t j=0; j<numCells; ++j) {
+        //  std::cout << cumImp[j] << '\n';
+        //}
+
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
           grid, weights, w, cells[i], numCells, cellBounds);
+
+        cudaFree(cumulativeImportance);
 
         grids1D.push_back(grid);
 
