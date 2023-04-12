@@ -184,7 +184,9 @@ namespace exa {
       }
     }
 
-    for (Cell &c : cs) {
+    #pragma omp parallel for
+    for (size_t i=0; i<cs.size(); ++i) {
+      Cell &c = cs[i];
       vec3i centroid = c.getBounds().center();
       vec3f centroid01(centroid);
       centroid01 = (centroid01-vec3f(centroidBounds.lower)) / vec3f(centroidBounds.upper-centroidBounds.lower);
