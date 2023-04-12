@@ -487,7 +487,7 @@ namespace exa {
     if (renderer->model && renderer->model->as<ExaBrickModel>()) {
       static bool first=true;
       if (first) {
-      volumeLineWidget.resize(768,128);
+      volumeLineWidget.resize(1024,128);
       vl.reset(renderer->model->as<ExaBrickModel>());
       first=false;
       }

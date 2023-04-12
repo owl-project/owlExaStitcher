@@ -21,18 +21,19 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
     surf2Dwrite(make_float4(.9f,.9f,.9f,.9f), surfaceObj, x * sizeof(float4), h-y-1);
 }
 
-__global__ void renderGPU(cudaSurfaceObject_t surfaceObj, float *grid, int w, int h)
+__global__ void renderGPU(cudaSurfaceObject_t surfaceObj,
+                          exa::VolumeLines::GridCell *grid, int w, int h)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
   if (x >= w)
     return;
 
-  int H=owl::clamp(int(grid[x]*h),0,h-1);
+  int H=owl::clamp(int(grid[x].value*h),0,h-1);
   for (int y=0; y<=H; ++y) {
     float4 src;
     surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
-    owl::vec3f c(0.f);
+    owl::vec3f c = grid[x].color;
     float4 color = make_float4(src.x*0.5f+c.x*0.5f,
                                src.y*0.5f+c.y*0.5f,
                                src.z*0.5f+c.z*0.5f,
@@ -60,7 +61,7 @@ vec4f lookupTransferFunction(float f,
   return colorMap[i];
 }
 
-__global__ void basisRasterCells(float *grid,
+__global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
                                  float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
@@ -92,12 +93,12 @@ __global__ void basisRasterCells(float *grid,
     // this _might_ be ok, but only if we have
     // many cells..
     const vec4f color = lookupTransferFunction(cell.value,colorMap,numColors,xfDomain);
-    atomicAdd(&grid[x], color.w);
+    atomicAdd(&grid[x].value, color.w);
     atomicAdd(&weights[x], 1.f);
   }
 }
 
-__global__ void basisAverageGridCells(float *grid,
+__global__ void basisAverageGridCells(exa::VolumeLines::GridCell *grid,
                                       float *weights,
                                       int dims)
 {
@@ -106,8 +107,8 @@ __global__ void basisAverageGridCells(float *grid,
   if (x >= dims)
     return;
 
-  //if (weights[x] > 0.f)
-  //  grid[x] /= weights[x];
+  if (weights[x] > 0.f)
+    grid[x].value /= weights[x];
 }
 
 namespace exa {
@@ -175,6 +176,7 @@ namespace exa {
       vec3i centroid = c.getBounds().center();
       vec3f centroid01(centroid);
       centroid01 = (centroid01-vec3f(cellBounds.lower)) / vec3f(cellBounds.upper-cellBounds.lower);
+
       vec3f quantized(centroid01);
       quantized *= float(1<<16);
       const bitmask_t coord[3] = {
@@ -220,9 +222,9 @@ namespace exa {
 
       // raster cells onto 1D grids
       for (size_t i=0; i<cells.size(); ++i) {
-        float *grid;
-        cudaMalloc(&grid, sizeof(float)*w);
-        cudaMemset(grid, 0, sizeof(float)*w);
+        GridCell *grid;
+        cudaMalloc(&grid, sizeof(GridCell)*w);
+        cudaMemset(grid, 0, sizeof(GridCell)*w);
 
         float *weights;
         cudaMalloc(&weights, sizeof(float)*w);

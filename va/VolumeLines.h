@@ -47,7 +47,13 @@ namespace exa {
     int numCells{0}; // same for each channel!
     range1f cellBounds;
 
-    std::vector<float *> grids1D;
+    // A cell as projected onto the 1D grid
+    // that later becomes the line plot
+    struct GridCell {
+      float value;
+      vec3f color;
+    };
+    std::vector<GridCell *> grids1D;
     bool updated_ = true;
 
     struct {
