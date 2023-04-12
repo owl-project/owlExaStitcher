@@ -161,6 +161,7 @@ namespace exa {
 
     cells.resize(1);
     cellBounds = {};
+    centroidBounds = {};
     std::vector<Cell> cs;
     for (size_t i=0; i<model->bricks.size(); ++i) {
       const ExaBrick &brick = model->bricks[i];
@@ -176,6 +177,7 @@ namespace exa {
             #endif
             Cell c{idx,val,brick.level};
             cs.push_back(c);
+            centroidBounds.extend(c.getBounds().center());
             cellBounds.extend(c.getBounds());
           }
         }
@@ -185,7 +187,7 @@ namespace exa {
     for (Cell &c : cs) {
       vec3i centroid = c.getBounds().center();
       vec3f centroid01(centroid);
-      centroid01 = (centroid01-vec3f(cellBounds.lower)) / vec3f(cellBounds.upper-cellBounds.lower);
+      centroid01 = (centroid01-vec3f(centroidBounds.lower)) / vec3f(centroidBounds.upper-centroidBounds.lower);
 
       vec3f quantized(centroid01);
       quantized *= float(1<<16);

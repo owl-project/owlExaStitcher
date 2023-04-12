@@ -46,6 +46,7 @@ namespace exa {
     std::vector<Cell *> cells;
     int numCells{0}; // same for each channel!
     range1f cellBounds;
+    range1f centroidBounds;
 
     // A cell as projected onto the 1D grid
     // that later becomes the line plot
