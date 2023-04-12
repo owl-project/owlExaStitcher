@@ -16,9 +16,9 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
     return;
 
   if ((x/16) % 2 == (y/16) % 2)
-    surf2Dwrite(make_float4(1.f,1.f,1.f,1.f), surfaceObj, x * sizeof(float4), h-y-1);
+    surf2Dwrite(make_float4(.4f,.4f,.4f,1.f), surfaceObj, x * sizeof(float4), h-y-1);
   else
-    surf2Dwrite(make_float4(.9f,.9f,.9f,.9f), surfaceObj, x * sizeof(float4), h-y-1);
+    surf2Dwrite(make_float4(.3f,.3f,.3f,1.f), surfaceObj, x * sizeof(float4), h-y-1);
 }
 
 __global__ void renderGPU(cudaSurfaceObject_t surfaceObj,
