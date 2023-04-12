@@ -29,14 +29,14 @@ __global__ void renderGPU(cudaSurfaceObject_t surfaceObj,
   if (x >= w)
     return;
 
-  int H=owl::clamp(int(grid[x].value*h),0,h-1);
+  int H=owl::clamp(int(grid[x].color.w*h),0,h-1);
   for (int y=0; y<=H; ++y) {
     float4 src;
     surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
-    owl::vec3f c = grid[x].color;
-    float4 color = make_float4(src.x*0.5f+c.x*0.5f,
-                               src.y*0.5f+c.y*0.5f,
-                               src.z*0.5f+c.z*0.5f,
+    owl::vec3f c(grid[x].color);
+    float4 color = make_float4(src.x*0.f+c.x*1.f,
+                               src.y*0.f+c.y*1.f,
+                               src.z*0.f+c.z*1.f,
                                1.f);
     surf2Dwrite(color, surfaceObj, x * sizeof(float4), h-y-1);
   }
@@ -66,10 +66,7 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
                                  int numCells,
-                                 range1f cellBounds,
-                                 const vec4f *colorMap,
-                                 const int numColors,
-                                 const range1f xfDomain)
+                                 range1f cellBounds)
 {
   int primID = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -92,8 +89,7 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
     // TODO: that's a box-shaped basis function
     // this _might_ be ok, but only if we have
     // many cells..
-    const vec4f color = lookupTransferFunction(cell.value,colorMap,numColors,xfDomain);
-    atomicAdd(&grid[x].value, color.w);
+    atomicAdd(&grid[x].value, cell.value);
     atomicAdd(&weights[x], 1.f);
   }
 }
@@ -109,6 +105,20 @@ __global__ void basisAverageGridCells(exa::VolumeLines::GridCell *grid,
 
   if (weights[x] > 0.f)
     grid[x].value /= weights[x];
+}
+
+__global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
+                                  int dims,
+                                  const vec4f *colorMap,
+                                  const int numColors,
+                                  const range1f xfDomain)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (x >= dims)
+    return;
+
+  grid[x].color = lookupTransferFunction(grid[x].value,colorMap,numColors,xfDomain);
 }
 
 namespace exa {
@@ -238,8 +248,7 @@ namespace exa {
 
         size_t numThreads = 1024;
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], numCells, cellBounds,
-          xf.deviceColorMap, xf.colorMap.size(), r);
+          grid, weights, w, cells[i], numCells, cellBounds);
 
         grids1D.push_back(grid);
 
@@ -247,6 +256,10 @@ namespace exa {
           grid, weights, w);
 
         cudaFree(weights);
+
+        postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
+          grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
+
       }
 
       updated_ = false;

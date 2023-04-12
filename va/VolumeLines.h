@@ -50,8 +50,8 @@ namespace exa {
     // A cell as projected onto the 1D grid
     // that later becomes the line plot
     struct GridCell {
-      float value;
-      vec3f color;
+      float value; // before classification
+      vec4f color; // after classification
     };
     std::vector<GridCell *> grids1D;
     bool updated_ = true;
