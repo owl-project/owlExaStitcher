@@ -95,6 +95,7 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
                                  float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
+                                 const float *cumulativeImportance,
                                  int numCells,
                                  range1f cellBounds)
 {
@@ -115,12 +116,15 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
   int x1 = owl::clamp(int(x1_01*float(dims)),0,dims-1);
   int x2 = owl::clamp(int(x2_01*float(dims)),0,dims-1);
 
+  float importanceScale = cumulativeImportance[primID]/cumulativeImportance[numCells-1];
+
   for (int x=x1; x<=x2; ++x) {
+    int X = x*importanceScale;
     // TODO: that's a box-shaped basis function
     // this _might_ be ok, but only if we have
     // many cells..
-    atomicAdd(&grid[x].value, cell.value);
-    atomicAdd(&weights[x], 1.f);
+    atomicAdd(&grid[X].value, cell.value);
+    atomicAdd(&weights[X], 1.f);
   }
 }
 
@@ -308,7 +312,7 @@ namespace exa {
         //}
 
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], numCells, cellBounds);
+          grid, weights, w, cells[i], cumulativeImportance, numCells, cellBounds);
 
         cudaFree(cumulativeImportance);
 
