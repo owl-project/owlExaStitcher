@@ -296,3 +296,6 @@ set_target_properties(vaViewer PROPERTIES MACOSX_BUNDLE YES)
 
 add_executable(exaBrickKdtreeBuilder tools/kdtreeBuilder.cpp)
 target_link_libraries(exaBrickKdtreeBuilder witcher)
+
+add_executable(testDataGenerator tools/makeTestData.cpp)
+target_link_libraries(testDataGenerator witcher)
