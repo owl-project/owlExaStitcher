@@ -252,3 +252,6 @@ target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
 
 add_executable(exaBrickKdtreeBuilder tools/kdtreeBuilder.cpp)
 target_link_libraries(exaBrickKdtreeBuilder witcher)
+
+add_executable(testDataGenerator tools/makeTestData.cpp)
+target_link_libraries(testDataGenerator witcher)
