@@ -209,7 +209,8 @@ namespace exa {
             #else
             float val = (model->scalars[idx]-vr.lower)/(vr.upper-vr.lower);
             #endif
-            Cell c{idx,val,brick.level};
+            int lower = cs.empty() ? 0 : cs.back().getBounds().upper;
+            Cell c{lower,val,brick.level};
             cs.push_back(c);
             centroidBounds.extend(c.getBounds().center());
             cellBounds.extend(c.getBounds());
