@@ -484,8 +484,12 @@ namespace exa {
 
     // volume line widget
     static VolumeLines vl;
+    static float minImportance = 0.025f;
+    static float P = 1.f; // volume lines exponent
+    static bool showSettings = false;
+    static bool first=true;
+    static VolumeLines::Mode mode = VolumeLines::Lines;
     if (renderer->model && renderer->model->as<ExaBrickModel>()) {
-      static bool first=true;
       if (first) {
       volumeLineWidget.resize(1024,128);
       vl.reset(renderer->model->as<ExaBrickModel>());
@@ -494,7 +498,32 @@ namespace exa {
       auto surf = volumeLineWidget.map();
       vl.draw(surf,volumeLineWidget.width(),volumeLineWidget.height());
       volumeLineWidget.unmap();
-      volumeLineWidget.show();
+
+      // VL widget
+      ImGui::Begin("Volume Line(s)");
+      volumeLineWidget.drawImmediate();
+      //ImGui::SameLine(ImGui::GetWindowWidth()-30);
+      ImGui::Spacing();
+      if (ImGui::Button("Settings...")) {
+        showSettings = true;
+      }
+      ImGui::End();
+
+      // VL settings dialog
+      if (showSettings) {
+        ImGui::Begin("Volume Line(s) -> Settings");
+        if (ImGui::InputFloat("min. importance", &minImportance, 0.025f, 1.0f, "%.4f")) {
+          vl.setMinImportance(minImportance);
+        }
+        if (ImGui::SliderFloat("##P", &P, .001f, 2.f, "P: %.1f")) {
+          vl.setP(P);
+        }
+        if (ImGui::Button("Toggle Bars/Lines")) {
+          mode = mode==VolumeLines::Lines? VolumeLines::Bars: VolumeLines::Lines;
+          vl.setMode(mode);
+        }
+        ImGui::End();
+      }
     }
 
     ImGui::Render();

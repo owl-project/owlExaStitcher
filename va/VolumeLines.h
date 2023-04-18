@@ -45,6 +45,12 @@ namespace exa {
     void setRelDomain(interval<float> relDomain);
     void setOpacityScale(float scale);
 
+    void setMinImportance(float mi);
+    void setP(float P);
+    void setMode(Mode m);
+
+    float minImportance = 0.025f;
+    float P = 1.f;
     Mode mode = Lines;
 
     std::vector<Cell *> cells;

@@ -120,6 +120,7 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
                                  const int numColors,
                                  const range1f xfDomain,
                                  float alphaMax,
+                                 float minImportance,
                                  float P)
 {
   int primID = blockIdx.x * blockDim.x + threadIdx.x;
@@ -130,7 +131,7 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
   float cellWidth(1<<cells[primID].level);
   vec4f color = lookupTransferFunction(cells[primID].value,colorMap,numColors,xfDomain);
   // this will later become the diff of two time steps
-  importance[primID] = fmaxf(0.025f, powf(color.w/alphaMax*cellWidth,P));
+  importance[primID] = fmaxf(minImportance, powf(color.w/alphaMax*cellWidth,P));
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
@@ -326,11 +327,10 @@ namespace exa {
 
         size_t numThreads = 1024;
 
-        float P=1.f; // TODO: user param
         float *importance;
         cudaMalloc(&importance, sizeof(float)*numCells);
         assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
-          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, alphaMax, P);
+          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, alphaMax, minImportance, P);
 
         // TODO: alloc once (all these arrays!!)
         void *tempStorage = nullptr;
@@ -405,6 +405,24 @@ namespace exa {
   void VolumeLines::setOpacityScale(float scale)
   {
     xf.opacityScale = scale;
+    updated_ = true;
+  }
+
+  void VolumeLines::setMinImportance(float mi)
+  {
+    minImportance = mi;
+    updated_ = true;
+  }
+
+  void VolumeLines::setP(float P)
+  {
+    this->P = P;
+    updated_ = true;
+  }
+
+  void VolumeLines::setMode(VolumeLines::Mode m)
+  {
+    mode = m;
     updated_ = true;
   }
 } // ::exa
