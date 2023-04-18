@@ -63,6 +63,7 @@ namespace exa {
       range1f relDomain { 0.f, 100.f };
       float opacityScale{ 1.f };
       vec4f *deviceColorMap{ nullptr };
+      float alphaMax{ 0.f };
     } xf;
   };
 } // ::exa

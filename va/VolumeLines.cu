@@ -9,16 +9,6 @@ inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
   return (a + b - 1) / b;
 }
 
-// CustomMin functor
-struct CustomMin
-{
-  template <typename T>
-    CUB_RUNTIME_FUNCTION __forceinline__ __device__
-    T operator()(const T &a, const T &b) const {
-      return (b < a) ? b : a;
-    }
-};
-
 __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -79,6 +69,7 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
                                  const vec4f *colorMap,
                                  const int numColors,
                                  const range1f xfDomain,
+                                 float alphaMax,
                                  float P)
 {
   int primID = blockIdx.x * blockDim.x + threadIdx.x;
@@ -88,7 +79,7 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
 
   vec4f color = lookupTransferFunction(cells[primID].value,colorMap,numColors,xfDomain);
   // this will later become the diff of two time steps
-  importance[primID] = fmaxf(0.025f, powf(color.w,P));
+  importance[primID] = fmaxf(0.025f, powf(color.w/alphaMax,P));
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
@@ -104,8 +95,14 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
   if (primID >= numCells)
     return;
 
+  float importanceScale = 1.f;
+  if (primID == 0)
+    importanceScale = cumulativeImportance[primID];
+  else
+    importanceScale = cumulativeImportance[primID]-cumulativeImportance[primID-1];
+
   const auto &cell = cells[primID];
-  range1f bounds = cell.getBounds();
+  range1f bounds = cell.getBounds() * importanceScale;
   float p1 = bounds.lower;
   float p2 = bounds.upper;
 
@@ -115,8 +112,6 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
 
   int x1 = owl::clamp(int(x1_01*float(dims)),0,dims-1);
   int x2 = owl::clamp(int(x2_01*float(dims)),0,dims-1);
-
-  //float importanceScale = cumulativeImportance[primID]/cumulativeImportance[numCells-1];
 
   for (int x=x1; x<=x2; ++x) {
     int X = x;//*importanceScale;
@@ -285,24 +280,31 @@ namespace exa {
          xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
         };
 
+        float alphaMax = 0.f;
+        for (size_t j=0; j<xf.colorMap.size(); ++j) {
+          float alpha = xf.colorMap[j].w;
+          alpha -= r.lower;
+          alpha /= (r.upper-r.lower);
+          alphaMax = fmaxf(alphaMax,alpha);
+        }
+
         size_t numThreads = 1024;
 
         float P=1.f; // TODO: user param
         float *importance;
         cudaMalloc(&importance, sizeof(float)*numCells);
         assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
-          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, P);
+          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, alphaMax, P);
 
         // TODO: alloc once (all these arrays!!)
         void *tempStorage = nullptr;
         size_t tempStorageBytes = 0;
         float *cumulativeImportance;
         cudaMalloc(&cumulativeImportance, sizeof(float)*numCells);
-        CustomMin min_op;
-        cub::DeviceScan::ExclusiveSum(tempStorage, tempStorageBytes, importance,
+        cub::DeviceScan::InclusiveSum(tempStorage, tempStorageBytes, importance,
                                       cumulativeImportance, numCells);
         cudaMalloc(&tempStorage, tempStorageBytes);
-        cub::DeviceScan::ExclusiveSum(tempStorage, tempStorageBytes, importance,
+        cub::DeviceScan::InclusiveSum(tempStorage, tempStorageBytes, importance,
                                       cumulativeImportance, numCells);
         cudaFree(importance);
         cudaFree(tempStorage);
