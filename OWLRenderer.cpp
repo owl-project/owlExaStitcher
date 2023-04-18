@@ -103,6 +103,14 @@ namespace exa {
      { "light3.pos", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,lights[3].pos)},
      { "light3.intensity", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,lights[3].intensity)},
      { "light3.on", OWL_INT, OWL_OFFSETOF(LaunchParams,lights[3].on)},
+     // ROIS
+     {"roi.enabled", OWL_INT, OWL_OFFSETOF(LaunchParams, roi.enabled)},
+     {"roi.outsideOpacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideOpacityScale)},
+     {"roi.outsideSaturationScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideSaturationScale)},
+     {"roi.rois0.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
+     {"roi.rois0.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[0].upper)},
+     {"roi.rois1.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].lower)},
+     {"roi.rois1.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].upper)},
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -514,6 +522,11 @@ namespace exa {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
+    enableROI(false, 0.1f, 0.7f);
+    for (int i=0; i<ROIS_MAX; ++i){
+      setROI(i, box3f{});
+    }
+
     owlParamsSet2f(lp,"subImage.value.lower",0.f,0.f);
     owlParamsSet2f(lp,"subImage.value.upper",0.f,1.f);
     owlParamsSet2f(lp,"subImage.selection.lower",0.f,0.f);
@@ -762,6 +775,29 @@ namespace exa {
   {
     lightSpaceTransform = xform;
     owlParamsSetRaw(lp,"lightSpaceTransform",&lightSpaceTransform);
+    accumID = 0;
+  }
+
+  void OWLRenderer::setROI(int id, const owl::common::box3f &roiBox) {
+    if (id == 0){
+      owlParamsSet3f(lp, "roi.rois0.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois0.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 1){
+      owlParamsSet3f(lp, "roi.rois1.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois1.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else {
+      std::cerr << "ROI " << id << " not valid" << std::endl;
+    }
+  }
+
+  void OWLRenderer::enableROI(bool enabled, float outsideOpacityScale, float outsideSaturationScale){
+    owlParamsSet1i(lp, "roi.enabled", (int)enabled);
+    owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
+    owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
     accumID = 0;
   }
 

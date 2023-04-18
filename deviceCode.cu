@@ -624,12 +624,31 @@ namespace exa {
 
   template <ShadeMode SM, typename Sampler>
   inline __device__
-  void classifySample(Sampler sampler, Sample &s, vec4f &xf) {
+  void classifySample(Sampler sampler, Sample &s, const vec3f &samplePos, vec4f &xf) {
     auto& lp = optixLaunchParams;
     (void)lp;
     if constexpr (SM==Default) {
       xf = lookupTransferFunction(s.value);
       //xf = vec4f(randomColor(leafID),0.1f);
+
+      if (lp.roi.enabled) {
+        const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
+        bool insideROI = false;
+        for (int i=0; i<ROIS_MAX; ++i) {
+          if (lp.roi.rois[i].contains(pt)) {
+            insideROI = true;
+          }
+        }
+
+        if (!insideROI) {
+          xf.w *= lp.roi.outsideOpacityScale;
+
+          const auto L = 0.3f*xf.x + 0.6f*xf.y + 0.1f*xf.z;
+          xf.x = xf.x + lp.roi.outsideSaturationScale * (L - xf.x);
+          xf.y = xf.y + lp.roi.outsideSaturationScale * (L - xf.y);
+          xf.z = xf.z + lp.roi.outsideSaturationScale * (L - xf.z);
+        }
+      }
     } else if constexpr (SM==Gridlets) {
       xf = lookupTransferFunction(s.value);
       if (s.cellID == -1) { // uelem
@@ -766,8 +785,10 @@ namespace exa {
           continue;
 #endif
 
-        classifySample<SM>(sampler,s,xf);
+        classifySample<SM>(sampler,s, pos,xf);
         // xf = vec4f(randomColor(leafID), majorant);
+
+
 
         float u = random();
         float sigmaT = xf.w;
@@ -825,7 +846,7 @@ namespace exa {
           continue;
 #endif
 
-        classifySample<SM>(sampler,s,xf);
+        classifySample<SM>(sampler,s,pos, xf);
 
         float sigmaT = xf.w;
         Tr *= 1.f-(sigmaT*lp.transferFunc.opacityScale)/majorant;
