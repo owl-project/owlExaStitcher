@@ -116,10 +116,10 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
   int x1 = owl::clamp(int(x1_01*float(dims)),0,dims-1);
   int x2 = owl::clamp(int(x2_01*float(dims)),0,dims-1);
 
-  float importanceScale = cumulativeImportance[primID]/cumulativeImportance[numCells-1];
+  //float importanceScale = cumulativeImportance[primID]/cumulativeImportance[numCells-1];
 
   for (int x=x1; x<=x2; ++x) {
-    int X = x*importanceScale;
+    int X = x;//*importanceScale;
     // TODO: that's a box-shaped basis function
     // this _might_ be ok, but only if we have
     // many cells..
