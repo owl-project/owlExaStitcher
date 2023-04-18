@@ -9,7 +9,8 @@ inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
   return (a + b - 1) / b;
 }
 
-__global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
+__global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h,
+                        float4 color1, float4 color2)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -17,13 +18,13 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h)
     return;
 
   if ((x/16) % 2 == (y/16) % 2)
-    surf2Dwrite(make_float4(.4f,.4f,.4f,1.f), surfaceObj, x * sizeof(float4), h-y-1);
+    surf2Dwrite(color1, surfaceObj, x * sizeof(float4), h-y-1);
   else
-    surf2Dwrite(make_float4(.3f,.3f,.3f,1.f), surfaceObj, x * sizeof(float4), h-y-1);
+    surf2Dwrite(color2, surfaceObj, x * sizeof(float4), h-y-1);
 }
 
-__global__ void renderGPU(cudaSurfaceObject_t surfaceObj,
-                          exa::VolumeLines::GridCell *grid, int w, int h)
+__global__ void renderBars(cudaSurfaceObject_t surfaceObj,
+                           exa::VolumeLines::GridCell *grid, int w, int h)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
@@ -40,6 +41,56 @@ __global__ void renderGPU(cudaSurfaceObject_t surfaceObj,
                                src.z*0.f+c.z*1.f,
                                1.f);
     surf2Dwrite(color, surfaceObj, x * sizeof(float4), h-y-1);
+  }
+}
+
+__global__ void renderLines(cudaSurfaceObject_t surfaceObj,
+                            exa::VolumeLines::GridCell *grid, int w, int h)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  
+  if (x >= w)
+    return;
+
+  // we test against line segments in the range [x-R,x+R]
+  int R=2;
+  for (int y=0; y<h; ++y) {
+    for (int l=max(1,x-R); l<=min(w-1,x+R); ++l) {
+      // line segment
+      const vec2f p1(l-1,grid[l-1].color.w*(h-10));
+      const vec2f p2(l,grid[l].color.w*(h-10));
+      //printf("%f,%f %f,%f\n",p1.x,p1.y, p2.x,p2.y);
+
+      // pixel bounds
+      const vec2f lower(x,y);
+      const vec2f upper(x+1,y+1);
+
+      const vec2f dir = p2-p1;
+      // slab test
+      vec2f t_lo = lower - p1;
+      vec2f t_hi = upper - p1;
+      if (dir.x != 0.f && dir.y != 0.f) {
+        t_lo /= dir;
+        t_hi /= dir;
+      }
+
+      const vec2f t_nr = min(t_lo,t_hi);
+      const vec2f t_fr = max(t_lo,t_hi);
+
+      const float t0 = max(0.f,reduce_max(t_nr));
+      const float t1 = min(sqrtf(dot(p2-p1,p2-p1)),reduce_min(t_fr));
+
+      if (t0 < t1) {
+        float4 src;
+        surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
+        owl::vec3f c(grid[x].color);
+        float4 color = make_float4(src.x*0.f+c.x*1.f,
+                                   src.y*0.f+c.y*1.f,
+                                   src.z*0.f+c.z*1.f,
+                                   1.f);
+        surf2Dwrite(color, surfaceObj, x * sizeof(float4), h-y-1);
+      }
+    }
   }
 }
 
@@ -236,7 +287,14 @@ namespace exa {
       gridSize.x = iDivUp(w,blockSize.x);
       gridSize.y = iDivUp(w,blockSize.y);
 
-      fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h);
+      float4 c1, c2;
+      if (mode == Bars) {
+        c1 = make_float4(.4f,.4f,.4f,1.f);
+        c2 = make_float4(.3f,.3f,.3f,1.f);
+      } else {
+        c1 = c2 = make_float4(1,1,1,1);
+      }
+      fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h,c1,c2);
     }
 
     if (updated_ && xf.deviceColorMap) {
@@ -310,8 +368,13 @@ namespace exa {
     // render to texture
     for (size_t i=0; i<grids1D.size(); ++i) {
       size_t numThreads = 1024;
-      renderGPU<<<iDivUp(w,numThreads),numThreads>>>(
-        surfaceObj,grids1D[i],w,h);
+      if (mode == Bars) {
+        renderBars<<<iDivUp(w,numThreads),numThreads>>>(
+          surfaceObj,grids1D[i],w,h);
+      } else {
+        renderLines<<<iDivUp(w,numThreads),numThreads>>>(
+          surfaceObj,grids1D[i],w,h);
+      }
     }
   }
 

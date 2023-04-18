@@ -8,6 +8,8 @@
 namespace exa {
   struct VolumeLines {
 
+    enum Mode { Bars, Lines, };
+
     // 1D (AMR) cell
     struct Cell {
       int lower;
@@ -43,6 +45,8 @@ namespace exa {
     void setRelDomain(interval<float> relDomain);
     void setOpacityScale(float scale);
 
+    Mode mode = Lines;
+
     std::vector<Cell *> cells;
     int numCells{0}; // same for each channel!
     range1f cellBounds;
@@ -65,6 +69,8 @@ namespace exa {
       vec4f *deviceColorMap{ nullptr };
       float alphaMax{ 0.f };
     } xf;
+
+
   };
 } // ::exa
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
