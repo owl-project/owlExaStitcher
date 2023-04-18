@@ -164,7 +164,8 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
     // originally we were using basis here
     // keeping the atomicAdd, but in theory these
     // should be exclusive memory accesses
-    atomicAdd(&grid[x].value, cells[primID].value);
+    //atomicAdd(&grid[x].value, cells[primID].value);
+    grid[x].value = cells[primID].value; // TODO: atomicCAD??
   }
 }
 
