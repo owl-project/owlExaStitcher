@@ -77,13 +77,13 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
   if (primID >= numCells)
     return;
 
+  float cellWidth(1<<cells[primID].level);
   vec4f color = lookupTransferFunction(cells[primID].value,colorMap,numColors,xfDomain);
   // this will later become the diff of two time steps
-  importance[primID] = fmaxf(0.025f, powf(color.w/alphaMax,P));
+  importance[primID] = fmaxf(0.025f, powf(color.w/alphaMax*cellWidth,P));
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
-                                 float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
                                  const float *cumulativeImportance,
@@ -95,45 +95,27 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
   if (primID >= numCells)
     return;
 
-  float importanceScale = 1.f;
-  if (primID == 0)
-    importanceScale = cumulativeImportance[primID];
-  else
-    importanceScale = cumulativeImportance[primID]-cumulativeImportance[primID-1];
+  float xf1 = primID == 0? 0.f : cumulativeImportance[primID-1];
+  float xf2 = cumulativeImportance[primID];
+  float maxImportance = cumulativeImportance[numCells-1];
 
-  const auto &cell = cells[primID];
-  range1f bounds = cell.getBounds() * importanceScale;
-  float p1 = bounds.lower;
-  float p2 = bounds.upper;
-
-  // Project onto grid (TODO: move to function..)
-  float x1_01 = (p1-cellBounds.lower)/(cellBounds.upper-cellBounds.lower);
-  float x2_01 = (p2-cellBounds.lower)/(cellBounds.upper-cellBounds.lower);
+  // Project onto grid
+  float x1_01 = xf1/maxImportance;
+  float x2_01 = xf2/maxImportance;
 
   int x1 = owl::clamp(int(x1_01*float(dims)),0,dims-1);
   int x2 = owl::clamp(int(x2_01*float(dims)),0,dims-1);
 
+  // printf("%f,%f -> %f,%f -> %i,%i (%i): %f\n",
+  //        xf1,xf2,x1_01,x2_01,x1,
+  //        x2,x2-x1,cells[primID].value);
+
   for (int x=x1; x<=x2; ++x) {
-    int X = x;//*importanceScale;
-    // TODO: that's a box-shaped basis function
-    // this _might_ be ok, but only if we have
-    // many cells..
-    atomicAdd(&grid[X].value, cell.value);
-    atomicAdd(&weights[X], 1.f);
+    // originally we were using basis here
+    // keeping the atomicAdd, but in theory these
+    // should be exclusive memory accesses
+    atomicAdd(&grid[x].value, cells[primID].value);
   }
-}
-
-__global__ void basisAverageGridCells(exa::VolumeLines::GridCell *grid,
-                                      float *weights,
-                                      int dims)
-{
-  int x = blockIdx.x * blockDim.x + threadIdx.x;
-
-  if (x >= dims)
-    return;
-
-  if (weights[x] > 0.f)
-    grid[x].value /= weights[x];
 }
 
 __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
@@ -270,10 +252,6 @@ namespace exa {
         cudaMalloc(&grid, sizeof(GridCell)*w);
         cudaMemset(grid, 0, sizeof(GridCell)*w);
 
-        float *weights;
-        cudaMalloc(&weights, sizeof(float)*w);
-        cudaMemset(weights, 0, sizeof(float)*w);
-
         // TODO: set per channel!
         range1f r{
          xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
@@ -315,16 +293,11 @@ namespace exa {
         //}
 
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], cumulativeImportance, numCells, cellBounds);
+          grid, w, cells[i], cumulativeImportance, numCells, cellBounds);
 
         cudaFree(cumulativeImportance);
 
         grids1D.push_back(grid);
-
-        basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
-          grid, weights, w);
-
-        cudaFree(weights);
 
         postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
           grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
