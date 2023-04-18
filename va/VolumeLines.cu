@@ -31,7 +31,7 @@ __global__ void renderBars(cudaSurfaceObject_t surfaceObj,
   if (x >= w)
     return;
 
-  int H=owl::clamp(int(grid[x].color.w*h),0,h-1);
+  int H=owl::clamp(int(grid[x].color.w*(h-10)),0,h-1);
   for (int y=0; y<=H; ++y) {
     float4 src;
     surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
