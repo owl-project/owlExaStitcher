@@ -546,10 +546,16 @@ namespace exa {
 
   void VolumeLines::onMouseRelease(int x, int y, int button)
   {
-    if (highlight != ROI{-1,-1})
+    if (highlight != ROI{-1,-1}) {
+      for (size_t i=0; i<rois.size(); ) {
+        ROI roi = rois[i];
+        if (highlight.contains(rois[i].lower) || highlight.contains(rois[i].upper)) {
+          rois.erase(rois.begin()+i);
+          highlight.extend(roi);
+        } else i++;
+      }
       rois.push_back(highlight);
-
-    // TODO: merge ROIs
+    }
 
     pressX = -1;
     highlight = {-1,-1};
