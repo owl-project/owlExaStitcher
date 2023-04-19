@@ -493,6 +493,10 @@ namespace exa {
       if (first) {
       volumeLineWidget.resize(1024,128);
       vl.reset(renderer->model->as<ExaBrickModel>());
+      volumeLineWidget.setPassiveMotionFunc([&](int x, int y, int button) { vl.onMouseMove(x,y,button); });
+      volumeLineWidget.setMotionFunc([&](int x, int y, int button) { vl.onMouseDrag(x,y,button); });
+      volumeLineWidget.setPressFunc([&](int x, int y, int button) { vl.onMousePress(x,y,button); });
+      volumeLineWidget.setReleaseFunc([&](int x, int y, int button) { vl.onMouseRelease(x,y,button); });
       first=false;
       }
       auto surf = volumeLineWidget.map();

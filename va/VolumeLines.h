@@ -50,6 +50,11 @@ namespace exa {
     void setP(float P);
     void setMode(Mode m);
 
+    void onMouseMove(int x, int y, int button);
+    void onMouseDrag(int x, int y, int button);
+    void onMousePress(int x, int y, int button);
+    void onMouseRelease(int x, int y, int button);
+
     float minImportance = 0.025f;
     float P = 1.f;
     Mode mode = Lines;

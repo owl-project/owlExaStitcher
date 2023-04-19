@@ -454,5 +454,22 @@ namespace exa {
     mode = m;
     updated_ = true;
   }
+
+  void VolumeLines::onMouseMove(int x, int y, int button)
+  {
+  }
+
+  void VolumeLines::onMouseDrag(int x, int y, int button)
+  {
+  }
+
+  void VolumeLines::onMousePress(int x, int y, int button)
+  {
+  }
+
+  void VolumeLines::onMouseRelease(int x, int y, int button)
+  {
+  }
+
 } // ::exa
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

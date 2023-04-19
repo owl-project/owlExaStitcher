@@ -166,9 +166,22 @@ namespace exa
         if (event.type == MouseEvent::PassiveMotion || event.type == MouseEvent::Release)
             dragging_ = false;
 
-        if (dragging_ || (event.type == MouseEvent::Press && hovered && event.button == MouseEvent::Left))
-        {
+        if (dragging_ || (event.type == MouseEvent::Press && hovered))// && event.button == MouseEvent::Left))
             dragging_ = true;
+
+        // User callbacks
+        if (hovered && event.type == MouseEvent::PassiveMotion) {
+            if (passiveMotionFunc)
+                passiveMotionFunc(event.pos.x, event.pos.y, (int)event.button);
+        } else if (hovered && event.type == MouseEvent::Motion) {
+            if (motionFunc)
+                motionFunc(event.pos.x, event.pos.y, (int)event.button);
+        } else if (hovered && event.type == MouseEvent::Press) {
+            if (pressFunc)
+                pressFunc(event.pos.x, event.pos.y, (int)event.button);
+        } else if (hovered && event.type == MouseEvent::Release) {
+            if (releaseFunc)
+                releaseFunc(event.pos.x, event.pos.y, (int)event.button);
         }
 
         lastEvent_ = event;

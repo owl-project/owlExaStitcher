@@ -3,12 +3,15 @@
 
 #pragma once
 
+#include <functional>
 #include <cuda_runtime_api.h>
 #include <GL/gl.h>
 #include <owl/common/math/vec.h>
 
 namespace exa
 {
+    typedef std::function<void(int32_t x, int32_t y, int32_t button)> ImGuiMouseFunc;
+
     class ImGuiCUDAGLWidget
     {
     public:
@@ -36,6 +39,22 @@ namespace exa
         //! Return canvas height
         int height() const
         { return canvasSize_.y; }
+
+        //! Called when mouse moved and no button is pressed
+        void setPassiveMotionFunc(ImGuiMouseFunc func)
+        { passiveMotionFunc = func; }
+
+        //! Called when mouse moved and a button is pressed
+        void setMotionFunc(ImGuiMouseFunc func)
+        { motionFunc = func; }
+
+        //! Called when a button was pressed
+        void setPressFunc(ImGuiMouseFunc func)
+        { pressFunc = func; }
+
+        //! Called when a button was released
+        void setReleaseFunc(ImGuiMouseFunc func)
+        { releaseFunc = func; }
 
     private:
         // RGBA texture
@@ -72,6 +91,18 @@ namespace exa
 
         // Handle mouse event
         void handleMouseEvent(MouseEvent const& event);
+
+        // Called when mouse moved and no button is pressed
+        ImGuiMouseFunc passiveMotionFunc = nullptr;
+
+        // Called when mouse moved and a button is pressed
+        ImGuiMouseFunc motionFunc = nullptr;
+
+        // Called when a button was pressed
+        ImGuiMouseFunc pressFunc = nullptr;
+
+        // Called when a button was released
+        ImGuiMouseFunc releaseFunc = nullptr;
     };
 
 } // exa
