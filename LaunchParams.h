@@ -116,6 +116,12 @@ namespace exa {
       float intensity;
       int   on;
     } lights[LIGHTS_MAX];
+    struct {
+      int   enabled;
+      float outsideOpacityScale;
+      float outsideSaturationScale;
+      box3f rois[ROIS_MAX];
+    } roi;
   };
 
 } // ::exa
