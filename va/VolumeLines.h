@@ -64,6 +64,11 @@ namespace exa {
     range1f cellBounds;
     range1f centroidBounds;
 
+    typedef owl::interval<int> ROI;
+    std::vector<ROI> rois;
+    ROI highlight{-1,-1};
+    int pressX = -1;
+
     struct {
       float *perCell = nullptr;
       float *cumulative = nullptr;

@@ -93,6 +93,46 @@ __global__ void renderLines(cudaSurfaceObject_t surfaceObj,
   }
 }
 
+__global__ void renderROIs(cudaSurfaceObject_t surfaceObj, int w, int h,
+                           exa::VolumeLines::ROI *rois, size_t numROIs,
+                           exa::VolumeLines::ROI specialROI,
+                           float4 roiColor, float4 specialColor)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  
+  if (x >= w)
+    return;
+
+  bool overlaps = false;
+  float4 color;
+
+  if (specialROI.contains(x)) {
+    overlaps = true;
+    color = specialColor;
+  } else {
+    for (size_t i=0; i<numROIs; ++i) {
+      if (rois[i].contains(x)) {
+        color = roiColor;
+        overlaps = true;
+        break;
+      }
+    }
+  }
+
+  if (!overlaps)
+    return;
+
+  for (int y=0; y<h; ++y) {
+    float4 src;
+    surf2Dread(&src, surfaceObj, x * sizeof(float4), y);
+    // over
+    owl::vec4f A(color);
+    owl::vec4f B(src);
+    float4 dst = A + (1.f-A.w)*B;
+    surf2Dwrite(dst, surfaceObj, x * sizeof(float4), y);
+  }
+}
+
 inline __device__
 vec4f lookupTransferFunction(float f,
                              const vec4f *colorMap,
@@ -405,6 +445,21 @@ namespace exa {
           surfaceObj,grids1D[i],w,h);
       }
     }
+
+    if (highlight != ROI{-1,-1} || !rois.empty()) {
+      float4 roiColor = mode == Bars ? make_float4(0.5f,0.5f,0.5f,0.5f) // dark "theme"
+                                     : make_float4(0.2f,0.2f,0.2f,0.5f); // light "theme"
+      float4 specialColor = make_float4(0.5f,0.2f,0.1f,0.5f);
+      ROI *d_rois;
+      cudaMalloc(&d_rois,rois.size()*sizeof(rois[0]));
+      cudaMemcpy(d_rois,rois.data(),rois.size()*sizeof(rois[0]),
+                 cudaMemcpyHostToDevice);
+      size_t numThreads = 1024;
+      renderROIs<<<iDivUp(w,numThreads),numThreads>>>(
+        surfaceObj,w,h,d_rois,rois.size(),highlight,
+        roiColor,specialColor);
+      cudaFree(d_rois);
+    }
   }
 
   void VolumeLines::setColorMap(const std::vector<vec4f> &newCM)
@@ -457,18 +512,47 @@ namespace exa {
 
   void VolumeLines::onMouseMove(int x, int y, int button)
   {
+    pressX = -1;
+    highlight = {-1,-1};
   }
 
   void VolumeLines::onMouseDrag(int x, int y, int button)
   {
+    if (pressX >= 0 && x != pressX) {
+      highlight.lower = std::min(pressX,x);
+      highlight.upper = std::max(pressX,x);
+    } else {
+      highlight = {-1,-1};
+    }
   }
 
   void VolumeLines::onMousePress(int x, int y, int button)
   {
+    if (button != 0)
+      return;
+
+    int found = -1;
+    for (size_t i=0; i<rois.size(); ++i) {
+      if (rois[i].contains(x))
+        found = (int)i;
+    }
+
+    if (found >= 0)
+      rois.erase(rois.begin()+found);
+
+    pressX = x;
+    highlight = {-1,-1};
   }
 
   void VolumeLines::onMouseRelease(int x, int y, int button)
   {
+    if (highlight != ROI{-1,-1})
+      rois.push_back(highlight);
+
+    // TODO: merge ROIs
+
+    pressX = -1;
+    highlight = {-1,-1};
   }
 
 } // ::exa
