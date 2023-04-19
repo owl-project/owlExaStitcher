@@ -221,6 +221,11 @@ namespace exa {
 
   VolumeLines::~VolumeLines()
   {
+    cleanup();
+  }
+
+  void VolumeLines::cleanup()
+  {
     for (size_t i=0; i<cells.size(); ++i) {
       cudaFree(cells[i]);
     }
@@ -228,13 +233,18 @@ namespace exa {
     for (size_t i=0; i<grids1D.size(); ++i) {
       cudaFree(grids1D[i]);
     }
+
+    cudaFree(importance.perCell);
+    cudaFree(importance.cumulative);
+    cudaFree(importance.tempStorage);
+    importance.perCell = nullptr;
+    importance.cumulative = nullptr;
+    importance.tempStorage = nullptr;
   }
 
   void VolumeLines::reset(const ExaBrickModel::SP &model)
   {
-    for (size_t i=0; i<cells.size(); ++i) {
-      cudaFree(cells[i]);
-    }
+    cleanup();
 
     cells.resize(1);
     cellBounds = {};
@@ -345,33 +355,29 @@ namespace exa {
 
         size_t numThreads = 1024;
 
-        float *importance;
-        cudaMalloc(&importance, sizeof(float)*numCells);
-        assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
-          cells[i], importance, numCells, xf.deviceColorMap, xf.colorMap.size(), r, alphaMax, minImportance, P);
+        if (!importance.perCell) {
+          cudaMalloc(&importance.perCell, sizeof(float)*numCells);
+          cudaMalloc(&importance.cumulative, sizeof(float)*numCells);
+          cub::DeviceScan::InclusiveSum(importance.tempStorage,
+                                        importance.tempStorageSizeInBytes,
+                                        importance.perCell,
+                                        importance.cumulative,
+                                        numCells);
+          cudaMalloc(&importance.tempStorage, importance.tempStorageSizeInBytes);
+        }
 
-        // TODO: alloc once (all these arrays!!)
-        void *tempStorage = nullptr;
-        size_t tempStorageBytes = 0;
-        float *cumulativeImportance;
-        cudaMalloc(&cumulativeImportance, sizeof(float)*numCells);
-        cub::DeviceScan::InclusiveSum(tempStorage, tempStorageBytes, importance,
-                                      cumulativeImportance, numCells);
-        cudaMalloc(&tempStorage, tempStorageBytes);
-        cub::DeviceScan::InclusiveSum(tempStorage, tempStorageBytes, importance,
-                                      cumulativeImportance, numCells);
-        cudaFree(importance);
-        cudaFree(tempStorage);
-        //std::vector<float> cumImp(numCells);
-        //cudaMemcpy(cumImp.data(),cumulativeImportance,sizeof(float)*numCells,cudaMemcpyDeviceToHost);
-        //for (size_t j=0; j<numCells; ++j) {
-        //  std::cout << cumImp[j] << '\n';
-        //}
+        assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
+          cells[i], importance.perCell, numCells, xf.deviceColorMap, xf.colorMap.size(),
+          r, alphaMax, minImportance, P);
+
+        cub::DeviceScan::InclusiveSum(importance.tempStorage,
+                                      importance.tempStorageSizeInBytes,
+                                      importance.perCell,
+                                      importance.cumulative,
+                                      numCells);
 
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], cumulativeImportance, numCells, cellBounds);
-
-        cudaFree(cumulativeImportance);
+          grid, weights, w, cells[i], importance.cumulative, numCells, cellBounds);
 
         grids1D.push_back(grid);
 

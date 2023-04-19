@@ -37,6 +37,7 @@ namespace exa {
    ~VolumeLines();
 
     void reset(const ExaBrickModel::SP &model);
+    void cleanup();
 
     void draw(cudaSurfaceObject_t surfaceObj, int w, int h);
 
@@ -57,6 +58,13 @@ namespace exa {
     int numCells{0}; // same for each channel!
     range1f cellBounds;
     range1f centroidBounds;
+
+    struct {
+      float *perCell = nullptr;
+      float *cumulative = nullptr;
+      void *tempStorage = nullptr; // for CUB scan!
+      size_t tempStorageSizeInBytes = 0;
+    } importance;
 
     // A cell as projected onto the 1D grid
     // that later becomes the line plot
