@@ -135,6 +135,7 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
+                                 float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
                                  const float *cumulativeImportance,
@@ -165,9 +166,22 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
     // originally we were using basis here
     // keeping the atomicAdd, but in theory these
     // should be exclusive memory accesses
-    //atomicAdd(&grid[x].value, cells[primID].value);
-    grid[x].value = cells[primID].value; // TODO: atomicCAD??
+    atomicAdd(&grid[x].value, cells[primID].value);
+    atomicAdd(&weights[x], 1.f);
   }
+}
+
+__global__ void basisAverageGridCells(exa::VolumeLines::GridCell *grid,
+                                      float *weights,
+                                      int dims)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (x >= dims)
+    return;
+
+  if (weights[x] > 0.f)
+    grid[x].value /= weights[x];
 }
 
 __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
@@ -311,6 +325,10 @@ namespace exa {
         cudaMalloc(&grid, sizeof(GridCell)*w);
         cudaMemset(grid, 0, sizeof(GridCell)*w);
 
+        float *weights;
+        cudaMalloc(&weights, sizeof(float)*w);
+        cudaMemset(weights, 0, sizeof(float)*w);
+
         // TODO: set per channel!
         range1f r{
          xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
@@ -351,11 +369,16 @@ namespace exa {
         //}
 
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, w, cells[i], cumulativeImportance, numCells, cellBounds);
+          grid, weights, w, cells[i], cumulativeImportance, numCells, cellBounds);
 
         cudaFree(cumulativeImportance);
 
         grids1D.push_back(grid);
+
+        basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
+          grid, weights, w);
+
+        cudaFree(weights);
 
         postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
           grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
