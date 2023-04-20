@@ -580,8 +580,12 @@ namespace exa {
 
     for (int i=0; i<vl.worldSpaceROIs.size(); ++i){
       if (i >= ROIS_MAX)
-        return;
+        break;
       renderer->setROI(i, vl.worldSpaceROIs[i]);
+    }
+
+    for (int i=vl.worldSpaceROIs.size()-1; i < ROIS_MAX; ++i){
+      renderer->setROI(i, {});
     }
 
 //    if (tfe.updated()) {
