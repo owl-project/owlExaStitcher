@@ -360,8 +360,11 @@ namespace exa {
     cleanup();
 
     cells.resize(1);
+    map1Dto3D.clear();
     cellBounds = {};
     centroidBounds = {};
+    cellBounds3D = {};
+    centroidBounds3D = {};
     std::vector<Cell> cs;
     for (size_t i=0; i<model->bricks.size(); ++i) {
       const ExaBrick &brick = model->bricks[i];
@@ -380,6 +383,17 @@ namespace exa {
             cs.push_back(c);
             centroidBounds.extend(c.getBounds().center());
             cellBounds.extend(c.getBounds());
+
+            // also 3D!
+            vec3i pos3D(brick.lower + vec3i(x,y,z)*(1<<brick.level));
+            box3i bounds3D(pos3D,pos3D+vec3i(1<<brick.level));
+            centroidBounds3D.extend(vec3f(bounds3D.center()));
+            cellBounds3D.extend(box3f(vec3f(bounds3D.lower),vec3f(bounds3D.upper)));
+
+            map1Dto3D.push_back({cs.size()-1, // 1D index
+                                i, // brickID
+                                {x,y,z},
+                                bounds3D.center()});
           }
         }
       }
@@ -388,9 +402,9 @@ namespace exa {
     #pragma omp parallel for
     for (size_t i=0; i<cs.size(); ++i) {
       Cell &c = cs[i];
-      vec3i centroid = c.getBounds().center();
+      vec3i centroid = map1Dto3D[i].centroid;
       vec3f centroid01(centroid);
-      centroid01 = (centroid01-vec3f(centroidBounds.lower)) / vec3f(centroidBounds.upper-centroidBounds.lower);
+      centroid01 = (centroid01-vec3f(centroidBounds3D.lower)) / vec3f(centroidBounds3D.upper-centroidBounds3D.lower);
 
       vec3f quantized(centroid01);
       quantized *= float(1<<16);
@@ -628,8 +642,8 @@ namespace exa {
         coord2[2] / float(1<<16)
       );
 
-      const vec3f p1 = c1_01*vec3f(centroidBounds.upper-centroidBounds.lower)+vec3f(centroidBounds.lower);
-      const vec3f p2 = c2_01*vec3f(centroidBounds.upper-centroidBounds.lower)+vec3f(centroidBounds.lower);
+      const vec3f p1 = c1_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
+      const vec3f p2 = c2_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
 
       worldSpaceROIs[i].extend(p1);
       worldSpaceROIs[i].extend(p2);

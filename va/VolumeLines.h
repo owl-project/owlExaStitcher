@@ -62,10 +62,19 @@ namespace exa {
     Mode mode = Lines;
     owl::vec2i canvasSize{0,0};
 
-    std::vector<Cell *> cells;
+    struct Map1Dto3D {
+      size_t cellID_1D;
+      size_t brickID;
+      vec3i xyz; // relative to brick.lower
+      vec3i centroid; // in cell space
+    };
+    std::vector<Map1Dto3D> map1Dto3D;
+    std::vector<Cell *> cells; // on device
     int numCells{0}; // same for each channel!
     range1f cellBounds;
     range1f centroidBounds;
+    box3f cellBounds3D;
+    box3f centroidBounds3D;
 
     typedef owl::interval<int> ROI;
     std::vector<ROI> rois;
