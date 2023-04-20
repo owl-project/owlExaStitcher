@@ -575,6 +575,15 @@ namespace exa {
       renderer->resetAccum();
     }
 
+    // Set rois
+    renderer->enableROI(!vl.worldSpaceROIs.empty(), 0.1, 0.1);
+
+    for (int i=0; i<vl.worldSpaceROIs.size(); ++i){
+      if (i >= ROIS_MAX)
+        return;
+      renderer->setROI(i, vl.worldSpaceROIs[i]);
+    }
+
 //    if (tfe.updated()) {
 //      vkt::LookupTable *lut = tfe.getUpdatedLookupTable();
 //      if (lut != nullptr) {

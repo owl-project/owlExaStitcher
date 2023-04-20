@@ -111,6 +111,18 @@ namespace exa {
      {"roi.rois0.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[0].upper)},
      {"roi.rois1.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].lower)},
      {"roi.rois1.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].upper)},
+     {"roi.rois2.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[2].lower)},
+     {"roi.rois2.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[2].upper)},
+     {"roi.rois3.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[3].lower)},
+     {"roi.rois3.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[3].upper)},
+     {"roi.rois4.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[4].lower)},
+     {"roi.rois4.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[4].upper)},
+     {"roi.rois5.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[5].lower)},
+     {"roi.rois5.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[5].upper)},
+     {"roi.rois6.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[6].lower)},
+     {"roi.rois6.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[6].upper)},
+     {"roi.rois7.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[7].lower)},
+     {"roi.rois7.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[7].upper)},
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -787,6 +799,36 @@ namespace exa {
     else if (id == 1){
       owlParamsSet3f(lp, "roi.rois1.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois1.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 2){
+      owlParamsSet3f(lp, "roi.rois2.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois2.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 3){
+      owlParamsSet3f(lp, "roi.rois3.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois3.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 4){
+      owlParamsSet3f(lp, "roi.rois4.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois4.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 5){
+      owlParamsSet3f(lp, "roi.rois5.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois5.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 6){
+      owlParamsSet3f(lp, "roi.rois6.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois6.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      accumID = 0;
+    }
+    else if (id == 7){
+      owlParamsSet3f(lp, "roi.rois7.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
+      owlParamsSet3f(lp, "roi.rois7.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
       accumID = 0;
     }
     else {
