@@ -403,17 +403,13 @@ namespace exa {
     for (size_t i=0; i<cs.size(); ++i) {
       Cell &c = cs[i];
       vec3i centroid = map1Dto3D[i].centroid;
-      vec3f centroid01(centroid);
-      centroid01 = (centroid01-vec3f(centroidBounds3D.lower)) / vec3f(centroidBounds3D.upper-centroidBounds3D.lower);
-
-      vec3f quantized(centroid01);
-      quantized *= float(1<<16);
-      const bitmask_t coord[3] = {
-        bitmask_t(quantized.x),
-        bitmask_t(quantized.y),
-        bitmask_t(quantized.z)
-      };
-      c.hilbertID = hilbert_c2i(3, 16, coord);
+      vec3f centroidf(centroid);
+      vec3f lowerf(centroidBounds3D.lower);
+      vec3f upperf(centroidBounds3D.upper);
+      world_to_hilbert_3D((const float *)&centroidf.x,
+                          (const float *)&lowerf.x,
+                          (const float *)&upperf.x,
+                          &c.hilbertID);
     }
 
     std::sort(cs.begin(),cs.end(),

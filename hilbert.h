@@ -227,6 +227,32 @@ inline bitmask_t hilbert_c2i(unsigned nDims, unsigned nBits, bitmask_t const coo
     return coord[0];
 }
 
+__host__ __device__
+inline void world_to_hilbert_3D(const float *world_coord, const float *bounds_lower,
+                                const float *bounds_upper, uint64_t *out)
+{
+  float v01[3] = {
+    (world_coord[0]-bounds_lower[0])/(bounds_upper[0]-bounds_lower[0]),
+    (world_coord[1]-bounds_lower[1])/(bounds_upper[1]-bounds_lower[1]),
+    (world_coord[2]-bounds_lower[2])/(bounds_upper[2]-bounds_lower[2])
+  };
+
+  const unsigned bits = 16;
+  float quantized[3] = {
+    v01[0] * float(1<<bits),
+    v01[1] * float(1<<bits),
+    v01[2] * float(1<<bits)
+  };
+
+  const bitmask_t c[3] = {
+    bitmask_t(quantized[0]),
+    bitmask_t(quantized[1]),
+    bitmask_t(quantized[2]),
+  };
+
+  *out = hilbert_c2i(3, bits, c);
+}
+
 #ifdef __cplusplus
 }
 #endif
