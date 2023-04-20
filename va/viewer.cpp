@@ -179,11 +179,8 @@ namespace exa {
     Viewer(OWLRenderer *renderer)
       : inherited("exastitch", cmdline.windowSize)
       , renderer(renderer)
+      , imguiInitialized(false)
     {
-      if (!initImGui()) {
-        std::cerr << "failed to initialize Dear ImGui!\n";
-        exit(EXIT_FAILURE); // not much use in carrying on then..
-      }
     }
 
     bool initImGui()
@@ -218,9 +215,25 @@ namespace exa {
     /*! draw framebuffer using OpenGL */
     void draw();
 
+    void special(int key, int mods, const vec2i &where) override{
+      ImGuiIO& io = ImGui::GetIO();
+
+      if (io.WantTextInput || io.WantCaptureKeyboard) {
+        return;
+      }
+
+      inherited::special(key,mods, where);
+    };
+
     /*! this gets called when the user presses a key on the keyboard ... */
     void key(char key, const vec2i &where) override
     {
+      ImGuiIO& io = ImGui::GetIO();
+
+      if (io.WantTextInput || io.WantCaptureKeyboard) {
+        return;
+      }
+
       inherited::key(key,where);
       renderer->resetAccum();
       switch (key) {
@@ -338,34 +351,36 @@ namespace exa {
     void mouseMotion(const vec2i &where)
     {
       ImGuiIO& io = ImGui::GetIO();
-      io.MousePos = ImVec2((float)where.x, (float)where.y);
+      //io.MousePos = ImVec2((float)where.x, (float)where.y);
       if (io.WantCaptureMouse) {
         return;
       }
       inherited::mouseMotion(where);
     }
 
-    void mouseButtonLeft(const vec2i &where, bool pressed)
-    {
-      ImGuiIO& io = ImGui::GetIO();
-      io.MousePos = ImVec2((float)where.x, (float)where.y);
-      int imgui_button = 0; // left (right is 1, middle is 2)
-      io.MouseDown[imgui_button] = pressed;
-      inherited::mouseButtonLeft(where, pressed);
-    }
+//    void mouseButtonLeft(const vec2i &where, bool pressed)
+//    {
+//      ImGuiIO& io = ImGui::GetIO();
+//      io.MousePos = ImVec2((float)where.x, (float)where.y);
+//      int imgui_button = 0; // left (right is 1, middle is 2)
+//      io.MouseDown[imgui_button] = pressed;
+//      inherited::mouseButtonLeft(where, pressed);
+//    }
 
-    void mouseDragLeft(const vec2i &where, const vec2i &delta)
-    {
-      ImGuiIO& io = ImGui::GetIO();
-      io.MousePos = ImVec2((float)where.x, (float)where.y);
-      int imgui_button = 0; // left (right is 1, middle is 2)
-      inherited::mouseDragLeft(where, delta);
-    }
+//    void mouseDragLeft(const vec2i &where, const vec2i &delta)
+//    {
+//      ImGuiIO& io = ImGui::GetIO();
+//      io.MousePos = ImVec2((float)where.x, (float)where.y);
+//      int imgui_button = 0; // left (right is 1, middle is 2)
+//      inherited::mouseDragLeft(where, delta);
+//    }
 
   public:
 
     OWLRenderer *const renderer;
     //qtOWL::XFEditor *xfEditor = nullptr;
+
+    bool imguiInitialized;
 
     vec2i downPos { 0, 0 };
     box2f lastSubImageWin;
@@ -472,6 +487,14 @@ namespace exa {
   void Viewer::draw()
   {
     inherited::draw();
+
+    if (!imguiInitialized){
+      if (!initImGui()) {
+        std::cerr << "failed to initialize Dear ImGui!\n";
+        exit(EXIT_FAILURE); // not much use in carrying on then..
+      }
+      imguiInitialized = true;
+    }
 
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplGlfw_NewFrame();
