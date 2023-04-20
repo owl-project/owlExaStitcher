@@ -107,22 +107,24 @@ namespace exa {
      {"roi.enabled", OWL_INT, OWL_OFFSETOF(LaunchParams, roi.enabled)},
      {"roi.outsideOpacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideOpacityScale)},
      {"roi.outsideSaturationScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideSaturationScale)},
-     {"roi.rois0.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
-     {"roi.rois0.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[0].upper)},
-     {"roi.rois1.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].lower)},
-     {"roi.rois1.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[1].upper)},
-     {"roi.rois2.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[2].lower)},
-     {"roi.rois2.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[2].upper)},
-     {"roi.rois3.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[3].lower)},
-     {"roi.rois3.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[3].upper)},
-     {"roi.rois4.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[4].lower)},
-     {"roi.rois4.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[4].upper)},
-     {"roi.rois5.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[5].lower)},
-     {"roi.rois5.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[5].upper)},
-     {"roi.rois6.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[6].lower)},
-     {"roi.rois6.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[6].upper)},
-     {"roi.rois7.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[7].lower)},
-     {"roi.rois7.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.rois[7].upper)},
+     {"roi.centroidBounds.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.centroidBounds.lower)},
+     {"roi.centroidBounds.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.centroidBounds.upper)},
+     {"roi.rois0.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
+     {"roi.rois0.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].upper)},
+     {"roi.rois1.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[1].lower)},
+     {"roi.rois1.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[1].upper)},
+     {"roi.rois2.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[2].lower)},
+     {"roi.rois2.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[2].upper)},
+     {"roi.rois3.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[3].lower)},
+     {"roi.rois3.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[3].upper)},
+     {"roi.rois4.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[4].lower)},
+     {"roi.rois4.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[4].upper)},
+     {"roi.rois5.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[5].lower)},
+     {"roi.rois5.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[5].upper)},
+     {"roi.rois6.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[6].lower)},
+     {"roi.rois6.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[6].upper)},
+     {"roi.rois7.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[7].lower)},
+     {"roi.rois7.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[7].upper)},
      // camera settings
      { "camera.org",    OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.org) },
      { "camera.dir_00", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,camera.dir_00) },
@@ -534,9 +536,9 @@ namespace exa {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
-    enableROI(false, 0.1f, 0.7f);
+    enableROI(false, box3f{}, 0.1f, 0.7f);
     for (int i=0; i<ROIS_MAX; ++i){
-      setROI(i, box3f{});
+      setROI(i, {});
     }
 
     owlParamsSet2f(lp,"subImage.value.lower",0.f,0.f);
@@ -790,48 +792,51 @@ namespace exa {
     accumID = 0;
   }
 
-  void OWLRenderer::setROI(int id, const owl::common::box3f &roiBox) {
+  void OWLRenderer::setROI(int id, const owl::common::interval<uint64_t> &roiInterval) {
     if (id == 0){
-      owlParamsSet3f(lp, "roi.rois0.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois0.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois0.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois0.upper", roiInterval.upper);
     }
     else if (id == 1){
-      owlParamsSet3f(lp, "roi.rois1.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois1.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois1.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois1.upper", roiInterval.upper);
     }
     else if (id == 2){
-      owlParamsSet3f(lp, "roi.rois2.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois2.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois2.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois2.upper", roiInterval.upper);
     }
     else if (id == 3){
-      owlParamsSet3f(lp, "roi.rois3.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois3.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois3.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois3.upper", roiInterval.upper);
     }
     else if (id == 4){
-      owlParamsSet3f(lp, "roi.rois4.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois4.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois4.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois4.upper", roiInterval.upper);
     }
     else if (id == 5){
-      owlParamsSet3f(lp, "roi.rois5.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois5.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois5.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois5.upper", roiInterval.upper);
     }
     else if (id == 6){
-      owlParamsSet3f(lp, "roi.rois6.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois6.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois6.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois6.upper", roiInterval.upper);
     }
     else if (id == 7){
-      owlParamsSet3f(lp, "roi.rois7.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
-      owlParamsSet3f(lp, "roi.rois7.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
+      owlParamsSet1ul(lp, "roi.rois7.lower", roiInterval.lower);
+      owlParamsSet1ul(lp, "roi.rois7.upper", roiInterval.upper);
     }
     else {
       std::cerr << "ROI " << id << " not valid" << std::endl;
     }
   }
 
-  void OWLRenderer::enableROI(bool enabled, float outsideOpacityScale, float outsideSaturationScale){
+  void OWLRenderer::enableROI(
+      bool enabled, const box3f& centroidBounds, float outsideOpacityScale, float outsideSaturationScale){
     owlParamsSet1i(lp, "roi.enabled", (int)enabled);
     owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
     owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
+    owlParamsSet3f(lp, "roi.centroidBounds.lower", centroidBounds.lower.x, centroidBounds.lower.y, centroidBounds.lower.z);
+    owlParamsSet3f(lp, "roi.centroidBounds.upper", centroidBounds.upper.x, centroidBounds.upper.y, centroidBounds.upper.z);
   }
 
 } // ::exa

@@ -20,6 +20,7 @@
 #include "KDTree.cuh"
 #include "Plane.h"
 #include "DDA.h"
+#include "hilbert.h"
 
 using owl::vec2f;
 using owl::vec2i;
@@ -633,9 +634,13 @@ namespace exa {
 
       if (lp.roi.enabled) {
         const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
+        uint64_t index;
+        world_to_hilbert_3D((float*)&pt, (float*)&lp.roi.centroidBounds.lower,
+                                                   (float*)&lp.roi.centroidBounds.upper,  &index);
         bool insideROI = false;
+
         for (int i=0; i<ROIS_MAX; ++i) {
-          if (lp.roi.rois[i].contains(pt)) {
+          if (index >= lp.roi.rois[i].lower && index <= lp.roi.rois[i].upper) {
             insideROI = true;
           }
         }

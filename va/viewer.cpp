@@ -576,29 +576,30 @@ namespace exa {
     }
 
     // Set ROIs
-    const bool roiEnabled = !vl.worldSpaceROIs.empty();
+    const bool roiEnabled = !vl.roisToHilbertIDs.empty();
 
-    static std::vector<box3f> previousROIs = vl.worldSpaceROIs;
+    static auto previousROIs = vl.roisToHilbertIDs;
     static bool previousROIEnabled = roiEnabled;
 
     if (previousROIEnabled != roiEnabled){
       renderer->resetAccum();
       previousROIEnabled = roiEnabled;
-      renderer->enableROI(roiEnabled, 0.1, 0.1);
+      renderer->enableROI(roiEnabled, vl.centroidBounds3D, 0.1, 0.1);
     }
 
     // Set the ROIs' boxes
-    if (previousROIs != vl.worldSpaceROIs){
+    if (previousROIs != vl.roisToHilbertIDs){
       renderer->resetAccum();
-      previousROIs = vl.worldSpaceROIs;
+      previousROIs = vl.roisToHilbertIDs;
 
-      for (int i=0; i<vl.worldSpaceROIs.size(); ++i){
+      for (int i=0; i<vl.roisToHilbertIDs.size(); ++i){
         if (i >= ROIS_MAX)
           break;
-        renderer->setROI(i, vl.worldSpaceROIs[i]);
+        renderer->setROI(i, vl.roisToHilbertIDs[i]);
+        std::cout << vl.roisToHilbertIDs[i] << "\n";
       }
 
-      int start = std::max(0, (int)vl.worldSpaceROIs.size()-1);
+      int start = std::max(0, (int)vl.roisToHilbertIDs.size()-1);
       for (int i=start; i < ROIS_MAX; ++i){
         renderer->setROI(i, {});
       }

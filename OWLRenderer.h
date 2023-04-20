@@ -67,8 +67,8 @@ namespace exa {
     void setLightSource(int lightID, const owl::vec3f &pos, float intensity, bool on);
     void setLightSpaceTransform(const affine3f xform);
 
-    void setROI(int id, const box3f &roiBox);
-    void enableROI(bool enabled, float outsideOpacityScale, float outsideSaturationScale);
+    void setROI(int id, const owl::common::interval<uint64_t> &roiInterval);
+    void enableROI(bool enabled, const box3f &centroidBounds,float outsideOpacityScale, float outsideSaturationScale);
 
     OWLContext owl;
     OWLModule  module;

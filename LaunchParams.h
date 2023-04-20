@@ -120,7 +120,8 @@ namespace exa {
       int   enabled;
       float outsideOpacityScale;
       float outsideSaturationScale;
-      box3f rois[ROIS_MAX];
+      box3f centroidBounds;
+      interval<uint64_t> rois[ROIS_MAX];
     } roi;
   };
 
