@@ -575,27 +575,33 @@ namespace exa {
       renderer->resetAccum();
     }
 
-    // Set rois
-    renderer->enableROI(!vl.worldSpaceROIs.empty(), 0.1, 0.1);
-
+    // Set ROIs
+    const bool roiEnabled = !vl.worldSpaceROIs.empty();
 
     static std::vector<box3f> previousROIs = vl.worldSpaceROIs;
+    static bool previousROIEnabled = roiEnabled;
 
-    for (int i=0; i<vl.worldSpaceROIs.size(); ++i){
-      if (i >= ROIS_MAX)
-        break;
-      renderer->setROI(i, vl.worldSpaceROIs[i]);
+    if (previousROIEnabled != roiEnabled){
+      renderer->resetAccum();
+      previousROIEnabled = roiEnabled;
+      renderer->enableROI(roiEnabled, 0.1, 0.1);
     }
 
-    int start = std::max(0, (int)vl.worldSpaceROIs.size()-1);
-    for (int i=start; i < ROIS_MAX; ++i){
-      renderer->setROI(i, {});
-    }
-
-    if (previousROIs != vl.worldSpaceROIs)
-    {
+    // Set the ROIs' boxes
+    if (previousROIs != vl.worldSpaceROIs){
       renderer->resetAccum();
       previousROIs = vl.worldSpaceROIs;
+
+      for (int i=0; i<vl.worldSpaceROIs.size(); ++i){
+        if (i >= ROIS_MAX)
+          break;
+        renderer->setROI(i, vl.worldSpaceROIs[i]);
+      }
+
+      int start = std::max(0, (int)vl.worldSpaceROIs.size()-1);
+      for (int i=start; i < ROIS_MAX; ++i){
+        renderer->setROI(i, {});
+      }
     }
 
 //    if (tfe.updated()) {
