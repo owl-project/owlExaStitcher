@@ -163,12 +163,6 @@ namespace exa
                 && event.pos.x >= 0 && event.pos.x < canvasSize_.x
                 && event.pos.y >= 0 && event.pos.y < canvasSize_.y;
 
-        if (event.type == MouseEvent::PassiveMotion || event.type == MouseEvent::Release)
-            dragging_ = false;
-
-        if (dragging_ || (event.type == MouseEvent::Press && hovered))// && event.button == MouseEvent::Left))
-            dragging_ = true;
-
         // User callbacks
         if (hovered && event.type == MouseEvent::PassiveMotion) {
             if (passiveMotionFunc)
@@ -179,10 +173,16 @@ namespace exa
         } else if (hovered && event.type == MouseEvent::Press) {
             if (pressFunc)
                 pressFunc(event.pos.x, event.pos.y, (int)event.button);
-        } else if (hovered && event.type == MouseEvent::Release) {
+        } else if (dragging_ && event.type == MouseEvent::Release) {
             if (releaseFunc)
                 releaseFunc(event.pos.x, event.pos.y, (int)event.button);
         }
+
+        if (event.type == MouseEvent::PassiveMotion || event.type == MouseEvent::Release)
+            dragging_ = false;
+
+        if (dragging_ || (event.type == MouseEvent::Press && hovered))// && event.button == MouseEvent::Left))
+            dragging_ = true;
 
         lastEvent_ = event;
     }
