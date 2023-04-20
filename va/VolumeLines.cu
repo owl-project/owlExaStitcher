@@ -678,8 +678,10 @@ namespace exa {
         found = (int)i;
     }
 
-    if (found >= 0)
+    if (found >= 0) {
       rois.erase(rois.begin()+found);
+      computeHilbertROIs();
+    }
 
     pressX = x;
     highlight = {-1,-1};
