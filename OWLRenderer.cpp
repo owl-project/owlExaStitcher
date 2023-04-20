@@ -794,42 +794,34 @@ namespace exa {
     if (id == 0){
       owlParamsSet3f(lp, "roi.rois0.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois0.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 1){
       owlParamsSet3f(lp, "roi.rois1.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois1.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 2){
       owlParamsSet3f(lp, "roi.rois2.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois2.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 3){
       owlParamsSet3f(lp, "roi.rois3.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois3.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 4){
       owlParamsSet3f(lp, "roi.rois4.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois4.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 5){
       owlParamsSet3f(lp, "roi.rois5.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois5.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 6){
       owlParamsSet3f(lp, "roi.rois6.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois6.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else if (id == 7){
       owlParamsSet3f(lp, "roi.rois7.lower", roiBox.lower.x, roiBox.lower.y, roiBox.lower.z);
       owlParamsSet3f(lp, "roi.rois7.upper", roiBox.upper.x, roiBox.upper.y, roiBox.upper.z);
-      accumID = 0;
     }
     else {
       std::cerr << "ROI " << id << " not valid" << std::endl;
@@ -840,7 +832,6 @@ namespace exa {
     owlParamsSet1i(lp, "roi.enabled", (int)enabled);
     owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
     owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
-    accumID = 0;
   }
 
 } // ::exa
