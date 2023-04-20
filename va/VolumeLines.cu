@@ -521,6 +521,7 @@ namespace exa {
       }
 
       rois.clear();
+      computeHilbertROIs();
       updated_ = false;
     }
 
@@ -602,6 +603,11 @@ namespace exa {
 
   void VolumeLines::computeHilbertROIs()
   {
+    if (rois.empty()){
+      worldSpaceROIs.clear();
+      return;
+    }
+
     ROI *d_rois;
     cudaMalloc(&d_rois,rois.size()*sizeof(rois[0]));
     cudaMemcpy(d_rois,rois.data(),rois.size()*sizeof(rois[0]),
