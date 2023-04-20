@@ -9,6 +9,25 @@ inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
   return (a + b - 1) / b;
 }
 
+inline __device__
+const float* upper_bound(const float *first, const float *last, float val)
+{
+  const float* it;
+  int count, step;
+  count = (last-first);
+  while (count > 0) {
+    it = first;
+    step=count/2;
+    it = it + step;
+    if (!(val < *it)) {
+      first=++it;
+      count-=step+1;
+    }
+    else count=step;
+  }
+  return first;
+}
+
 __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h,
                         float4 color1, float4 color2)
 {
@@ -224,6 +243,60 @@ __global__ void basisAverageGridCells(exa::VolumeLines::GridCell *grid,
     grid[x].value /= weights[x];
 }
 
+__global__ void computeHilbertROIsGPU(int dims,
+                                      const exa::VolumeLines::ROI *rois,
+                                      owl::interval<uint64_t> *roisToHilbertIDs,
+                                      int numROIs,
+                                      const exa::VolumeLines::Cell *cells,
+                                      const float *cumulativeImportance,
+                                      int numCells,
+                                      range1f cellBounds)
+{
+  int roiID = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (roiID >= numROIs)
+    return;
+
+  float maxImportance = cumulativeImportance[numCells-1];
+
+  float x1_01 = rois[roiID].lower/float(dims);
+  float x2_01 = rois[roiID].upper/float(dims);
+
+  float xf1 = x1_01*maxImportance;
+  float xf2 = x2_01*maxImportance;
+
+  int first = -1;
+  const float *it1 = upper_bound(cumulativeImportance,
+                                 cumulativeImportance+numCells,
+                                 xf1);
+  first = int(it1-cumulativeImportance);
+  //for (int i=0; i<numCells-1; ++i) {
+  //  if (cumulativeImportance[i] <= xf1 && cumulativeImportance[i+1] > xf1) {
+  //    first = i;
+  //    break;
+  //  }
+  //}
+
+  int last = -1;
+  const float *it2 = upper_bound(cumulativeImportance,
+                                 cumulativeImportance+numCells,
+                                 xf2);
+  last = int(it2-cumulativeImportance);
+  //for (int i=0; i<numCells-1; ++i) {
+  //  if (cumulativeImportance[i] <= xf2 && cumulativeImportance[i+1] > xf2) {
+  //    last = i;
+  //    break;
+  //  }
+  //}
+
+  assert(first>=0 && last>=0);
+
+  first = owl::clamp(first,0,numCells-1);
+  last  = owl::clamp(last,0,numCells-1);
+  //printf("%f,%f %i,%i\n",xf1,xf2,first,last);
+  roisToHilbertIDs[roiID] = {cells[first].hilbertID,cells[last].hilbertID};
+}
+
 __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
                                   int dims,
                                   const vec4f *colorMap,
@@ -342,6 +415,8 @@ namespace exa {
 
   void VolumeLines::draw(cudaSurfaceObject_t surfaceObj, int w, int h)
   {
+    canvasSize = {w,h};
+
     // Fill background
     {
       dim3 blockSize;
@@ -431,6 +506,7 @@ namespace exa {
 
       }
 
+      rois.clear();
       updated_ = false;
     }
 
@@ -510,6 +586,57 @@ namespace exa {
     updated_ = true;
   }
 
+  void VolumeLines::computeHilbertROIs()
+  {
+    ROI *d_rois;
+    cudaMalloc(&d_rois,rois.size()*sizeof(rois[0]));
+    cudaMemcpy(d_rois,rois.data(),rois.size()*sizeof(rois[0]),
+               cudaMemcpyHostToDevice);
+
+    owl::interval<uint64_t> *d_roisToHilbertIDs;
+    roisToHilbertIDs.resize(rois.size());
+    cudaMalloc(&d_roisToHilbertIDs,roisToHilbertIDs.size()*sizeof(roisToHilbertIDs[0]));
+
+    size_t numThreads = 1024;
+    computeHilbertROIsGPU<<<iDivUp(rois.size(),numThreads),numThreads>>>(
+      canvasSize.x,d_rois,d_roisToHilbertIDs,(int)rois.size(),
+      cells[0],importance.cumulative,numCells,cellBounds);
+
+    cudaMemcpy(roisToHilbertIDs.data(),d_roisToHilbertIDs,
+               roisToHilbertIDs.size()*sizeof(roisToHilbertIDs[0]),
+               cudaMemcpyDeviceToHost);
+
+    cudaFree(d_roisToHilbertIDs);
+    cudaFree(d_rois);
+
+    worldSpaceROIs.resize(roisToHilbertIDs.size());
+
+    for (size_t i=0; i<roisToHilbertIDs.size(); ++i) {
+      bitmask_t coord1[3], coord2[3];
+      hilbert_i2c(3, 16, roisToHilbertIDs[i].lower, coord1);
+      hilbert_i2c(3, 16, roisToHilbertIDs[i].upper, coord2);
+
+      const vec3f c1_01(
+        coord1[0] / float(1<<16),
+        coord1[1] / float(1<<16),
+        coord1[2] / float(1<<16)
+      );
+
+      const vec3f c2_01(
+        coord2[0] / float(1<<16),
+        coord2[1] / float(1<<16),
+        coord2[2] / float(1<<16)
+      );
+
+      const vec3f p1 = c1_01*vec3f(centroidBounds.upper-centroidBounds.lower)+vec3f(centroidBounds.lower);
+      const vec3f p2 = c2_01*vec3f(centroidBounds.upper-centroidBounds.lower)+vec3f(centroidBounds.lower);
+
+      worldSpaceROIs[i].extend(p1);
+      worldSpaceROIs[i].extend(p2);
+      std::cout << worldSpaceROIs[i] << '\n';
+    }
+  }
+
   void VolumeLines::onMouseMove(int x, int y, int button)
   {
     pressX = -1;
@@ -555,6 +682,8 @@ namespace exa {
         } else i++;
       }
       rois.push_back(highlight);
+
+      computeHilbertROIs();
     }
 
     pressX = -1;

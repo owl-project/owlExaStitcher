@@ -50,6 +50,8 @@ namespace exa {
     void setP(float P);
     void setMode(Mode m);
 
+    void computeHilbertROIs();
+
     void onMouseMove(int x, int y, int button);
     void onMouseDrag(int x, int y, int button);
     void onMousePress(int x, int y, int button);
@@ -58,6 +60,7 @@ namespace exa {
     float minImportance = 0.025f;
     float P = 1.f;
     Mode mode = Lines;
+    owl::vec2i canvasSize{0,0};
 
     std::vector<Cell *> cells;
     int numCells{0}; // same for each channel!
@@ -66,6 +69,8 @@ namespace exa {
 
     typedef owl::interval<int> ROI;
     std::vector<ROI> rois;
+    std::vector<owl::interval<uint64_t>> roisToHilbertIDs;
+    std::vector<owl::box3f> worldSpaceROIs;
     ROI highlight{-1,-1};
     int pressX = -1;
 
