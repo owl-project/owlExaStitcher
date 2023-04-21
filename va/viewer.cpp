@@ -592,16 +592,12 @@ namespace exa {
       renderer->resetAccum();
       previousROIs = vl.roisToHilbertIDs;
 
-      for (int i=0; i<vl.roisToHilbertIDs.size(); ++i){
-        if (i >= ROIS_MAX)
-          break;
-        renderer->setROI(i, vl.roisToHilbertIDs[i]);
-        std::cout << vl.roisToHilbertIDs[i] << "\n";
-      }
-
-      int start = std::max(0, (int)vl.roisToHilbertIDs.size()-1);
-      for (int i=start; i < ROIS_MAX; ++i){
-        renderer->setROI(i, {});
+      const auto maxIndex = std::max((int)vl.roisToHilbertIDs.size(), ROIS_MAX);
+      for (int i=0; i < maxIndex; ++i){
+        if (i < vl.roisToHilbertIDs.size())
+          renderer->setROI(i, vl.roisToHilbertIDs[i]);
+        else
+          renderer->setROI(i, {});
       }
     }
 

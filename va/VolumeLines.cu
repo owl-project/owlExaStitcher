@@ -599,6 +599,7 @@ namespace exa {
   {
     if (rois.empty()){
       worldSpaceROIs.clear();
+      roisToHilbertIDs.clear();
       return;
     }
 
