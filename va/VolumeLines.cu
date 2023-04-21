@@ -404,11 +404,9 @@ namespace exa {
       Cell &c = cs[i];
       vec3i centroid = map1Dto3D[i].centroid;
       vec3f centroidf(centroid);
-      vec3f lowerf(centroidBounds3D.lower);
-      vec3f upperf(centroidBounds3D.upper);
       world_to_hilbert_3D((const float *)&centroidf.x,
-                          (const float *)&lowerf.x,
-                          (const float *)&upperf.x,
+                          (const float *)&centroidBounds3D.lower.x,
+                          (const float *)&centroidBounds3D.upper.x,
                           &c.hilbertID);
     }
 
@@ -649,7 +647,6 @@ namespace exa {
 
       worldSpaceROIs[i].extend(p1);
       worldSpaceROIs[i].extend(p2);
-      std::cout << worldSpaceROIs[i] << '\n';
     }
   }
 
