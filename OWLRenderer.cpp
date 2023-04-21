@@ -107,8 +107,8 @@ namespace exa {
      {"roi.enabled", OWL_INT, OWL_OFFSETOF(LaunchParams, roi.enabled)},
      {"roi.outsideOpacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideOpacityScale)},
      {"roi.outsideSaturationScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideSaturationScale)},
-     {"roi.centroidBounds.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.centroidBounds.lower)},
-     {"roi.centroidBounds.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.centroidBounds.upper)},
+     {"roi.cellBounds.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.lower)},
+     {"roi.cellBounds.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.upper)},
      {"roi.rois0.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
      {"roi.rois0.upper", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].upper)},
      {"roi.rois1.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[1].lower)},
@@ -831,12 +831,12 @@ namespace exa {
   }
 
   void OWLRenderer::enableROI(
-      bool enabled, const box3f& centroidBounds, float outsideOpacityScale, float outsideSaturationScale){
+      bool enabled, const box3f& cellBounds, float outsideOpacityScale, float outsideSaturationScale){
     owlParamsSet1i(lp, "roi.enabled", (int)enabled);
     owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
     owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
-    owlParamsSet3f(lp, "roi.centroidBounds.lower", centroidBounds.lower.x, centroidBounds.lower.y, centroidBounds.lower.z);
-    owlParamsSet3f(lp, "roi.centroidBounds.upper", centroidBounds.upper.x, centroidBounds.upper.y, centroidBounds.upper.z);
+    owlParamsSet3f(lp, "roi.cellBounds.lower", cellBounds.lower.x, cellBounds.lower.y, cellBounds.lower.z);
+    owlParamsSet3f(lp, "roi.cellBounds.upper", cellBounds.upper.x, cellBounds.upper.y, cellBounds.upper.z);
   }
 
 } // ::exa

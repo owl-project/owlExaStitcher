@@ -366,6 +366,9 @@ namespace exa {
     cellBounds3D = {};
     centroidBounds3D = {};
     std::vector<Cell> cs;
+
+    std::vector<vec3f> cellCenters;
+
     for (size_t i=0; i<model->bricks.size(); ++i) {
       const ExaBrick &brick = model->bricks[i];
       for (int z=0; z<brick.size.z; ++z) {
@@ -387,13 +390,17 @@ namespace exa {
             // also 3D!
             vec3i pos3D(brick.lower + vec3i(x,y,z)*(1<<brick.level));
             box3i bounds3D(pos3D,pos3D+vec3i(1<<brick.level));
-            centroidBounds3D.extend(vec3f(bounds3D.center()));
+            vec3f center = (vec3f(bounds3D.upper) + vec3f(bounds3D.lower)) * 0.5f;
+            centroidBounds3D.extend(center);
+            //centroidBounds3D.extend(vec3f(bounds3D.center()));
             cellBounds3D.extend(box3f(vec3f(bounds3D.lower),vec3f(bounds3D.upper)));
 
             map1Dto3D.push_back({cs.size()-1, // 1D index
                                 i, // brickID
                                 {x,y,z},
                                 bounds3D.center()});
+
+            cellCenters.push_back(center);
           }
         }
       }
@@ -401,13 +408,10 @@ namespace exa {
 
     #pragma omp parallel for
     for (size_t i=0; i<cs.size(); ++i) {
-      Cell &c = cs[i];
-      vec3i centroid = map1Dto3D[i].centroid;
-      vec3f centroidf(centroid);
-      world_to_hilbert_3D((const float *)&centroidf.x,
-                          (const float *)&centroidBounds3D.lower.x,
-                          (const float *)&centroidBounds3D.upper.x,
-                          &c.hilbertID);
+      world_to_hilbert_3D((const float *)&cellCenters[i].x,
+                          (const float *)&cellBounds3D.lower.x,
+                          (const float *)&cellBounds3D.upper.x,
+                          &cs[i].hilbertID);
     }
 
     std::sort(cs.begin(),cs.end(),

@@ -584,7 +584,7 @@ namespace exa {
     if (previousROIEnabled != roiEnabled){
       renderer->resetAccum();
       previousROIEnabled = roiEnabled;
-      renderer->enableROI(roiEnabled, vl.centroidBounds3D, 0.1, 0.1);
+      renderer->enableROI(roiEnabled, vl.cellBounds3D, 0.1, 0.1);
     }
 
     // Set the ROIs' boxes
@@ -592,12 +592,13 @@ namespace exa {
       renderer->resetAccum();
       previousROIs = vl.roisToHilbertIDs;
 
-      const auto maxIndex = std::max((int)vl.roisToHilbertIDs.size(), ROIS_MAX);
-      for (int i=0; i < maxIndex; ++i){
-        if (i < vl.roisToHilbertIDs.size())
+      for (int i=0; i<ROIS_MAX; ++i)
+        renderer->setROI(i, {});
+
+      for (int i=0; i < vl.roisToHilbertIDs.size(); ++i){
+          if (i >= ROIS_MAX)
+            break;
           renderer->setROI(i, vl.roisToHilbertIDs[i]);
-        else
-          renderer->setROI(i, {});
       }
     }
 

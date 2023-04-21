@@ -635,8 +635,8 @@ namespace exa {
       if (lp.roi.enabled) {
         const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
         uint64_t index;
-        world_to_hilbert_3D((float*)&pt, (float*)&lp.roi.centroidBounds.lower,
-                                                   (float*)&lp.roi.centroidBounds.upper,  &index);
+        world_to_hilbert_3D(&pt.x, &lp.roi.cellBounds.lower.x,
+                            &lp.roi.cellBounds.upper.x,  &index);
         bool insideROI = false;
 
         for (int i=0; i<ROIS_MAX; ++i) {
