@@ -32,8 +32,21 @@ namespace exa {
                                   const std::string scalarFileName,
                                   const std::string kdTreeFileName);
 
+    static ExaBrickModel::SP load(const std::string brickFileName,
+                                  const std::string scalarFileName0,
+                                  const std::string scalarFileName1,
+                                  const std::string scalarFileName2,
+                                  const std::string scalarFileName3,
+                                  const std::string scalarFileName4,
+                                  const std::string scalarFileName5,
+                                  const std::string scalarFileName6,
+                                  const std::string scalarFileName7,
+                                  const std::string kdTreeFileName);
+
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
+    unsigned              numFields;
+    unsigned              numScalarsPerField;
     ABRs                  abrs;
     KDTree::SP            kdtree; // optional kd-tree over bricks
     std::vector<std::vector<int>> adjacentBricks; // adjacency list to splat majorants into neighboring bricks

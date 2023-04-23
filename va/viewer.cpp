@@ -40,7 +40,14 @@ namespace exa {
   using owl::viewer::SimpleCamera;
 
   struct {
-    std::string scalarFileName = "";
+    std::string scalarFileName0 = "";
+    std::string scalarFileName1 = "";
+    std::string scalarFileName2 = "";
+    std::string scalarFileName3 = "";
+    std::string scalarFileName4 = "";
+    std::string scalarFileName5 = "";
+    std::string scalarFileName6 = "";
+    std::string scalarFileName7 = "";
     std::string gridsFileName = "";
     std::string amrCellFileName = "";
     std::string exaBrickFileName = "";
@@ -638,7 +645,36 @@ namespace exa {
         inFileName = arg;
       }
       else if (arg == "-scalar" || arg == "-scalars") {
-        cmdline.scalarFileName = argv[++i];
+        static int fieldID = 0;
+        switch (fieldID) {
+          case 0:
+            cmdline.scalarFileName0 = argv[++i];
+            break;
+          case 1:
+            cmdline.scalarFileName1 = argv[++i];
+            break;
+          case 2:
+            cmdline.scalarFileName2 = argv[++i];
+            break;
+          case 3:
+            cmdline.scalarFileName3 = argv[++i];
+            break;
+          case 4:
+            cmdline.scalarFileName4 = argv[++i];
+            break;
+          case 5:
+            cmdline.scalarFileName5 = argv[++i];
+            break;
+          case 6:
+            cmdline.scalarFileName6 = argv[++i];
+            break;
+          case 7:
+            cmdline.scalarFileName7 = argv[++i];
+            break;
+          default:
+            throw std::runtime_error("too many fields");
+        }
+        fieldID++;
       }
       else if (arg == "-grids" || arg == "-gridlets") {
         cmdline.gridsFileName = argv[++i];
@@ -760,7 +796,14 @@ namespace exa {
                          cmdline.bigMeshFileName,
                          cmdline.quickClustersFileName,
                          cmdline.meshFileName,
-                         cmdline.scalarFileName,
+                         cmdline.scalarFileName0,
+                         cmdline.scalarFileName1,
+                         cmdline.scalarFileName2,
+                         cmdline.scalarFileName3,
+                         cmdline.scalarFileName4,
+                         cmdline.scalarFileName5,
+                         cmdline.scalarFileName6,
+                         cmdline.scalarFileName7,
                          cmdline.kdtreeFileName,
                          cmdline.majorantsFileName,
                          cmdline.xform.remap_from,

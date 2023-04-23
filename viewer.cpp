@@ -804,7 +804,7 @@ namespace exa {
                          cmdline.bigMeshFileName,
                          cmdline.quickClustersFileName,
                          cmdline.meshFileName,
-                         cmdline.scalarFileName,
+                         cmdline.scalarFileName,"","","","","","","",
                          cmdline.kdtreeFileName,
                          cmdline.majorantsFileName,
                          cmdline.xform.remap_from,

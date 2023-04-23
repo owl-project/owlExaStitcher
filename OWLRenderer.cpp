@@ -150,7 +150,14 @@ namespace exa {
                            const std::string bigMeshFileName,
                            const std::string quickClustersFileName,
                            const std::string meshFileName,
-                           const std::string scalarFileName,
+                           const std::string scalarFileName0,
+                           const std::string scalarFileName1,
+                           const std::string scalarFileName2,
+                           const std::string scalarFileName3,
+                           const std::string scalarFileName4,
+                           const std::string scalarFileName5,
+                           const std::string scalarFileName6,
+                           const std::string scalarFileName7,
                            const std::string kdtreeFileName,
                            const std::string majorantsFileName,
                            const box3f remap_from,
@@ -163,11 +170,11 @@ namespace exa {
 
     if (!umeshFileName.empty() || !gridsFileName.empty()) { // only need one of them
       printf(">>>> ExaStitchModel <<<<\n");
-      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName);
+      model = ExaStitchModel::load(umeshFileName,gridsFileName,scalarFileName0);
     }
-    else if (!exaBrickFileName.empty() && !scalarFileName.empty()) {
+    else if (!exaBrickFileName.empty() && !scalarFileName0.empty()) {
       printf(">>>> ExaBrickModel <<<<\n");
-      model = ExaBrickModel::load(exaBrickFileName,scalarFileName,kdtreeFileName);
+      model = ExaBrickModel::load(exaBrickFileName,scalarFileName0,kdtreeFileName);
     }
     else if (!bigMeshFileName.empty()) {
       printf(">>>> BigMeshModel <<<<\n");
@@ -177,9 +184,9 @@ namespace exa {
       printf(">>>> QuickClustersModel <<<<\n");
       model = QuickClustersModel::load(quickClustersFileName);
     }
-    else if (!amrCellFileName.empty() && !scalarFileName.empty()) {
+    else if (!amrCellFileName.empty() && !scalarFileName0.empty()) {
       printf(">>>> AMRCellModel <<<<\n");
-      model = AMRCellModel::load(amrCellFileName,scalarFileName);
+      model = AMRCellModel::load(amrCellFileName,scalarFileName0);
     }
 
     if (!model) {

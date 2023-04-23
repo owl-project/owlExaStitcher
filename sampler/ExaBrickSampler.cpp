@@ -279,6 +279,8 @@ namespace exa {
          { "ebs.brickBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,brickBuffer) },
          { "ebs.abrBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrBuffer) },
          { "ebs.scalarBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,scalarBuffer) },
+         { "ebs.numFields", OWL_UINT, OWL_OFFSETOF(LP,numFields) },
+         { "ebs.numScalarsPerField", OWL_UINT, OWL_OFFSETOF(LP,numScalarsPerField) },
          { "ebs.abrLeafListBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrLeafListBuffer) },
 #ifdef EXA_STITCH_MIRROR_EXAJET
          { "ebs.mirrorInvTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LP,mirrorInvTransform)}
@@ -293,6 +295,8 @@ namespace exa {
     owlParamsSetBuffer(lp,"ebs.brickBuffer",brickBuffer);
     owlParamsSetBuffer(lp,"ebs.abrBuffer",abrBuffer);
     owlParamsSetBuffer(lp,"ebs.scalarBuffer",scalarBuffer);
+    owlParamsSet1ui(lp,"ebs.numFields",model->numFields);
+    owlParamsSet1ui(lp,"ebs.numScalarsPerField",model->numScalarsPerField);
     owlParamsSetBuffer(lp,"ebs.abrLeafListBuffer",abrLeafListBuffer);
 #ifdef EXA_STITCH_MIRROR_EXAJET
     affine3f mirrorInvTransform = rcp((const affine3f &)model->mirrorTransform);

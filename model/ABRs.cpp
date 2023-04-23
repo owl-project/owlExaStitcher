@@ -201,7 +201,9 @@ namespace exa {
   
   void ABRs::computeValueRange(ABR &region,
                                const ExaBrick *bricks,
-                               const float *scalarBuffers)
+                               const float *scalarBuffers,
+                               const unsigned numFields,
+                               const unsigned numScalarsPerField)
   {
     region.valueRange = range1f();
     for (int i=0;i<region.leafListSize;i++) {
@@ -243,13 +245,16 @@ namespace exa {
           if (!valid_y[iy]) continue;
           for (int ix=0;ix<brick.size.x;ix++) {
             if (!valid_x[ix]) continue;
-            const size_t scalarIndex
-              = size_t(brick.begin)
-              + ix
-              + brick.size.x*iy
-              + brick.size.x*brick.size.y*iz;
-            const float scalar = scalarBuffers[scalarIndex];
-            region.valueRange.extend(scalar);
+              for (unsigned s=0; s<numFields; ++s) {
+              const size_t scalarIndex
+                = s * numScalarsPerField
+                + size_t(brick.begin)
+                + ix
+                + brick.size.x*iy
+                + brick.size.x*brick.size.y*iz;
+              const float scalar = scalarBuffers[scalarIndex];
+              region.valueRange.extend(scalar);
+            }
           }
         }
       }
@@ -259,7 +264,9 @@ namespace exa {
 
   void ABRs::buildFrom(const ExaBrick *bricks,
                        const size_t numBricks,
-                       const float *scalarBuffers)
+                       const float *scalarBuffers,
+                       const unsigned numFields,
+                       const unsigned numScalarsPerField)
   {
     {
       // for paper stats - no other purpose
@@ -309,7 +316,7 @@ namespace exa {
           finestLevel = std::min(finestLevel,brick.level);
         }
         region.finestLevelCellWidth = (float)(1<<finestLevel);
-        computeValueRange(region,bricks,scalarBuffers);
+        computeValueRange(region,bricks,scalarBuffers,numFields,numScalarsPerField);
         // if (regionID % 100000 == 0) {
         //   static std::mutex mutex;
         //   std::lock_guard<std::mutex> lock(mutex);

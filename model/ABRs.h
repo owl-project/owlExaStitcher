@@ -80,14 +80,18 @@ namespace exa {
     
     void buildFrom(const ExaBrick *bricks,
                    const size_t numBricks,
-                   const float *scalarFields);
+                   const float *scalarFields,
+                   const unsigned numFields,
+                   const unsigned numScalarsPerField);
     void addLeaf(std::vector<std::pair<box3f,int>> &buildPrims,
                  const box3f &domain);
     void buildRec(std::vector<std::pair<box3f,int>> &buildPrims,
                   const box3f &domain);
     void computeValueRange(ABR &abr,
                            const ExaBrick *bricks,
-                           const float *scalarFields);
+                           const float *scalarFields,
+                           const unsigned numFields,
+                           const unsigned numScalarsPerField);
     
     std::mutex mutex;
     std::vector<ABR> value;

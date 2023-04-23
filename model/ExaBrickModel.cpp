@@ -27,6 +27,20 @@ namespace exa {
                                         const std::string scalarFileName,
                                         const std::string kdTreeFileName)
   {
+    return load(brickFileName,scalarFileName,"","","","","","","",kdTreeFileName);
+  }
+
+  ExaBrickModel::SP ExaBrickModel::load(const std::string brickFileName,
+                                        const std::string scalarFileName0,
+                                        const std::string scalarFileName1,
+                                        const std::string scalarFileName2,
+                                        const std::string scalarFileName3,
+                                        const std::string scalarFileName4,
+                                        const std::string scalarFileName5,
+                                        const std::string scalarFileName6,
+                                        const std::string scalarFileName7,
+                                        const std::string kdTreeFileName)
+  {
     ExaBrickModel::SP result = std::make_shared<ExaBrickModel>();
 
     std::vector<ExaBrick> &bricks = result->bricks;
@@ -38,19 +52,40 @@ namespace exa {
 
 
     // Indices/scalars are later flattened
-    std::vector<float> orderedScalars;
+    constexpr int MAX_FIELDS = 8;
+    std::vector<float> orderedScalars[MAX_FIELDS];
     std::vector<int> indices;
 
-    std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
-    if (scalarFile.good()) {
+    auto loadScalars = [](std::string scalarFileName, std::vector<float> &orderedScalars) {
+      if (scalarFileName.empty())
+        return false;
+
+      std::ifstream scalarFile(scalarFileName, std::ios::binary | std::ios::ate);
+      if (!scalarFile.good())
+        return false;
+
       size_t numBytes = scalarFile.tellg();
       scalarFile.close();
+
       scalarFile.open(scalarFileName, std::ios::binary);
       if (scalarFile.good()) {
         orderedScalars.resize(numBytes/sizeof(float));
         scalarFile.read((char *)orderedScalars.data(),orderedScalars.size()*sizeof(float));
+        return true;
       }
-    }
+
+      return false;
+    };
+
+    result->numFields = 0;
+    if (loadScalars(scalarFileName0, orderedScalars[0])) result->numFields++;
+    if (loadScalars(scalarFileName1, orderedScalars[1])) result->numFields++;
+    if (loadScalars(scalarFileName2, orderedScalars[2])) result->numFields++;
+    if (loadScalars(scalarFileName3, orderedScalars[3])) result->numFields++;
+    if (loadScalars(scalarFileName4, orderedScalars[4])) result->numFields++;
+    if (loadScalars(scalarFileName5, orderedScalars[5])) result->numFields++;
+    if (loadScalars(scalarFileName6, orderedScalars[6])) result->numFields++;
+    if (loadScalars(scalarFileName7, orderedScalars[7])) result->numFields++;
 
     // -------------------------------------------------------
     // create brick and index buffers
@@ -79,21 +114,32 @@ namespace exa {
     // flatten cellIDs
     // -------------------------------------------------------
 
-    scalars.resize(orderedScalars.size());
-    parallel_for_blocked(0ull,indices.size(),1024*1024,[&](size_t begin,size_t end){
-        for (size_t i=begin;i<end;i++) {
-          if (indices[i] < 0) {
-            throw std::runtime_error("overflow in index vector...");
-          } else {
-            int cellID = indices[i];
-            if (cellID < 0)
-              throw std::runtime_error("negative cell ID");
-            if (cellID >= orderedScalars.size())
-              throw std::runtime_error("invalid cell ID");
-            scalars[i] = orderedScalars[cellID];
+    assert(!orderedScalars[0].empty());
+    size_t numScalars = orderedScalars[0].size();
+    size_t numScalarsTotal = 0;
+    for (size_t s=0; s<MAX_FIELDS; ++s)
+      numScalarsTotal += orderedScalars[s].size();
+
+    scalars.resize(numScalarsTotal);
+    for (size_t s=0; MAX_FIELDS; ++s) {
+      if (orderedScalars[s].empty()) break;
+      parallel_for_blocked(0ull,indices.size(),1024*1024,[&](size_t begin,size_t end){
+          for (size_t i=begin;i<end;i++) {
+            if (indices[i] < 0) {
+              throw std::runtime_error("overflow in index vector...");
+            } else {
+              int cellID = indices[i];
+              if (cellID < 0)
+                throw std::runtime_error("negative cell ID");
+              if (cellID >= numScalars)
+                throw std::runtime_error("invalid cell ID");
+              scalars[i+s*numScalars] = orderedScalars[s][cellID];
+            }
           }
-        }
-      });
+        });
+    }
+
+    result->numScalarsPerField = (unsigned)numScalars;
 
     // -------------------------------------------------------
     // create regions
@@ -101,7 +147,9 @@ namespace exa {
 
     abrs.buildFrom(bricks.data(),
                    bricks.size(),
-                   scalars.data());
+                   scalars.data(),
+                   result->numFields,
+                   result->numScalarsPerField);
 
 
     // -------------------------------------------------------

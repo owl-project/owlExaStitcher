@@ -40,6 +40,8 @@ namespace exa {
       ExaBrick *brickBuffer;
       ABR      *abrBuffer;
       float    *scalarBuffer;
+      unsigned *numFields;
+      unsigned *numScalarsPerField;
       int      *abrLeafListBuffer;
 #ifdef EXA_STITCH_MIRROR_EXAJET
       affine3f  mirrorInvTransform;
