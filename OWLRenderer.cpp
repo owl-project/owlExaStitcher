@@ -174,7 +174,16 @@ namespace exa {
     }
     else if (!exaBrickFileName.empty() && !scalarFileName0.empty()) {
       printf(">>>> ExaBrickModel <<<<\n");
-      model = ExaBrickModel::load(exaBrickFileName,scalarFileName0,kdtreeFileName);
+      model = ExaBrickModel::load(exaBrickFileName,
+                                  scalarFileName0,
+                                  scalarFileName1,
+                                  scalarFileName2,
+                                  scalarFileName3,
+                                  scalarFileName4,
+                                  scalarFileName5,
+                                  scalarFileName6,
+                                  scalarFileName7,
+                                  kdtreeFileName);
     }
     else if (!bigMeshFileName.empty()) {
       printf(">>>> BigMeshModel <<<<\n");
