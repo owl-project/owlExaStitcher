@@ -583,7 +583,7 @@ namespace exa {
 
       if (tfe[f].rangeUpdated()){
         vl.setRange(tfe[f].getRange(), f);
-        renderer->setRange(tfe[f].getRange());
+        renderer->setRange(tfe[f].getRange(), f);
         renderer->setRelDomain(tfe[f].getRelDomain(), f);
         renderer->resetAccum();
       }

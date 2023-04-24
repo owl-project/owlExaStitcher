@@ -764,7 +764,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/(majorant*lp.transferFunc[0].opacityScale);
+        t -= logf(1.f-random())/(majorant*lp.transferFunc[lp.activeFieldID].opacityScale);
 
         if (t >= t1) {
           break;
@@ -800,7 +800,7 @@ namespace exa {
         float u = random();
         float sigmaT = xf.w;
 
-        if (sigmaT*lp.transferFunc[0].opacityScale >= u * majorant) {
+        if (sigmaT*lp.transferFunc[lp.activeFieldID].opacityScale >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
           return false;
@@ -825,7 +825,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/(majorant*lp.transferFunc[0].opacityScale);
+        t -= logf(1.f-random())/(majorant*lp.transferFunc[lp.activeFieldID].opacityScale);
 
         if (t >= t1) {
           break;
@@ -856,7 +856,7 @@ namespace exa {
         classifySample<SM>(sampler,s,pos, xf);
 
         float sigmaT = xf.w;
-        Tr *= 1.f-(sigmaT*lp.transferFunc[0].opacityScale)/majorant;
+        Tr *= 1.f-(sigmaT*lp.transferFunc[lp.activeFieldID].opacityScale)/majorant;
         if (Tr <= 0.f) {
           type = Scattering;
           return false;
