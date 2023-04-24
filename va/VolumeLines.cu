@@ -180,7 +180,7 @@ __global__ void assignImportance(const exa::VolumeLines::Cell *cells,
                                  const vec4f *colorMap,
                                  const int numColors,
                                  const range1f xfDomain,
-                                 float alphaMax,
+                                 float maxVh,
                                  float minImportance,
                                  float P)
 {
@@ -197,19 +197,19 @@ __global__ void assignImportance(const exa::VolumeLines::Cell *cells,
     // proportional to intensity and cell width
     float value = scalars[cells[primID].scalarIndex];
     vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
-    Vh = color.w/alphaMax*cellWidth;
+    Vh = color.w/maxVh*cellWidth;
   } else {
     // Eq. (1) from Weissenboeck paper
     float minValue =  1e30f;
     float maxValue = -1e30f;
-    for (int i=0; i<numFields; ++i) {
-      float value = scalars[i*numCells+cells[primID].scalarIndex];
+    for (int fieldID=0; fieldID<numFields; ++fieldID) {
+      float value = scalars[fieldID*numCells+cells[primID].scalarIndex];
       // TODO: per field
       vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
       minValue = fminf(minValue,color.w);
       maxValue = fmaxf(maxValue,color.w);
     }
-    Vh = (maxValue-minValue)/alphaMax*cellWidth;
+    Vh = (maxValue-minValue)/maxVh*cellWidth;
   }
   importance[primID] = fmaxf(minImportance, powf(Vh,P));
 }
@@ -459,20 +459,52 @@ namespace exa {
       fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h,c1,c2);
     }
 
-    if (updated_ && xf.deviceColorMap) {
-      // TODO: set per channel!
-      range1f r{
-       xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
-       xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
-      };
-
-      float alphaMax = 0.f;
-      for (size_t j=0; j<xf.colorMap.size(); ++j) {
-        float alpha = xf.colorMap[j].w;
-        alpha -= r.lower;
-        alpha /= (r.upper-r.lower);
-        alphaMax = fmaxf(alphaMax,alpha);
+    if (updated_) {
+      float maxVh = 0.f;
+      std::vector<range1f> xfRanges;
+      for (int fieldID=0;fieldID<numFields;++fieldID) {
+        range1f r{
+         xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
+         xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
+        };
+        xfRanges.push_back(r);
       }
+
+      if (numFields == 1) {
+        for (size_t j=0; j<xf[0].colorMap.size(); ++j) {
+          float alpha = xf[0].colorMap[j].w;
+          range1f r = xfRanges[0];
+          alpha -= r.lower;
+          alpha /= (r.upper-r.lower);
+          maxVh = fmaxf(maxVh,alpha);
+        }
+      } else {
+        std::vector<float> minValues(xf[0].colorMap.size(), 1e30f);
+        std::vector<float> maxValues(xf[0].colorMap.size(),-1e30f);
+        for (int fieldID=0;fieldID<numFields;++fieldID) {
+          std::cout << xf[fieldID].colorMap.size() << '\n';
+          for (size_t i=0; i<xf[fieldID].colorMap.size(); ++i) {
+            float alpha = xf[fieldID].colorMap[i].w;
+            range1f r = xfRanges[fieldID];
+            alpha -= r.lower;
+            alpha /= (r.upper-r.lower);
+            minValues[i] = fminf(minValues[i],alpha);
+            maxValues[i] = fmaxf(maxValues[i],alpha);
+            //std::cout << fieldID << ',' << i << ',' << alpha << ',' << minValues[i] << ',' << maxValues[i] << '\n';
+          }
+        }
+
+        for (size_t i=0; i<minValues.size(); ++i) {
+          float diff = maxValues[i]-minValues[i];
+          maxVh = fmaxf(maxVh,diff);
+        }
+      }
+
+      std::cout << "maxVh: " << maxVh << '\n';
+
+      // Don't divide by 0
+      if (maxVh == 0.f)
+        maxVh = 1.f;
 
       size_t numThreads = 1024;
 
@@ -489,8 +521,8 @@ namespace exa {
 
       assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
         cells, scalars, importance.perCell, numCells, numFields,
-        xf.deviceColorMap, xf.colorMap.size(),
-        r, alphaMax, minImportance, P);
+        xf[0].deviceColorMap, xf[0].colorMap.size(),
+        xfRanges[0], maxVh, minImportance, P);
 
       cub::DeviceScan::InclusiveSum(importance.tempStorage,
                                     importance.tempStorageSizeInBytes,
@@ -504,7 +536,7 @@ namespace exa {
       }
       grids1D.clear();
 
-      for (int i=0; i<numFields; ++i) {
+      for (int fieldID=0; fieldID<numFields; ++fieldID) {
         GridCell *grid;
         cudaMalloc(&grid, sizeof(GridCell)*w);
         cudaMemset(grid, 0, sizeof(GridCell)*w);
@@ -514,7 +546,7 @@ namespace exa {
         cudaMemset(weights, 0, sizeof(float)*w);
 
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells, scalars + i*numCells,
+          grid, weights, w, cells, scalars + fieldID*numCells,
           importance.cumulative, numCells, cellBounds);
 
         grids1D.push_back(grid);
@@ -525,7 +557,7 @@ namespace exa {
         cudaFree(weights);
 
         postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-            grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
+            grid, w, xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID]);
       }
 
       rois.clear();
@@ -561,33 +593,33 @@ namespace exa {
     }
   }
 
-  void VolumeLines::setColorMap(const std::vector<vec4f> &newCM)
+  void VolumeLines::setColorMap(const std::vector<vec4f> &newCM, int fieldID)
   {
-    xf.colorMap = newCM;
+    xf[fieldID].colorMap = newCM;
 
-    cudaFree(xf.deviceColorMap);
-    cudaMalloc(&xf.deviceColorMap, newCM.size()*sizeof(newCM[0]));
-    cudaMemcpy(xf.deviceColorMap, newCM.data(), newCM.size()*sizeof(newCM[0]),
+    cudaFree(xf[fieldID].deviceColorMap);
+    cudaMalloc(&xf[fieldID].deviceColorMap, newCM.size()*sizeof(newCM[0]));
+    cudaMemcpy(xf[fieldID].deviceColorMap, newCM.data(), newCM.size()*sizeof(newCM[0]),
                cudaMemcpyHostToDevice);
 
     updated_ = true;
   }
 
-  void VolumeLines::setRange(interval<float> xfDomain)
+  void VolumeLines::setRange(interval<float> xfDomain, int fieldID)
   {
-    xf.absDomain = xfDomain;
+    xf[fieldID].absDomain = xfDomain;
     updated_ = true;
   }
 
-  void VolumeLines::setRelDomain(interval<float> relDomain)
+  void VolumeLines::setRelDomain(interval<float> relDomain, int fieldID)
   {
-    xf.relDomain = relDomain;
+    xf[fieldID].relDomain = relDomain;
     updated_ = true;
   }
 
-  void VolumeLines::setOpacityScale(float scale)
+  void VolumeLines::setOpacityScale(float scale, int fieldID)
   {
-    xf.opacityScale = scale;
+    xf[fieldID].opacityScale = scale;
     updated_ = true;
   }
 

@@ -70,14 +70,29 @@ namespace exa {
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
      // xf data
-     { "transferFunc.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc.domain) },
+     { "transferFunc0.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[0].domain) },
+     { "transferFunc1.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[1].domain) },
+     { "transferFunc2.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[2].domain) },
+     { "transferFunc3.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[3].domain) },
 #if EXASTITCH_CUDA_TEXTURE_TF
-     { "transferFunc.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc.texture) },
+     { "transferFunc0.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc[0].texture) },
+     { "transferFunc1.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc[1].texture) },
+     { "transferFunc2.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc[2].texture) },
+     { "transferFunc3.texture",   OWL_USER_TYPE(cudaTextureObject_t),OWL_OFFSETOF(LaunchParams,transferFunc[3].texture) },
 #else
-     { "transferFunc.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc.values) },
-     { "transferFunc.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc.numValues) },
+     { "transferFunc0.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc[0].values) },
+     { "transferFunc1.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc[1].values) },
+     { "transferFunc2.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc[2].values) },
+     { "transferFunc3.values",   OWL_BUFPTR,OWL_OFFSETOF(LaunchParams,transferFunc[3].values) },
+     { "transferFunc0.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc[0].numValues) },
+     { "transferFunc1.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc[1].numValues) },
+     { "transferFunc2.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc[2].numValues) },
+     { "transferFunc3.numValues",   OWL_INT,OWL_OFFSETOF(LaunchParams,transferFunc[3].numValues) },
 #endif
-     { "transferFunc.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc.opacityScale) },
+     { "transferFunc0.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc[0].opacityScale) },
+     { "transferFunc1.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc[1].opacityScale) },
+     { "transferFunc2.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc[2].opacityScale) },
+     { "transferFunc3.opacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams,transferFunc[3].opacityScale) },
      // render settings
      { "render.dt",           OWL_FLOAT,   OWL_OFFSETOF(LaunchParams,render.dt) },
      { "render.spp",           OWL_INT,   OWL_OFFSETOF(LaunchParams,render.spp) },
@@ -707,10 +722,10 @@ namespace exa {
     cudaCreateTextureObject(&xf.colorMapTexture, &res_desc, &tex_desc,
                             nullptr);
 
-    owlParamsSetRaw(lp,"transferFunc.texture",&xf.colorMapTexture);
+    owlParamsSetRaw(lp,"transferFunc0.texture",&xf.colorMapTexture);
 #else
-    owlParamsSetBuffer(lp,"transferFunc.values",xf.colorMapBuffer);
-    owlParamsSet1i(lp,"transferFunc.numValues",(int)newCM.size());
+    owlParamsSetBuffer(lp,"transferFunc0.values",xf.colorMapBuffer);
+    owlParamsSet1i(lp,"transferFunc0.numValues",(int)newCM.size());
 #endif
 
     accumID = 0;
@@ -723,7 +738,7 @@ namespace exa {
      xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
      xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
     };
-    owlParamsSet2f(lp,"transferFunc.domain",r.lower,r.upper);
+    owlParamsSet2f(lp,"transferFunc0.domain",r.lower,r.upper);
 
     sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
 
@@ -742,7 +757,7 @@ namespace exa {
 
   void OWLRenderer::setOpacityScale(float scale)
   {
-    owlParamsSet1f(lp,"transferFunc.opacityScale",powf(1.1f,scale-100));
+    owlParamsSet1f(lp,"transferFunc0.opacityScale",powf(1.1f,scale-100));
   }
 
   void OWLRenderer::setClipPlane(int id, bool enabled, vec3f N, float d)

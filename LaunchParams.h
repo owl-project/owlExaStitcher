@@ -87,7 +87,7 @@ namespace exa {
 #endif
       range1f             domain;
       float               opacityScale;
-    } transferFunc;
+    } transferFunc[FIELDS_MAX];
     struct {
       vec3f org;
       vec3f dir_00;

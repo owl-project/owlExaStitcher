@@ -322,7 +322,8 @@ namespace exa {
   vec4f lookupTransferFunction(float f)
   {
     auto &lp = optixLaunchParams;
-    const range1f xfDomain = lp.transferFunc.domain;
+    auto &transferFunc = lp.transferFunc[0];
+    const range1f xfDomain = transferFunc.domain;
 
     if (xfDomain.lower >= xfDomain.upper)
       return vec4f(0.f);
@@ -330,14 +331,14 @@ namespace exa {
     f -= xfDomain.lower;
     f /= (xfDomain.upper-xfDomain.lower);
 #ifdef EXASTITCH_CUDA_TEXTURE_TF
-    return tex2D<float4>(lp.transferFunc.texture,f,.5f);
+    return tex2D<float4>(transferFunc.texture,f,.5f);
 #else
-    if (lp.transferFunc.numValues == 0)
+    if (transferFunc.numValues == 0)
       return vec4f(0.f);
 
     f = max(0.f,min(1.f,f));
-    int i = min(lp.transferFunc.numValues-1,int(f * lp.transferFunc.numValues));
-    return lp.transferFunc.values[i];
+    int i = min(transferFunc.numValues-1,int(f * transferFunc.numValues));
+    return transferFunc.values[i];
 #endif
   }
 
@@ -762,7 +763,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/(majorant*lp.transferFunc.opacityScale);
+        t -= logf(1.f-random())/(majorant*lp.transferFunc[0].opacityScale);
 
         if (t >= t1) {
           break;
@@ -798,7 +799,7 @@ namespace exa {
         float u = random();
         float sigmaT = xf.w;
 
-        if (sigmaT*lp.transferFunc.opacityScale >= u * majorant) {
+        if (sigmaT*lp.transferFunc[0].opacityScale >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
           return false;
@@ -823,7 +824,7 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/(majorant*lp.transferFunc.opacityScale);
+        t -= logf(1.f-random())/(majorant*lp.transferFunc[0].opacityScale);
 
         if (t >= t1) {
           break;
@@ -854,7 +855,7 @@ namespace exa {
         classifySample<SM>(sampler,s,pos, xf);
 
         float sigmaT = xf.w;
-        Tr *= 1.f-(sigmaT*lp.transferFunc.opacityScale)/majorant;
+        Tr *= 1.f-(sigmaT*lp.transferFunc[0].opacityScale)/majorant;
         if (Tr <= 0.f) {
           type = Scattering;
           return false;

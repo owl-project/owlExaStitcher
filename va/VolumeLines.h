@@ -41,10 +41,10 @@ namespace exa {
 
     void draw(cudaSurfaceObject_t surfaceObj, int w, int h);
 
-    void setColorMap(const std::vector<vec4f> &newCM);
-    void setRange(interval<float> xfDomain);
-    void setRelDomain(interval<float> relDomain);
-    void setOpacityScale(float scale);
+    void setColorMap(const std::vector<vec4f> &newCM, int fieldID);
+    void setRange(interval<float> xfDomain, int fieldID);
+    void setRelDomain(interval<float> relDomain, int fieldID);
+    void setOpacityScale(float scale, int fieldID);
 
     void setMinImportance(float mi);
     void setP(float P);
@@ -108,7 +108,7 @@ namespace exa {
       float opacityScale{ 1.f };
       vec4f *deviceColorMap{ nullptr };
       float alphaMax{ 0.f };
-    } xf;
+    } xf[FIELDS_MAX];
 
 
   };

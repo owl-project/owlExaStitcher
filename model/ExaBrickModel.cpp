@@ -52,8 +52,7 @@ namespace exa {
 
 
     // Indices/scalars are later flattened
-    constexpr int MAX_FIELDS = 8;
-    std::vector<float> orderedScalars[MAX_FIELDS];
+    std::vector<float> orderedScalars[FIELDS_MAX];
     std::vector<int> indices;
 
     auto loadScalars = [](std::string scalarFileName, std::vector<float> &orderedScalars) {
@@ -117,11 +116,11 @@ namespace exa {
     assert(!orderedScalars[0].empty());
     size_t numScalars = orderedScalars[0].size();
     size_t numScalarsTotal = 0;
-    for (size_t s=0; s<MAX_FIELDS; ++s)
+    for (size_t s=0; s<FIELDS_MAX; ++s)
       numScalarsTotal += orderedScalars[s].size();
 
     scalars.resize(numScalarsTotal);
-    for (size_t s=0; MAX_FIELDS; ++s) {
+    for (size_t s=0; FIELDS_MAX; ++s) {
       if (orderedScalars[s].empty()) break;
       parallel_for_blocked(0ull,indices.size(),1024*1024,[&](size_t begin,size_t end){
           for (size_t i=begin;i<end;i++) {

@@ -36,8 +36,15 @@ int main(int argc, char **argv) {
   scalars[1] = scalars[3] = scalars[5] = scalars[7] = 0.f;
   scalars[2] = scalars[4] = scalars[6] = scalars[8] = 1.f;
 
-  std::ofstream scalarFile("exa-test-data.scalar");
-  scalarFile.write((const char *)scalars.data(), scalars.size()*sizeof(scalars[0]));
+  std::ofstream scalarFile0("exa-test-data.scalar0");
+  scalarFile0.write((const char *)scalars.data(), scalars.size()*sizeof(scalars[0]));
+
+  for (size_t i=0; i<scalars.size(); ++i) {
+    scalars[i] = fmaxf(0.f,scalars[i]-0.2f);
+  }
+
+  std::ofstream scalarFile1("exa-test-data.scalar1");
+  scalarFile1.write((const char *)scalars.data(), scalars.size()*sizeof(scalars[0]));
 }
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
 

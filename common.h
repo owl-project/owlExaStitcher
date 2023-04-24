@@ -33,6 +33,7 @@ typedef owl::interval<float> range1f;
 
 #define CLIP_PLANES_MAX 1
 #define LIGHTS_MAX      4
+#define FIELDS_MAX      4
 #define ROIS_MAX        8
 
 #define EXA_STITCH_SAMPLER 0

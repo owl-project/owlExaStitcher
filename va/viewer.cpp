@@ -398,7 +398,7 @@ namespace exa {
 
     //vkt::LookupTable vktLUT;
     //vkt::TransfuncEditor tfe;
-    TFEditor tfe;
+    TFEditor tfe[FIELDS_MAX];
     ImGuiCUDAGLWidget volumeLineWidget;
   };
 
@@ -520,7 +520,7 @@ namespace exa {
       renderer->setActiveField(fieldID);
     }
 
-    tfe.drawImmediate();
+    tfe[fieldID].drawImmediate();
     ImGui::End();
 
     // volume line widget
@@ -574,23 +574,25 @@ namespace exa {
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
-    if (tfe.cmapUpdated()) {
-      vl.setColorMap(tfe.getColorMap());
-      renderer->setColorMap(tfe.getColorMap());
-      renderer->resetAccum();
-    }
+    for (int f=0;f<numFields;++f) {
+      if (tfe[f].cmapUpdated()) {
+        vl.setColorMap(tfe[f].getColorMap(), f); if (f > 0) continue;
+        renderer->setColorMap(tfe[f].getColorMap());
+        renderer->resetAccum();
+      }
 
-    if (tfe.rangeUpdated()){
-      vl.setRange(tfe.getRange());
-      renderer->setRange(tfe.getRange());
-      renderer->setRelDomain(tfe.getRelDomain());
-      renderer->resetAccum();
-    }
+      if (tfe[f].rangeUpdated()){
+        vl.setRange(tfe[f].getRange(), f); if (f > 0) continue;
+        renderer->setRange(tfe[f].getRange());
+        renderer->setRelDomain(tfe[f].getRelDomain());
+        renderer->resetAccum();
+      }
 
-    if (tfe.opacityUpdated()){
-      vl.setOpacityScale(tfe.getOpacityScale());
-      renderer->setOpacityScale(tfe.getOpacityScale());
-      renderer->resetAccum();
+      if (tfe[f].opacityUpdated()){
+        vl.setOpacityScale(tfe[f].getOpacityScale(), f); if (f > 0) continue;
+        renderer->setOpacityScale(tfe[f].getOpacityScale());
+        renderer->resetAccum();
+      }
     }
 
     // Set ROIs
@@ -866,8 +868,8 @@ namespace exa {
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
 
     if (!cmdline.xfFileName.empty())
-      viewer.tfe.loadFromFile(cmdline.xfFileName.c_str());
-    viewer.tfe.setRange(renderer.valueRange);
+      viewer.tfe[0].loadFromFile(cmdline.xfFileName.c_str());
+    viewer.tfe[0].setRange(renderer.valueRange);
 
     // Set up the volkit TFE
 //    float rgba[] = {
