@@ -4,7 +4,7 @@
 #include "atomicOp.cuh"
 #include "hilbert.h"
 
-#define TIMING 1
+// #define TIMING 1
 
 inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {

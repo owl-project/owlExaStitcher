@@ -17,6 +17,8 @@ namespace exa{
     bool rangeUpdated() const { return rangeUpdated_; }
     bool opacityUpdated() const { return opacityUpdated_; }
 
+    void downdate() { cmapUpdated_ = rangeUpdated_ = opacityUpdated_ = false; }
+
     std::vector<owl::vec4f> getColorMap();
     owl::interval<float> getRange() const { return range; }
     owl::interval<float> getRelDomain() const { return relDomain; }
