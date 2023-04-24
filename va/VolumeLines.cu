@@ -4,6 +4,8 @@
 #include "atomicOp.cuh"
 #include "hilbert.h"
 
+#define TIMING 1
+
 inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {
   return (a + b - 1) / b;
@@ -27,6 +29,35 @@ const float* upper_bound(const float *first, const float *last, float val)
   }
   return first;
 }
+
+struct CudaTimer
+{
+  CudaTimer() {
+    cudaEventCreate(&start_);
+    cudaEventCreate(&stop_);
+    reset();
+  }
+
+ ~CudaTimer() {
+    cudaEventDestroy(stop_);
+    cudaEventDestroy(start_);
+  }
+
+  void reset() {
+    cudaEventRecord(start_);
+  }
+
+  float elapsed() const {
+    cudaEventRecord(stop_);
+    cudaEventSynchronize(stop_);
+    float ms = 0.f;
+    cudaEventElapsedTime(&ms, start_, stop_);
+    return ms;
+  }
+
+  cudaEvent_t start_;
+  cudaEvent_t stop_;
+};
 
 __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h,
                         float4 color1, float4 color2)
@@ -437,6 +468,10 @@ namespace exa {
 
   void VolumeLines::draw(cudaSurfaceObject_t surfaceObj, int w, int h)
   {
+#if TIMING
+    CudaTimer timer;
+#endif
+
     canvasSize = {w,h};
 
     // Fill background
@@ -456,7 +491,17 @@ namespace exa {
       } else {
         c1 = c2 = make_float4(1,1,1,1);
       }
+#if TIMING
+      timer.reset();
+#endif
       fillGPU<<<gridSize, blockSize>>>(surfaceObj,w,h,c1,c2);
+#if TIMING
+      std::cout << "fillGPU<<<["
+                << gridSize.x << ',' << gridSize.y << ",["
+                << blockSize.x << ',' << blockSize.y << "]>>>()\n"
+                << "Elapsed: " << timer.elapsed() << " ms.\n\n";
+
+#endif
     }
 
     if (updated_) {
@@ -529,9 +574,18 @@ namespace exa {
       cudaMalloc(&dXF, hXF.size()*sizeof(hXF[0]));
       cudaMemcpy(dXF, hXF.data(), hXF.size()*sizeof(hXF[0]), cudaMemcpyHostToDevice);
 
+#if TIMING
+      timer.reset();
+#endif
       assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
         cells, scalars, importance.perCell, numCells, numFields,
         dXF, maxVh, minImportance, P);
+#if TIMING
+      std::cout << "assignImportance<<<"
+                << iDivUp(numCells,numThreads) << ',' << numThreads
+                << ">>>()\n"
+                << "Elapsed: " << timer.elapsed() << " ms.\n\n";
+#endif
 
       cudaFree(dXF);
 
@@ -556,19 +610,46 @@ namespace exa {
         cudaMalloc(&weights, sizeof(float)*w);
         cudaMemset(weights, 0, sizeof(float)*w);
 
+#if TIMING
+        timer.reset();
+#endif
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
           grid, weights, w, cells, scalars + fieldID*numCells,
           importance.cumulative, numCells, cellBounds);
+#if TIMING
+        std::cout << "basisRasterCells<<<"
+                  << iDivUp(numCells,numThreads) << ',' << numThreads
+                  << ">>>(fieldID=" << fieldID << ")\n"
+                  << "Elapsed: " << timer.elapsed() << " ms.\n\n";
+#endif
 
         grids1D.push_back(grid);
 
+#if TIMING
+        timer.reset();
+#endif
         basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
           grid, weights, w);
+#if TIMING
+        std::cout << "basisAverageGridCells<<<"
+                  << iDivUp(w,numThreads) << ',' << numThreads
+                  << ">>>()\n"
+                  << "Elapsed: " << timer.elapsed() << " ms.\n\n";
+#endif
 
         cudaFree(weights);
 
-        postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
+#if TIMING
+        timer.reset();
+#endif
+        postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>( // TODO: that looks wrong?!
             grid, w, xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID]);
+#if TIMING
+        std::cout << "postClassifyCells<<<"
+                  << iDivUp(w,numThreads) << ',' << numThreads // TODO: that looks wrong?!
+                  << ">>>(fieldID=" << fieldID << ")\n"
+                  << "Elapsed: " << timer.elapsed() << " ms.\n\n";
+#endif
       }
 
       rois.clear();
