@@ -576,25 +576,24 @@ namespace exa {
 
     for (int f=0;f<numFields;++f) {
       if (tfe[f].cmapUpdated()) {
-        vl.setColorMap(tfe[f].getColorMap(), f); if (f > 0) goto end;
-        renderer->setColorMap(tfe[f].getColorMap());
-        renderer->resetAccum();
+        vl.setColorMap(tfe[f].getColorMap(), f);
+        if (f==0) renderer->setColorMap(tfe[f].getColorMap());
+        if (f==0) renderer->resetAccum();
       }
 
       if (tfe[f].rangeUpdated()){
-        vl.setRange(tfe[f].getRange(), f); if (f > 0) goto end;
+        vl.setRange(tfe[f].getRange(), f);
         renderer->setRange(tfe[f].getRange());
-        renderer->setRelDomain(tfe[f].getRelDomain());
-        renderer->resetAccum();
+        if (f==0) renderer->setRelDomain(tfe[f].getRelDomain());
+        if (f==0) renderer->resetAccum();
       }
 
       if (tfe[f].opacityUpdated()){
-        vl.setOpacityScale(tfe[f].getOpacityScale(), f); if (f > 0) goto end;
-        renderer->setOpacityScale(tfe[f].getOpacityScale());
-        renderer->resetAccum();
+        vl.setOpacityScale(tfe[f].getOpacityScale(), f);
+        if (f==0) renderer->setOpacityScale(tfe[f].getOpacityScale());
+        if (f==0) renderer->resetAccum();
       }
 
-end:
       tfe[f].downdate();
     }
 
@@ -872,7 +871,11 @@ end:
 
     if (!cmdline.xfFileName.empty())
       viewer.tfe[0].loadFromFile(cmdline.xfFileName.c_str());
-    viewer.tfe[0].setRange(renderer.valueRange);
+    if (auto mdl = renderer.model->as<ExaBrickModel>()) {
+      for (int fieldID=0;fieldID<mdl->numFields;++fieldID) {
+        viewer.tfe[fieldID].setRange(mdl->valueRanges[fieldID]);
+      }
+    }
 
     // Set up the volkit TFE
 //    float rgba[] = {

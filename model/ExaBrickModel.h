@@ -45,6 +45,7 @@ namespace exa {
 
     std::vector<ExaBrick> bricks;
     std::vector<float>    scalars;
+    std::vector<range1f>  valueRanges;
     unsigned              numFields;
     unsigned              numScalarsPerField;
     ABRs                  abrs;

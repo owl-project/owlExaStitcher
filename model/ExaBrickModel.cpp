@@ -43,12 +43,13 @@ namespace exa {
   {
     ExaBrickModel::SP result = std::make_shared<ExaBrickModel>();
 
-    std::vector<ExaBrick> &bricks = result->bricks;
-    std::vector<float> &scalars   = result->scalars;
-    ABRs &abrs                    = result->abrs;
-    box3f &cellBounds             = result->cellBounds;
-    range1f &valueRange           = result->valueRange;
-    auto &adjacentBricks          = result->adjacentBricks;
+    std::vector<ExaBrick> &bricks     = result->bricks;
+    std::vector<float> &scalars       = result->scalars;
+    std::vector<range1f> &valueRanges = result->valueRanges;
+    ABRs &abrs                        = result->abrs;
+    box3f &cellBounds                 = result->cellBounds;
+    range1f &valueRange               = result->valueRange;
+    auto &adjacentBricks              = result->adjacentBricks;
 
 
     // Indices/scalars are later flattened
@@ -120,22 +121,23 @@ namespace exa {
       numScalarsTotal += orderedScalars[s].size();
 
     scalars.resize(numScalarsTotal);
-    for (size_t s=0; FIELDS_MAX; ++s) {
-      if (orderedScalars[s].empty()) break;
-      parallel_for_blocked(0ull,indices.size(),1024*1024,[&](size_t begin,size_t end){
-          for (size_t i=begin;i<end;i++) {
-            if (indices[i] < 0) {
-              throw std::runtime_error("overflow in index vector...");
-            } else {
-              int cellID = indices[i];
-              if (cellID < 0)
-                throw std::runtime_error("negative cell ID");
-              if (cellID >= numScalars)
-                throw std::runtime_error("invalid cell ID");
-              scalars[i+s*numScalars] = orderedScalars[s][cellID];
-            }
-          }
-        });
+    valueRanges.resize(result->numFields);
+    for (int fieldID=0; fieldID<result->numFields; ++fieldID) {
+      if (orderedScalars[fieldID].empty()) break;
+      for (size_t i=0; i<indices.size(); ++i) {
+        if (indices[i] < 0) {
+          throw std::runtime_error("overflow in index vector...");
+        } else {
+          int cellID = indices[i];
+          if (cellID < 0)
+            throw std::runtime_error("negative cell ID");
+          if (cellID >= numScalars)
+            throw std::runtime_error("invalid cell ID");
+          float val = orderedScalars[fieldID][cellID];
+          scalars[i+fieldID*numScalars] = val;
+          valueRanges[fieldID].extend(val);
+        }
+      }
     }
 
     result->numScalarsPerField = (unsigned)numScalars;
