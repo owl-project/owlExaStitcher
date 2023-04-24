@@ -527,6 +527,7 @@ namespace exa {
     static VolumeLines vl;
     static float minImportance = 0.025f;
     static float P = 1.f; // volume lines exponent
+    static bool normalize = false; // normalize volume lines so they occupy the full height
     static bool showSettings = false;
     static bool first=true;
     static VolumeLines::Mode mode = VolumeLines::Lines;
@@ -566,6 +567,9 @@ namespace exa {
         if (ImGui::Button("Toggle Bars/Lines")) {
           mode = mode==VolumeLines::Lines? VolumeLines::Bars: VolumeLines::Lines;
           vl.setMode(mode);
+        }
+        if (ImGui::Checkbox("Normalize", &normalize)) {
+          vl.setNormalize(normalize);
         }
         ImGui::End();
       }

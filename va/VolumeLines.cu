@@ -73,15 +73,25 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h,
     surf2Dwrite(color2, surfaceObj, x * sizeof(float4), h-y-1);
 }
 
-__global__ void renderBars(cudaSurfaceObject_t surfaceObj,
-                           exa::VolumeLines::GridCell *grid, int w, int h)
+__global__ void computeMaxValue(exa::VolumeLines::GridCell *grid, int w, float *result)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
   if (x >= w)
     return;
 
-  int H=owl::clamp(int(grid[x].color.w*(h-10)),0,h-1);
+  atomicMax(&result[0], grid[x].color.w);
+}
+
+__global__ void renderBars(cudaSurfaceObject_t surfaceObj,
+                           exa::VolumeLines::GridCell *grid, int w, int h, float yScale)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  
+  if (x >= w)
+    return;
+
+  int H=owl::clamp(int(grid[x].color.w*yScale*(h-10)),0,h-1);
   for (int y=0; y<=H; ++y) {
     float4 src;
     surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
@@ -95,7 +105,7 @@ __global__ void renderBars(cudaSurfaceObject_t surfaceObj,
 }
 
 __global__ void renderLines(cudaSurfaceObject_t surfaceObj,
-                            exa::VolumeLines::GridCell *grid, int w, int h)
+                            exa::VolumeLines::GridCell *grid, int w, int h, float yScale)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
@@ -104,8 +114,8 @@ __global__ void renderLines(cudaSurfaceObject_t surfaceObj,
 
   for (int y=0; y<h; ++y) {
     // line segment
-    const vec2f p1(x,grid[x].color.w*(h-10));
-    const vec2f p2(x+1,grid[x+1].color.w*(h-10));
+    const vec2f p1(x,grid[x].color.w*yScale*(h-10));
+    const vec2f p2(x+1,grid[x+1].color.w*yScale*(h-10));
 
     // pixel bounds
     const vec2f lower(x,y);
@@ -660,12 +670,22 @@ namespace exa {
     // render to texture
     for (size_t i=0; i<grids1D.size(); ++i) {
       size_t numThreads = 1024;
+      float yScale = 1.f;
+      if (normalize) {
+        float *dmax;
+        cudaMalloc(&dmax,sizeof(float));
+        cudaMemset(dmax,0,sizeof(float));
+        computeMaxValue<<<iDivUp(w,numThreads),numThreads>>>(grids1D[i],w,dmax);
+        float hmax;
+        cudaMemcpy(&hmax,dmax,sizeof(float),cudaMemcpyDeviceToHost);
+        yScale = hmax == 0.f ? 1.f : 1.f/hmax;
+      }
       if (mode == Bars) {
         renderBars<<<iDivUp(w,numThreads),numThreads>>>(
-          surfaceObj,grids1D[i],w,h);
+          surfaceObj,grids1D[i],w,h,yScale);
       } else {
         renderLines<<<iDivUp(w,numThreads),numThreads>>>(
-          surfaceObj,grids1D[i],w,h);
+          surfaceObj,grids1D[i],w,h,yScale);
       }
     }
 
@@ -730,6 +750,12 @@ namespace exa {
   void VolumeLines::setMode(VolumeLines::Mode m)
   {
     mode = m;
+    updated_ = true;
+  }
+
+  void VolumeLines::setNormalize(bool n)
+  {
+    normalize = n;
     updated_ = true;
   }
 

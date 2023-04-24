@@ -49,6 +49,7 @@ namespace exa {
     void setMinImportance(float mi);
     void setP(float P);
     void setMode(Mode m);
+    void setNormalize(bool n);
 
     void computeHilbertROIs();
 
@@ -60,6 +61,7 @@ namespace exa {
     float minImportance = 0.025f;
     float P = 1.f;
     Mode mode = Lines;
+    bool normalize = false;
     owl::vec2i canvasSize{0,0};
 
     struct Map1Dto3D {
