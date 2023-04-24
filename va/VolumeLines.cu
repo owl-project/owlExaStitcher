@@ -642,11 +642,11 @@ namespace exa {
 #if TIMING
         timer.reset();
 #endif
-        postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>( // TODO: that looks wrong?!
+        postClassifyCells<<<iDivUp(w,numThreads),numThreads>>>(
             grid, w, xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID]);
 #if TIMING
         std::cout << "postClassifyCells<<<"
-                  << iDivUp(w,numThreads) << ',' << numThreads // TODO: that looks wrong?!
+                  << iDivUp(w,numThreads) << ',' << numThreads
                   << ">>>(fieldID=" << fieldID << ")\n"
                   << "Elapsed: " << timer.elapsed() << " ms.\n\n";
 #endif
