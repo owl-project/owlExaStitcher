@@ -937,6 +937,19 @@ namespace exa {
 
     if (oldFieldID != fieldID){
       sampler->setActiveField(fieldID);
+
+      range1f r{
+       xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
+       xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
+      };
+      sampler->computeMaxOpacities(owl,xf[fieldID].colorMapBuffer,r);
+      if (!ownMajorants.maxOpacityBuffer) {
+        owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+      } else {
+        owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+      }
+
+
       owlParamsSet1ui(lp, "activeFieldID", fieldID);
       sampler->setLPs(lp);
       resetAccum();
