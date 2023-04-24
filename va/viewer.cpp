@@ -577,21 +577,21 @@ namespace exa {
     for (int f=0;f<numFields;++f) {
       if (tfe[f].cmapUpdated()) {
         vl.setColorMap(tfe[f].getColorMap(), f);
-        if (f==0) renderer->setColorMap(tfe[f].getColorMap());
-        if (f==0) renderer->resetAccum();
+        renderer->setColorMap(tfe[f].getColorMap(), f);
+        renderer->resetAccum();
       }
 
       if (tfe[f].rangeUpdated()){
         vl.setRange(tfe[f].getRange(), f);
         renderer->setRange(tfe[f].getRange());
-        if (f==0) renderer->setRelDomain(tfe[f].getRelDomain());
-        if (f==0) renderer->resetAccum();
+        renderer->setRelDomain(tfe[f].getRelDomain(), f);
+        renderer->resetAccum();
       }
 
       if (tfe[f].opacityUpdated()){
         vl.setOpacityScale(tfe[f].getOpacityScale(), f);
-        if (f==0) renderer->setOpacityScale(tfe[f].getOpacityScale());
-        if (f==0) renderer->resetAccum();
+        renderer->setOpacityScale(tfe[f].getOpacityScale(), f);
+        renderer->resetAccum();
       }
 
       tfe[f].downdate();
