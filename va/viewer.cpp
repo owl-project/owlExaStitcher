@@ -576,26 +576,26 @@ namespace exa {
 
     for (int f=0;f<numFields;++f) {
       if (tfe[f].cmapUpdated()) {
-        vl.setColorMap(tfe[f].getColorMap(), f); if (f > 0) goto end;
-        renderer->setColorMap(tfe[f].getColorMap());
+        vl.setColorMap(tfe[f].getColorMap(), f); //if (f > 0) goto end;
+        renderer->setColorMap(tfe[f].getColorMap(), f);
         renderer->resetAccum();
       }
 
       if (tfe[f].rangeUpdated()){
-        vl.setRange(tfe[f].getRange(), f); if (f > 0) goto end;
-        renderer->setRange(tfe[f].getRange());
-        renderer->setRelDomain(tfe[f].getRelDomain());
+        vl.setRange(tfe[f].getRange(), f); //if (f > 0) goto end;
+        renderer->setRange(tfe[f].getRange(), f);
+        renderer->setRelDomain(tfe[f].getRelDomain(), f);
         renderer->resetAccum();
       }
 
       if (tfe[f].opacityUpdated()){
-        vl.setOpacityScale(tfe[f].getOpacityScale(), f); if (f > 0) goto end;
-        renderer->setOpacityScale(tfe[f].getOpacityScale());
+        vl.setOpacityScale(tfe[f].getOpacityScale(), f); //if (f > 0) goto end;
+        renderer->setOpacityScale(tfe[f].getOpacityScale(), f);
         renderer->resetAccum();
       }
 
-end:
-      tfe[f].downdate();
+//end:
+      //tfe[f].downdate();
     }
 
     // Set ROIs

@@ -813,8 +813,8 @@ namespace exa {
 
     const box3f modelBounds = renderer.modelBounds;
 
-    renderer.xf.colorMap = qtOWL::ColorMapLibrary().getMap(0);
-    renderer.setColorMap(renderer.xf.colorMap);
+    renderer.xf[0].colorMap = qtOWL::ColorMapLibrary().getMap(0);
+    renderer.setColorMap(renderer.xf[0].colorMap);
 
     for (int i=0; i<CLIP_PLANES_MAX; ++i) {
       renderer.setClipPlane(i,

@@ -78,6 +78,8 @@ namespace exa {
     affine3f  voxelSpaceTransform;
     affine3f  lightSpaceTransform;
 
+    unsigned activeFieldID;
+
     struct {
 #ifdef EXASTITCH_CUDA_TEXTURE_TF
       cudaTextureObject_t texture;

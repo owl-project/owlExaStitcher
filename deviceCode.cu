@@ -322,7 +322,8 @@ namespace exa {
   vec4f lookupTransferFunction(float f)
   {
     auto &lp = optixLaunchParams;
-    auto &transferFunc = lp.transferFunc[0];
+    auto &transferFunc = lp.transferFunc[lp.activeFieldID];
+
     const range1f xfDomain = transferFunc.domain;
 
     if (xfDomain.lower >= xfDomain.upper)
