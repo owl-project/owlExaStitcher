@@ -171,9 +171,11 @@ vec4f lookupTransferFunction(float f,
   return colorMap[i];
 }
 
-__global__ void assignImportance(exa::VolumeLines::Cell *cells,
+__global__ void assignImportance(const exa::VolumeLines::Cell *cells,
+                                 const float *scalars,
                                  float *importance,
                                  int numCells,
+                                 int numFields,
                                  // for the moment use TF to assign importance..
                                  const vec4f *colorMap,
                                  const int numColors,
@@ -188,15 +190,35 @@ __global__ void assignImportance(exa::VolumeLines::Cell *cells,
     return;
 
   float cellWidth(1<<cells[primID].level);
-  vec4f color = lookupTransferFunction(cells[primID].value,colorMap,numColors,xfDomain);
-  // this will later become the diff of two time steps
-  importance[primID] = fmaxf(minImportance, powf(color.w/alphaMax*cellWidth,P));
+
+  float Vh = 0.f;
+  if (numFields == 1) {
+    // if we have one field only, just assign importance
+    // proportional to intensity and cell width
+    float value = scalars[cells[primID].scalarIndex];
+    vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
+    Vh = color.w/alphaMax*cellWidth;
+  } else {
+    // Eq. (1) from Weissenboeck paper
+    float minValue =  1e30f;
+    float maxValue = -1e30f;
+    for (int i=0; i<numFields; ++i) {
+      float value = scalars[i*numCells+cells[primID].scalarIndex];
+      // TODO: per field
+      vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
+      minValue = fminf(minValue,color.w);
+      maxValue = fmaxf(maxValue,color.w);
+    }
+    Vh = (maxValue-minValue)/alphaMax*cellWidth;
+  }
+  importance[primID] = fmaxf(minImportance, powf(Vh,P));
 }
 
 __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
                                  float *weights,
                                  int dims,
                                  const exa::VolumeLines::Cell *cells,
+                                 const float *scalars,
                                  const float *cumulativeImportance,
                                  int numCells,
                                  range1f cellBounds)
@@ -221,11 +243,13 @@ __global__ void basisRasterCells(exa::VolumeLines::GridCell *grid,
   //        xf1,xf2,x1_01,x2_01,x1,
   //        x2,x2-x1,cells[primID].value);
 
+  float value = scalars[cells[primID].scalarIndex];
+
   for (int x=x1; x<=x2; ++x) {
     // originally we were using basis here
     // keeping the atomicAdd, but in theory these
     // should be exclusive memory accesses
-    atomicAdd(&grid[x].value, cells[primID].value);
+    atomicAdd(&grid[x].value, value);
     atomicAdd(&weights[x], 1.f);
   }
 }
@@ -314,22 +338,6 @@ __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
 namespace exa {
   VolumeLines::VolumeLines()
   {
-    // cells.resize(2);
-    // for (size_t i=0; i<cells.size(); ++i) {
-    //   std::vector<Cell> cs(2000000);
-    //   for (size_t j=0; j<cs.size(); ++j) {
-    //     int level=0;
-    //     //float value(cs.size()/2);
-    //     float value = rand()/float(RAND_MAX);
-    //     cs[j] = {(int)j,value,level};
-    //     cellBounds.extend(cs[j].getBounds());
-    //   }
-
-    //   cudaMalloc(&cells[i], cs.size()*sizeof(cs[0]));
-    //   cudaMemcpy(cells[i], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
-
-    //   numCells = cs.size();
-    // }
   }
 
   VolumeLines::~VolumeLines()
@@ -339,9 +347,8 @@ namespace exa {
 
   void VolumeLines::cleanup()
   {
-    for (size_t i=0; i<cells.size(); ++i) {
-      cudaFree(cells[i]);
-    }
+    cudaFree(cells);
+    cudaFree(scalars);
 
     for (size_t i=0; i<grids1D.size(); ++i) {
       cudaFree(grids1D[i]);
@@ -359,7 +366,6 @@ namespace exa {
   {
     cleanup();
 
-    cells.resize(1);
     map1Dto3D.clear();
     cellBounds = {};
     centroidBounds = {};
@@ -376,13 +382,8 @@ namespace exa {
           for (int x=0; x<brick.size.x; ++x) {
             int idx = brick.getIndexIndex({x,y,z});
             range1f vr = model->valueRange;
-            #if 1
-            float val = model->scalars[idx];
-            #else
-            float val = (model->scalars[idx]-vr.lower)/(vr.upper-vr.lower);
-            #endif
             int lower = cs.empty() ? 0 : cs.back().getBounds().upper;
-            Cell c{lower,val,brick.level};
+            Cell c{lower,idx,brick.level};
             cs.push_back(c);
             centroidBounds.extend(c.getBounds().center());
             cellBounds.extend(c.getBounds());
@@ -419,9 +420,18 @@ namespace exa {
               { return a.hilbertID < b.hilbertID; }
             );
 
-    cudaMalloc(&cells[0], cs.size()*sizeof(cs[0]));
-    cudaMemcpy(cells[0], cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
+    cudaMalloc(&scalars, model->scalars.size()*sizeof(model->scalars[0]));
+    cudaMemcpy(scalars, model->scalars.data(),
+               model->scalars.size()*sizeof(model->scalars[0]),
+               cudaMemcpyHostToDevice);
+
+    cudaMalloc(&cells, cs.size()*sizeof(cs[0]));
+    cudaMemcpy(cells, cs.data(), cs.size()*sizeof(cs[0]), cudaMemcpyHostToDevice);
+
     numCells = cs.size();
+    assert(numCells == model->numScalarsPerField);
+    numFields = model->numFields;
+
     updated_ = true;
   }
 
@@ -450,14 +460,51 @@ namespace exa {
     }
 
     if (updated_ && xf.deviceColorMap) {
+      // TODO: set per channel!
+      range1f r{
+       xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
+       xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+      };
+
+      float alphaMax = 0.f;
+      for (size_t j=0; j<xf.colorMap.size(); ++j) {
+        float alpha = xf.colorMap[j].w;
+        alpha -= r.lower;
+        alpha /= (r.upper-r.lower);
+        alphaMax = fmaxf(alphaMax,alpha);
+      }
+
+      size_t numThreads = 1024;
+
+      if (!importance.perCell) {
+        cudaMalloc(&importance.perCell, sizeof(float)*numCells);
+        cudaMalloc(&importance.cumulative, sizeof(float)*numCells);
+        cub::DeviceScan::InclusiveSum(importance.tempStorage,
+                                      importance.tempStorageSizeInBytes,
+                                      importance.perCell,
+                                      importance.cumulative,
+                                      numCells);
+        cudaMalloc(&importance.tempStorage, importance.tempStorageSizeInBytes);
+      }
+
+      assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
+        cells, scalars, importance.perCell, numCells, numFields,
+        xf.deviceColorMap, xf.colorMap.size(),
+        r, alphaMax, minImportance, P);
+
+      cub::DeviceScan::InclusiveSum(importance.tempStorage,
+                                    importance.tempStorageSizeInBytes,
+                                    importance.perCell,
+                                    importance.cumulative,
+                                    numCells);
+
+      // raster cells onto 1D grids
       for (size_t i=0; i<grids1D.size(); ++i) {
         cudaFree(grids1D[i]);
       }
-
       grids1D.clear();
 
-      // raster cells onto 1D grids
-      for (size_t i=0; i<cells.size(); ++i) {
+      for (int i=0; i<numFields; ++i) {
         GridCell *grid;
         cudaMalloc(&grid, sizeof(GridCell)*w);
         cudaMemset(grid, 0, sizeof(GridCell)*w);
@@ -466,45 +513,9 @@ namespace exa {
         cudaMalloc(&weights, sizeof(float)*w);
         cudaMemset(weights, 0, sizeof(float)*w);
 
-        // TODO: set per channel!
-        range1f r{
-         xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
-         xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
-        };
-
-        float alphaMax = 0.f;
-        for (size_t j=0; j<xf.colorMap.size(); ++j) {
-          float alpha = xf.colorMap[j].w;
-          alpha -= r.lower;
-          alpha /= (r.upper-r.lower);
-          alphaMax = fmaxf(alphaMax,alpha);
-        }
-
-        size_t numThreads = 1024;
-
-        if (!importance.perCell) {
-          cudaMalloc(&importance.perCell, sizeof(float)*numCells);
-          cudaMalloc(&importance.cumulative, sizeof(float)*numCells);
-          cub::DeviceScan::InclusiveSum(importance.tempStorage,
-                                        importance.tempStorageSizeInBytes,
-                                        importance.perCell,
-                                        importance.cumulative,
-                                        numCells);
-          cudaMalloc(&importance.tempStorage, importance.tempStorageSizeInBytes);
-        }
-
-        assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
-          cells[i], importance.perCell, numCells, xf.deviceColorMap, xf.colorMap.size(),
-          r, alphaMax, minImportance, P);
-
-        cub::DeviceScan::InclusiveSum(importance.tempStorage,
-                                      importance.tempStorageSizeInBytes,
-                                      importance.perCell,
-                                      importance.cumulative,
-                                      numCells);
-
         basisRasterCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, weights, w, cells[i], importance.cumulative, numCells, cellBounds);
+          grid, weights, w, cells, scalars + i*numCells,
+          importance.cumulative, numCells, cellBounds);
 
         grids1D.push_back(grid);
 
@@ -514,8 +525,7 @@ namespace exa {
         cudaFree(weights);
 
         postClassifyCells<<<iDivUp(numCells,numThreads),numThreads>>>(
-          grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
-
+            grid, w, xf.deviceColorMap, xf.colorMap.size(), r);
       }
 
       rois.clear();
@@ -619,7 +629,7 @@ namespace exa {
     size_t numThreads = 1024;
     computeHilbertROIsGPU<<<iDivUp(rois.size(),numThreads),numThreads>>>(
       canvasSize.x,d_rois,d_roisToHilbertIDs,(int)rois.size(),
-      cells[0],importance.cumulative,numCells,cellBounds);
+      cells,importance.cumulative,numCells,cellBounds);
 
     cudaMemcpy(roisToHilbertIDs.data(),d_roisToHilbertIDs,
                roisToHilbertIDs.size()*sizeof(roisToHilbertIDs[0]),

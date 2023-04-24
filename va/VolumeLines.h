@@ -13,7 +13,7 @@ namespace exa {
     // 1D (AMR) cell
     struct Cell {
       int lower;
-      float value;
+      int scalarIndex;
       int level;
       uint64_t hilbertID;
 
@@ -69,8 +69,10 @@ namespace exa {
       vec3i centroid; // in cell space
     };
     std::vector<Map1Dto3D> map1Dto3D;
-    std::vector<Cell *> cells; // on device
-    int numCells{0}; // same for each channel!
+    Cell *cells; // on device
+    float *scalars; // on device
+    int numCells{0};
+    int numFields{0};
     range1f cellBounds;
     range1f centroidBounds;
     box3f cellBounds3D;
