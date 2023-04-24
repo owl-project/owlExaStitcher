@@ -176,10 +176,7 @@ __global__ void assignImportance(const exa::VolumeLines::Cell *cells,
                                  float *importance,
                                  int numCells,
                                  int numFields,
-                                 // for the moment use TF to assign importance..
-                                 const vec4f *colorMap,
-                                 const int numColors,
-                                 const range1f xfDomain,
+                                 const exa::VolumeLines::DeviceXF *xf,
                                  float maxVh,
                                  float minImportance,
                                  float P)
@@ -196,7 +193,7 @@ __global__ void assignImportance(const exa::VolumeLines::Cell *cells,
     // if we have one field only, just assign importance
     // proportional to intensity and cell width
     float value = scalars[cells[primID].scalarIndex];
-    vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
+    vec4f color = lookupTransferFunction(value,xf[0].colorMap,xf[0].numColors,xf[0].xfDomain);
     Vh = color.w/maxVh*cellWidth;
   } else {
     // Eq. (1) from Weissenboeck paper
@@ -205,7 +202,10 @@ __global__ void assignImportance(const exa::VolumeLines::Cell *cells,
     for (int fieldID=0; fieldID<numFields; ++fieldID) {
       float value = scalars[fieldID*numCells+cells[primID].scalarIndex];
       // TODO: per field
-      vec4f color = lookupTransferFunction(value,colorMap,numColors,xfDomain);
+      vec4f color = lookupTransferFunction(value,
+                                           xf[fieldID].colorMap,
+                                           xf[fieldID].numColors,
+                                           xf[fieldID].xfDomain);
       minValue = fminf(minValue,color.w);
       maxValue = fmaxf(maxValue,color.w);
     }
@@ -482,7 +482,6 @@ namespace exa {
         std::vector<float> minValues(xf[0].colorMap.size(), 1e30f);
         std::vector<float> maxValues(xf[0].colorMap.size(),-1e30f);
         for (int fieldID=0;fieldID<numFields;++fieldID) {
-          std::cout << xf[fieldID].colorMap.size() << '\n';
           for (size_t i=0; i<xf[fieldID].colorMap.size(); ++i) {
             float alpha = xf[fieldID].colorMap[i].w;
             range1f r = xfRanges[fieldID];
@@ -500,7 +499,7 @@ namespace exa {
         }
       }
 
-      std::cout << "maxVh: " << maxVh << '\n';
+      //std::cout << "maxVh: " << maxVh << '\n';
 
       // Don't divide by 0
       if (maxVh == 0.f)
@@ -519,10 +518,22 @@ namespace exa {
         cudaMalloc(&importance.tempStorage, importance.tempStorageSizeInBytes);
       }
 
+      std::vector<DeviceXF> hXF(numFields);
+      for (int fieldID=0;fieldID<numFields;++fieldID) {
+        hXF[fieldID].colorMap = xf[fieldID].deviceColorMap;
+        hXF[fieldID].numColors = (int)xf[fieldID].colorMap.size();
+        hXF[fieldID].xfDomain = xfRanges[fieldID];
+      }
+
+      DeviceXF *dXF;
+      cudaMalloc(&dXF, hXF.size()*sizeof(hXF[0]));
+      cudaMemcpy(dXF, hXF.data(), hXF.size()*sizeof(hXF[0]), cudaMemcpyHostToDevice);
+
       assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
         cells, scalars, importance.perCell, numCells, numFields,
-        xf[0].deviceColorMap, xf[0].colorMap.size(),
-        xfRanges[0], maxVh, minImportance, P);
+        dXF, maxVh, minImportance, P);
+
+      cudaFree(dXF);
 
       cub::DeviceScan::InclusiveSum(importance.tempStorage,
                                     importance.tempStorageSizeInBytes,

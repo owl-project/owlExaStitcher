@@ -110,6 +110,11 @@ namespace exa {
       float alphaMax{ 0.f };
     } xf[FIELDS_MAX];
 
+    struct DeviceXF {
+      vec4f *colorMap;
+      int numColors;
+      range1f xfDomain;
+    };
 
   };
 } // ::exa
