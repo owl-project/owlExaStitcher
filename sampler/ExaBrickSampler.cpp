@@ -280,6 +280,7 @@ namespace exa {
          { "ebs.abrBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrBuffer) },
          { "ebs.scalarBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,scalarBuffer) },
          { "ebs.numFields", OWL_UINT, OWL_OFFSETOF(LP,numFields) },
+         { "ebs.activeFieldID", OWL_UINT, OWL_OFFSETOF(LP, activeFieldID) },
          { "ebs.numScalarsPerField", OWL_UINT, OWL_OFFSETOF(LP,numScalarsPerField) },
          { "ebs.abrLeafListBuffer", OWL_BUFPTR, OWL_OFFSETOF(LP,abrLeafListBuffer) },
 #ifdef EXA_STITCH_MIRROR_EXAJET
@@ -296,6 +297,7 @@ namespace exa {
     owlParamsSetBuffer(lp,"ebs.abrBuffer",abrBuffer);
     owlParamsSetBuffer(lp,"ebs.scalarBuffer",scalarBuffer);
     owlParamsSet1ui(lp,"ebs.numFields",model->numFields);
+    owlParamsSet1ui(lp,"ebs.activeFieldID", activeFieldID);
     owlParamsSet1ui(lp,"ebs.numScalarsPerField",model->numScalarsPerField);
     owlParamsSetBuffer(lp,"ebs.abrLeafListBuffer",abrLeafListBuffer);
 #ifdef EXA_STITCH_MIRROR_EXAJET
@@ -352,6 +354,14 @@ namespace exa {
       default: throw std::runtime_error("wrong traversal mode?!");
         break;
     }
+  }
+
+  void ExaBrickSampler::setActiveField(int fieldID)
+  {
+    if (fieldID < model->numFields)
+        activeFieldID = fieldID;
+    else
+        throw std::runtime_error("Invalid fieldID");
   }
 
 } // ::exa

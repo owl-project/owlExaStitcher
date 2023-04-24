@@ -77,6 +77,9 @@ namespace exa {
     void setROI(int id, const owl::common::interval<uint64_t> &roiInterval);
     void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale, float outsideSaturationScale);
 
+    int getNumFields() const;
+    void setActiveField(int fieldID);
+
     OWLContext owl;
     OWLModule  module;
     OWLParams  lp;

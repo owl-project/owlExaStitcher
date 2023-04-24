@@ -855,6 +855,20 @@ namespace exa {
     owlParamsSet3f(lp, "roi.cellBounds.upper", cellBounds.upper.x, cellBounds.upper.y, cellBounds.upper.z);
   }
 
+  int OWLRenderer::getNumFields() const {
+    return sampler->numFields();
+  }
+
+  void OWLRenderer::setActiveField(int fieldID){
+    auto oldFieldID = sampler->getActiveField();
+
+    if (oldFieldID != fieldID){
+      sampler->setActiveField(fieldID);
+      sampler->setLPs(lp);
+      resetAccum();
+    }
+  }
+
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

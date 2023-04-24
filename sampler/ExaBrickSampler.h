@@ -40,8 +40,9 @@ namespace exa {
       ExaBrick *brickBuffer;
       ABR      *abrBuffer;
       float    *scalarBuffer;
-      unsigned *numFields;
-      unsigned *numScalarsPerField;
+      unsigned  numFields;
+      unsigned  activeFieldID;
+      unsigned  numScalarsPerField;
       int      *abrLeafListBuffer;
 #ifdef EXA_STITCH_MIRROR_EXAJET
       affine3f  mirrorInvTransform;
@@ -60,6 +61,10 @@ namespace exa {
     void setLPs(OWLParams lp);
 
     std::string className() { return "ExaBrickSampler"; }
+
+    void setActiveField(int fieldID) override;
+    int getActiveField() override { return activeFieldID; };
+    int numFields() const override { return model->numFields; }
 
     ExaBrickModel::SP model = nullptr;
 
@@ -93,6 +98,8 @@ namespace exa {
     /*! BVH used to sample the volume grid */
     OWLGroup sampleBVH{ 0 };
 
+    int activeFieldID{0}; // active field ID
+
     // sets traversal accel on base sampler
     void initTraversal();
   };
@@ -108,6 +115,20 @@ namespace exa {
       + ix
       + iy * brick.size.x
       + iz * brick.size.x*brick.size.y;
+    return self.scalarBuffer[idx];
+  }
+
+  template <>
+  inline __both__ float getScalar<exa::ExaBrickSampler::LP>(const exa::ExaBrickSampler::LP &self,
+                                  const int brickID,
+                                  const int ix, const int iy, const int iz)
+  {
+    const ExaBrick &brick = self.brickBuffer[brickID];
+    const int idx
+        = brick.begin + self.numScalarsPerField * self.activeFieldID
+          + ix
+          + iy * brick.size.x
+          + iz * brick.size.x*brick.size.y;
     return self.scalarBuffer[idx];
   }
 

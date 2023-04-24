@@ -53,6 +53,13 @@ namespace exa {
         set to the exact (case sensitive) name of the subclass */
     virtual std::string className() = 0;
 
+    /*! selects the field. used by multi-field samplers
+        no-op for other samplers
+     */
+     virtual void setActiveField(int fieldID) {};
+     virtual int getActiveField() { return 0; };
+     virtual int  numFields() const { return 1; }
+
     /*! the accel used for traversal/space skipping;
       upon successful initGPU, *either one* of these should
       not be NULL! */

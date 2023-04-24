@@ -508,9 +508,20 @@ namespace exa {
     ImGui::NewFrame();
 
     ImGui::Begin("TFE");
+    // !!!Temporary!!!
+    static int fieldID = 0;
+    const int numFields = renderer->getNumFields();
+    int fid = fieldID;
+
+    ImGui::SliderInt("FieldID", &fid, 0, numFields - 1);
+
+    if (fid != fieldID){
+      fieldID = fid;
+      renderer->setActiveField(fieldID);
+    }
+
     tfe.drawImmediate();
     ImGui::End();
-
 
     // volume line widget
     static VolumeLines vl;
