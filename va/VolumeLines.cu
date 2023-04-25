@@ -366,7 +366,9 @@ __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
                                   int dims,
                                   const vec4f *colorMap,
                                   const int numColors,
-                                  const range1f xfDomain)
+                                  const range1f xfDomain,
+                                  const bool useGlobalColor,
+                                  const vec4f globalColor)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -374,6 +376,9 @@ __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
     return;
 
   grid[x].color = lookupTransferFunction(grid[x].value,colorMap,numColors,xfDomain);
+
+  if (useGlobalColor)
+    grid[x].color = vec4f(vec3f(globalColor),grid[x].color.w);
 }
 
 namespace exa {
@@ -649,11 +654,19 @@ namespace exa {
 
         cudaFree(weights);
 
+        vec4f globalColorValue;
+        if (globalColors) {
+          float cmID = fieldID/float(numFields+1)+1/float(numFields+1);
+          cmID *= globalColorMap.size();
+          globalColorValue = globalColorMap[cmID];
+        }
 #if TIMING
         timer.reset();
 #endif
         postClassifyCells<<<iDivUp(w,numThreads),numThreads>>>(
-            grid, w, xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID]);
+            grid, w,
+            xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID],
+            globalColors, globalColorValue);
 #if TIMING
         std::cout << "postClassifyCells<<<"
                   << iDivUp(w,numThreads) << ',' << numThreads
@@ -756,6 +769,13 @@ namespace exa {
   void VolumeLines::setNormalize(bool n)
   {
     normalize = n;
+    updated_ = true;
+  }
+
+  void VolumeLines::setGlobalColors(bool use, std::vector<vec4f> newCM)
+  {
+    globalColors = use;
+    globalColorMap = newCM;
     updated_ = true;
   }
 

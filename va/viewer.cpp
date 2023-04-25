@@ -19,6 +19,7 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl2.h>
+#include <qtOWL/ColorMaps.h>
 #include "samples/common/owlViewer/InspectMode.h"
 #include "samples/common/owlViewer/OWLViewer.h"
 #include "OWLRenderer.h"
@@ -528,6 +529,8 @@ namespace exa {
     static float minImportance = 0.025f;
     static float P = 1.f; // volume lines exponent
     static bool normalize = false; // normalize volume lines so they occupy the full height
+    static bool globalColors = false;
+    static int cmID = -1;
     static bool showSettings = false;
     static bool first=true;
     static VolumeLines::Mode mode = VolumeLines::Lines;
@@ -570,6 +573,33 @@ namespace exa {
         }
         if (ImGui::Checkbox("Normalize", &normalize)) {
           vl.setNormalize(normalize);
+        }
+        if (ImGui::Checkbox("Use global color map", &globalColors)) {
+          if (!globalColors) {
+            vl.setGlobalColors(false, {});
+            cmID = -1;
+          }
+        }
+        if (globalColors) {
+          qtOWL::ColorMapLibrary cmLib;
+          std::vector<std::string> cmNames = cmLib.getNames();
+          int currentID = cmID == -1 ? 0 : cmID;
+          if (ImGui::BeginCombo("ColorMap", cmNames[currentID].c_str())) {
+            for (int i=0; i<cmNames.size(); ++i) {
+              bool isSelected = currentID == i;
+              if (ImGui::Selectable(cmNames[i].c_str(), isSelected))
+                currentID = i;
+              if (isSelected)
+                ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+          }
+
+          if (currentID != cmID) {
+            std::vector<vec4f> cm = cmLib.getMap(currentID).resampledTo(64);
+            vl.setGlobalColors(true, cm);
+            cmID = currentID;
+          }
         }
         ImGui::End();
       }

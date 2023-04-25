@@ -50,6 +50,7 @@ namespace exa {
     void setP(float P);
     void setMode(Mode m);
     void setNormalize(bool n);
+    void setGlobalColors(bool use, std::vector<vec4f> newCM);
 
     void computeHilbertROIs();
 
@@ -62,6 +63,8 @@ namespace exa {
     float P = 1.f;
     Mode mode = Lines;
     bool normalize = false;
+    bool globalColors = false;
+    std::vector<vec4f> globalColorMap;
     owl::vec2i canvasSize{0,0};
 
     struct Map1Dto3D {
