@@ -78,7 +78,7 @@ namespace exa {
 
 #ifdef __CUDA_ARCH__
 
-#define DEBUGGING 1
+#define DEBUGGING 0
 #define DBG_X (owl::getLaunchDims().x/2)
 #define DBG_Y (owl::getLaunchDims().y/2)
 

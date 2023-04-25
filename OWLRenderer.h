@@ -75,7 +75,8 @@ namespace exa {
     void setLightSpaceTransform(const affine3f xform);
 
     void setROI(int id, const owl::common::interval<uint64_t> &roiInterval);
-    void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale, float outsideSaturationScale);
+    // outsideOpacityScale _must be_ <= actual opacityScale!
+    void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale);
 
     int getNumFields() const;
     void setActiveField(int fieldID);

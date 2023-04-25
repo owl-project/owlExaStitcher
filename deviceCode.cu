@@ -44,10 +44,11 @@ namespace exa {
   inline  __device__
   vec3f backGroundColor()
   {
-    const vec2i pixelID = owl::getLaunchIndex();
-    const float t = pixelID.y / (float)optixGetLaunchDimensions().y;
-    const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
-    return c;
+    //const vec2i pixelID = owl::getLaunchIndex();
+    //const float t = pixelID.y / (float)optixGetLaunchDimensions().y;
+    //const vec3f c = (1.0f - t)*vec3f(1.0f, 1.0f, 1.0f) + t * vec3f(0.5f, 0.7f, 1.0f);
+    //return c;
+    return vec3f(1,1,1);
   }
 
   inline __device__
@@ -625,6 +626,31 @@ namespace exa {
     Teaser,   /* paper teaser */
   };
 
+  inline __device__
+  float getOpacityScale(const Ray &ray, float t) {
+    auto& lp = optixLaunchParams;
+    if (lp.roi.enabled) {
+      const vec3f samplePos = ray.origin+t*ray.direction;
+      const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
+      uint64_t index;
+      world_to_hilbert_3D(&pt.x, &lp.roi.cellBounds.lower.x,
+                          &lp.roi.cellBounds.upper.x,  &index);
+      bool insideROI = false;
+
+      for (int i=0; i<ROIS_MAX; ++i) {
+        if (index >= lp.roi.rois[i].lower && index <= lp.roi.rois[i].upper) {
+          insideROI = true;
+        }
+      }
+
+      if (!insideROI) {
+        return lp.roi.outsideOpacityScale;
+      }
+    }
+
+    return lp.transferFunc[lp.activeFieldID].opacityScale;
+  }
+
   template <ShadeMode SM, typename Sampler>
   inline __device__
   void classifySample(Sampler sampler, Sample &s, const vec3f &samplePos, vec4f &xf) {
@@ -633,29 +659,6 @@ namespace exa {
     if constexpr (SM==Default) {
       xf = lookupTransferFunction(s.value);
       //xf = vec4f(randomColor(leafID),0.1f);
-
-      if (lp.roi.enabled) {
-        const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
-        uint64_t index;
-        world_to_hilbert_3D(&pt.x, &lp.roi.cellBounds.lower.x,
-                            &lp.roi.cellBounds.upper.x,  &index);
-        bool insideROI = false;
-
-        for (int i=0; i<ROIS_MAX; ++i) {
-          if (index >= lp.roi.rois[i].lower && index <= lp.roi.rois[i].upper) {
-            insideROI = true;
-          }
-        }
-
-        if (!insideROI) {
-          xf.w *= lp.roi.outsideOpacityScale;
-
-          const auto L = 0.3f*xf.x + 0.6f*xf.y + 0.1f*xf.z;
-          xf.x = xf.x + lp.roi.outsideSaturationScale * (L - xf.x);
-          xf.y = xf.y + lp.roi.outsideSaturationScale * (L - xf.y);
-          xf.z = xf.z + lp.roi.outsideSaturationScale * (L - xf.z);
-        }
-      }
     } else if constexpr (SM==Gridlets) {
       xf = lookupTransferFunction(s.value);
       if (s.cellID == -1) { // uelem
@@ -764,7 +767,8 @@ namespace exa {
         if (majorant <= 0.f)
           break;
         
-        t -= logf(1.f-random())/(majorant*lp.transferFunc[lp.activeFieldID].opacityScale);
+        float opacityScale = getOpacityScale(ray,t);
+        t -= logf(1.f-random())/(majorant*opacityScale);
 
         if (t >= t1) {
           break;
@@ -800,7 +804,7 @@ namespace exa {
         float u = random();
         float sigmaT = xf.w;
 
-        if (sigmaT*lp.transferFunc[lp.activeFieldID].opacityScale >= u * majorant) {
+        if (sigmaT*opacityScale >= u * majorant) {
           Tr = 0.f;
           type = Scattering;
           return false;

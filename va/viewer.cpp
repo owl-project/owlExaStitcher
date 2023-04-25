@@ -640,7 +640,7 @@ namespace exa {
     if (previousROIEnabled != roiEnabled){
       renderer->resetAccum();
       previousROIEnabled = roiEnabled;
-      renderer->enableROI(roiEnabled, vl.cellBounds3D, 0.1, 0.1);
+      renderer->enableROI(roiEnabled, vl.cellBounds3D, 90.f);
     }
 
     // Set the ROIs' boxes

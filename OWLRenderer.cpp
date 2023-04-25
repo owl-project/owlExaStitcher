@@ -122,7 +122,6 @@ namespace exa {
      // ROIS
      {"roi.enabled", OWL_INT, OWL_OFFSETOF(LaunchParams, roi.enabled)},
      {"roi.outsideOpacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideOpacityScale)},
-     {"roi.outsideSaturationScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideSaturationScale)},
      {"roi.cellBounds.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.lower)},
      {"roi.cellBounds.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.upper)},
      {"roi.rois0.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
@@ -568,7 +567,7 @@ namespace exa {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
-    enableROI(false, box3f{}, 0.1f, 0.7f);
+    enableROI(false, box3f{}, 90.f);
     for (int i=0; i<ROIS_MAX; ++i){
       setROI(i, {});
     }
@@ -920,10 +919,9 @@ namespace exa {
   }
 
   void OWLRenderer::enableROI(
-      bool enabled, const box3f& cellBounds, float outsideOpacityScale, float outsideSaturationScale){
+      bool enabled, const box3f& cellBounds, float outsideOpacityScale){
     owlParamsSet1i(lp, "roi.enabled", (int)enabled);
-    owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
-    owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
+    owlParamsSet1f(lp, "roi.outsideOpacityScale", powf(1.1f,outsideOpacityScale-100));
     owlParamsSet3f(lp, "roi.cellBounds.lower", cellBounds.lower.x, cellBounds.lower.y, cellBounds.lower.z);
     owlParamsSet3f(lp, "roi.cellBounds.upper", cellBounds.upper.x, cellBounds.upper.y, cellBounds.upper.z);
   }
