@@ -86,7 +86,6 @@ namespace exa {
     typedef owl::interval<int> ROI;
     std::vector<ROI> rois;
     std::vector<owl::interval<uint64_t>> roisToHilbertIDs;
-    std::vector<owl::box3f> worldSpaceROIs;
     ROI highlight{-1,-1};
     int pressX = -1;
 

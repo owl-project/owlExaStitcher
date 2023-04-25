@@ -782,7 +782,6 @@ namespace exa {
   void VolumeLines::computeHilbertROIs()
   {
     if (rois.empty()){
-      worldSpaceROIs.clear();
       roisToHilbertIDs.clear();
       return;
     }
@@ -808,30 +807,10 @@ namespace exa {
     cudaFree(d_roisToHilbertIDs);
     cudaFree(d_rois);
 
-    worldSpaceROIs.resize(roisToHilbertIDs.size());
-
     for (size_t i=0; i<roisToHilbertIDs.size(); ++i) {
       bitmask_t coord1[3], coord2[3];
       hilbert_i2c(3, 16, roisToHilbertIDs[i].lower, coord1);
       hilbert_i2c(3, 16, roisToHilbertIDs[i].upper, coord2);
-
-      const vec3f c1_01(
-        coord1[0] / float(1<<16),
-        coord1[1] / float(1<<16),
-        coord1[2] / float(1<<16)
-      );
-
-      const vec3f c2_01(
-        coord2[0] / float(1<<16),
-        coord2[1] / float(1<<16),
-        coord2[2] / float(1<<16)
-      );
-
-      const vec3f p1 = c1_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
-      const vec3f p2 = c2_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
-
-      worldSpaceROIs[i].extend(p1);
-      worldSpaceROIs[i].extend(p2);
     }
   }
 
