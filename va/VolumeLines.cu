@@ -808,9 +808,14 @@ namespace exa {
     cudaFree(d_rois);
 
     for (size_t i=0; i<roisToHilbertIDs.size(); ++i) {
-      bitmask_t coord1[3], coord2[3];
-      hilbert_i2c(3, 16, roisToHilbertIDs[i].lower, coord1);
-      hilbert_i2c(3, 16, roisToHilbertIDs[i].upper, coord2);
+      float coord1[3], coord2[3];
+      hilbert_to_world_3D(roisToHilbertIDs[i].lower, (const float *)&cellBounds3D.lower.x,
+                          (const float *)&cellBounds3D.upper.x, coord1);
+      hilbert_to_world_3D(roisToHilbertIDs[i].upper, (const float *)&cellBounds3D.lower.x,
+                          (const float *)&cellBounds3D.upper.x, coord2);
+      
+      printf("Lower centroid selected: %f,%f,%f\n",  coord1[0],coord1[1],coord1[2]);
+      printf("Upper centroid selected: %f,%f,%f\n\n",coord2[0],coord2[1],coord2[2]);
     }
   }
 
