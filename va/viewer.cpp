@@ -56,7 +56,7 @@ namespace exa {
     std::string kdtreeFileName = "";
     std::string majorantsFileName = "";
     std::string meshFileName = "";
-    std::string xfFileName = "";
+    std::string xfFileName[FIELDS_MAX];
     std::string outFileName = "Witcher3.png";
     std::string fpsFileName = "fps.log";
     range1f valueRange = {1e30f,-1e30f};
@@ -717,7 +717,8 @@ end:
         cmdline.meshFileName = argv[++i];
       }
       else if (arg == "-xf") {
-        cmdline.xfFileName = argv[++i];
+        static int xf = 0;
+        cmdline.xfFileName[xf++] = argv[++i];
       }
       else if (arg == "--range") {
         cmdline.valueRange.lower = std::atof(argv[++i]);
@@ -870,9 +871,12 @@ end:
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
 
-    if (!cmdline.xfFileName.empty())
-      viewer.tfe[0].loadFromFile(cmdline.xfFileName.c_str());
-    viewer.tfe[0].setRange(renderer.valueRange);
+    auto mdl = renderer.model->as<ExaBrickModel>();
+    for (int fieldID=0; fieldID<mdl->numFields; ++fieldID) {
+      if (!cmdline.xfFileName[fieldID].empty())
+        viewer.tfe[fieldID].loadFromFile(cmdline.xfFileName[fieldID].c_str());
+    }
+    //viewer.tfe[0].setRange(renderer.valueRange);
 
     // Set up the volkit TFE
 //    float rgba[] = {
