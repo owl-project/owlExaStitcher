@@ -73,15 +73,25 @@ __global__ void fillGPU(cudaSurfaceObject_t surfaceObj, int w, int h,
     surf2Dwrite(color2, surfaceObj, x * sizeof(float4), h-y-1);
 }
 
-__global__ void renderBars(cudaSurfaceObject_t surfaceObj,
-                           exa::VolumeLines::GridCell *grid, int w, int h)
+__global__ void computeMaxValue(exa::VolumeLines::GridCell *grid, int w, float *result)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
   if (x >= w)
     return;
 
-  int H=owl::clamp(int(grid[x].color.w*(h-10)),0,h-1);
+  atomicMax(&result[0], grid[x].color.w);
+}
+
+__global__ void renderBars(cudaSurfaceObject_t surfaceObj,
+                           exa::VolumeLines::GridCell *grid, int w, int h, float yScale)
+{
+  int x = blockIdx.x * blockDim.x + threadIdx.x;
+  
+  if (x >= w)
+    return;
+
+  int H=owl::clamp(int(grid[x].color.w*yScale*(h-10)),0,h-1);
   for (int y=0; y<=H; ++y) {
     float4 src;
     surf2Dread(&src, surfaceObj, x * sizeof(float4), h-y-1);
@@ -95,7 +105,7 @@ __global__ void renderBars(cudaSurfaceObject_t surfaceObj,
 }
 
 __global__ void renderLines(cudaSurfaceObject_t surfaceObj,
-                            exa::VolumeLines::GridCell *grid, int w, int h)
+                            exa::VolumeLines::GridCell *grid, int w, int h, float yScale)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
   
@@ -104,8 +114,8 @@ __global__ void renderLines(cudaSurfaceObject_t surfaceObj,
 
   for (int y=0; y<h; ++y) {
     // line segment
-    const vec2f p1(x,grid[x].color.w*(h-10));
-    const vec2f p2(x+1,grid[x+1].color.w*(h-10));
+    const vec2f p1(x,grid[x].color.w*yScale*(h-10));
+    const vec2f p2(x+1,grid[x+1].color.w*yScale*(h-10));
 
     // pixel bounds
     const vec2f lower(x,y);
@@ -356,7 +366,9 @@ __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
                                   int dims,
                                   const vec4f *colorMap,
                                   const int numColors,
-                                  const range1f xfDomain)
+                                  const range1f xfDomain,
+                                  const bool useGlobalColor,
+                                  const vec4f globalColor)
 {
   int x = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -364,6 +376,9 @@ __global__ void postClassifyCells(exa::VolumeLines::GridCell *grid,
     return;
 
   grid[x].color = lookupTransferFunction(grid[x].value,colorMap,numColors,xfDomain);
+
+  if (useGlobalColor)
+    grid[x].color = vec4f(vec3f(globalColor),grid[x].color.w);
 }
 
 namespace exa {
@@ -639,11 +654,19 @@ namespace exa {
 
         cudaFree(weights);
 
+        vec4f globalColorValue;
+        if (globalColors) {
+          float cmID = fieldID/float(numFields+1)+1/float(numFields+1);
+          cmID *= globalColorMap.size();
+          globalColorValue = globalColorMap[cmID];
+        }
 #if TIMING
         timer.reset();
 #endif
         postClassifyCells<<<iDivUp(w,numThreads),numThreads>>>(
-            grid, w, xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID]);
+            grid, w,
+            xf[fieldID].deviceColorMap, xf[fieldID].colorMap.size(), xfRanges[fieldID],
+            globalColors, globalColorValue);
 #if TIMING
         std::cout << "postClassifyCells<<<"
                   << iDivUp(w,numThreads) << ',' << numThreads
@@ -660,12 +683,22 @@ namespace exa {
     // render to texture
     for (size_t i=0; i<grids1D.size(); ++i) {
       size_t numThreads = 1024;
+      float yScale = 1.f;
+      if (normalize) {
+        float *dmax;
+        cudaMalloc(&dmax,sizeof(float));
+        cudaMemset(dmax,0,sizeof(float));
+        computeMaxValue<<<iDivUp(w,numThreads),numThreads>>>(grids1D[i],w,dmax);
+        float hmax;
+        cudaMemcpy(&hmax,dmax,sizeof(float),cudaMemcpyDeviceToHost);
+        yScale = hmax == 0.f ? 1.f : 1.f/hmax;
+      }
       if (mode == Bars) {
         renderBars<<<iDivUp(w,numThreads),numThreads>>>(
-          surfaceObj,grids1D[i],w,h);
+          surfaceObj,grids1D[i],w,h,yScale);
       } else {
         renderLines<<<iDivUp(w,numThreads),numThreads>>>(
-          surfaceObj,grids1D[i],w,h);
+          surfaceObj,grids1D[i],w,h,yScale);
       }
     }
 
@@ -733,10 +766,22 @@ namespace exa {
     updated_ = true;
   }
 
+  void VolumeLines::setNormalize(bool n)
+  {
+    normalize = n;
+    updated_ = true;
+  }
+
+  void VolumeLines::setGlobalColors(bool use, std::vector<vec4f> newCM)
+  {
+    globalColors = use;
+    globalColorMap = newCM;
+    updated_ = true;
+  }
+
   void VolumeLines::computeHilbertROIs()
   {
     if (rois.empty()){
-      worldSpaceROIs.clear();
       roisToHilbertIDs.clear();
       return;
     }
@@ -762,30 +807,15 @@ namespace exa {
     cudaFree(d_roisToHilbertIDs);
     cudaFree(d_rois);
 
-    worldSpaceROIs.resize(roisToHilbertIDs.size());
-
     for (size_t i=0; i<roisToHilbertIDs.size(); ++i) {
-      bitmask_t coord1[3], coord2[3];
-      hilbert_i2c(3, 16, roisToHilbertIDs[i].lower, coord1);
-      hilbert_i2c(3, 16, roisToHilbertIDs[i].upper, coord2);
-
-      const vec3f c1_01(
-        coord1[0] / float(1<<16),
-        coord1[1] / float(1<<16),
-        coord1[2] / float(1<<16)
-      );
-
-      const vec3f c2_01(
-        coord2[0] / float(1<<16),
-        coord2[1] / float(1<<16),
-        coord2[2] / float(1<<16)
-      );
-
-      const vec3f p1 = c1_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
-      const vec3f p2 = c2_01*vec3f(centroidBounds3D.upper-centroidBounds3D.lower)+vec3f(centroidBounds3D.lower);
-
-      worldSpaceROIs[i].extend(p1);
-      worldSpaceROIs[i].extend(p2);
+      float coord1[3], coord2[3];
+      hilbert_to_world_3D(roisToHilbertIDs[i].lower, (const float *)&cellBounds3D.lower.x,
+                          (const float *)&cellBounds3D.upper.x, coord1);
+      hilbert_to_world_3D(roisToHilbertIDs[i].upper, (const float *)&cellBounds3D.lower.x,
+                          (const float *)&cellBounds3D.upper.x, coord2);
+      
+      printf("Lower centroid selected: %f,%f,%f\n",  coord1[0],coord1[1],coord1[2]);
+      printf("Upper centroid selected: %f,%f,%f\n\n",coord2[0],coord2[1],coord2[2]);
     }
   }
 

@@ -59,10 +59,10 @@ namespace exa {
 
     void setType(const Type t);
 
-    void setColorMap(const std::vector<vec4f> &newCM);
-    void setRange(interval<float> xfDomain);
-    void setRelDomain(interval<float> relDomain);
-    void setOpacityScale(float scale);
+    void setColorMap(const std::vector<vec4f> &newCM, int fieldID=0);
+    void setRange(interval<float> xfDomain, int fieldID=0);
+    void setRelDomain(interval<float> relDomain, int fieldID=0);
+    void setOpacityScale(float scale, int fieldID=0);
 
     void setClipPlane(int id, bool enabled, vec3f N, float d);
     void setShadeMode(int sm);
@@ -75,7 +75,8 @@ namespace exa {
     void setLightSpaceTransform(const affine3f xform);
 
     void setROI(int id, const owl::common::interval<uint64_t> &roiInterval);
-    void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale, float outsideSaturationScale);
+    // outsideOpacityScale _must be_ <= actual opacityScale!
+    void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale);
 
     int getNumFields() const;
     void setActiveField(int fieldID);
@@ -107,7 +108,7 @@ namespace exa {
       OWLBuffer colorMapBuffer { 0 };
       cudaArray_t colorMapArray { 0 };
       cudaTextureObject_t colorMapTexture { 0 };
-    } xf;
+    } xf[FIELDS_MAX];
 
     Model::SP model { 0 };
     Sampler::SP sampler { 0 };

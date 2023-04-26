@@ -69,6 +69,7 @@ namespace exa {
      { "worldSpaceBounds.upper",  OWL_FLOAT3, OWL_OFFSETOF(LaunchParams,worldSpaceBounds.upper)},
      { "voxelSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,voxelSpaceTransform)},
      { "lightSpaceTransform", OWL_USER_TYPE(affine3f), OWL_OFFSETOF(LaunchParams,lightSpaceTransform)},
+     {"activeFieldID", OWL_UINT, OWL_OFFSETOF(LaunchParams, activeFieldID)},
      // xf data
      { "transferFunc0.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[0].domain) },
      { "transferFunc1.domain",OWL_FLOAT2, OWL_OFFSETOF(LaunchParams,transferFunc[1].domain) },
@@ -121,7 +122,6 @@ namespace exa {
      // ROIS
      {"roi.enabled", OWL_INT, OWL_OFFSETOF(LaunchParams, roi.enabled)},
      {"roi.outsideOpacityScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideOpacityScale)},
-     {"roi.outsideSaturationScale", OWL_FLOAT, OWL_OFFSETOF(LaunchParams, roi.outsideSaturationScale)},
      {"roi.cellBounds.lower", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.lower)},
      {"roi.cellBounds.upper", OWL_FLOAT3, OWL_OFFSETOF(LaunchParams, roi.cellBounds.upper)},
      {"roi.rois0.lower", OWL_ULONG, OWL_OFFSETOF(LaunchParams, roi.rois[0].lower)},
@@ -567,10 +567,13 @@ namespace exa {
       setClipPlane(i,false,vec3f{0,0,1},modelBounds.center().z);
     }
 
-    enableROI(false, box3f{}, 0.1f, 0.7f);
+    enableROI(false, box3f{}, 90.f);
     for (int i=0; i<ROIS_MAX; ++i){
       setROI(i, {});
     }
+
+    owlParamsSet1ui(lp, "activeFieldID", 0);
+
 
     owlParamsSet2f(lp,"subImage.value.lower",0.f,0.f);
     owlParamsSet2f(lp,"subImage.value.upper",0.f,1.f);
@@ -656,22 +659,27 @@ namespace exa {
     accumID = 0;
   }
 
-  void OWLRenderer::setColorMap(const std::vector<vec4f> &newCM)
+  void OWLRenderer::setColorMap(const std::vector<vec4f> &newCM, int fieldID)
   {
-    xf.colorMap = newCM;
+    if (fieldID >= getNumFields()){
+      std::cout << "Field " << fieldID << " not valid";
+      return;
+    }
 
-    if (!xf.colorMapBuffer)
-      xf.colorMapBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT4,
+    xf[fieldID].colorMap = newCM;
+
+    if (!xf[fieldID].colorMapBuffer)
+      xf[fieldID].colorMapBuffer = owlDeviceBufferCreate(owl,OWL_FLOAT4,
                                                 newCM.size(),nullptr);
 
-    owlBufferUpload(xf.colorMapBuffer,newCM.data());
+    owlBufferUpload(xf[fieldID].colorMapBuffer,newCM.data());
 
     range1f r{
-     xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
-     xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
+     xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
+     xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
     };
 
-    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    sampler->computeMaxOpacities(owl,xf[fieldID].colorMapBuffer,r);
 
     if (ownMajorants.maxOpacityBuffer)
       owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
@@ -679,9 +687,9 @@ namespace exa {
       owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
 
 #ifdef EXASTITCH_CUDA_TEXTURE_TF
-    if (xf.colorMapTexture != 0) {
-      cudaDestroyTextureObject(xf.colorMapTexture);
-      xf.colorMapTexture = 0;
+    if (xf[fieldID].colorMapTexture != 0) {
+      cudaDestroyTextureObject(xf[fieldID].colorMapTexture);
+      xf[fieldID].colorMapTexture = 0;
     }
 
     cudaResourceDesc res_desc = {};
@@ -689,21 +697,21 @@ namespace exa {
       = cudaCreateChannelDesc<float4>();
 
     // cudaArray_t   voxelArray;
-    if (xf.colorMapArray == 0) {
-      cudaMallocArray(&xf.colorMapArray,
+    if (xf[fieldID].colorMapArray == 0) {
+      cudaMallocArray(&xf[fieldID].colorMapArray,
                       &channel_desc,
                       newCM.size(),1);
     }
     
     const size_t pitch = newCM.size()*sizeof(newCM[0]);
-    cudaMemcpy2DToArray(xf.colorMapArray,
+    cudaMemcpy2DToArray(xf[fieldID].colorMapArray,
                         /* offset */0,0,
                         newCM.data(),
                         pitch,pitch,1,
                         cudaMemcpyHostToDevice);
 
     res_desc.resType          = cudaResourceTypeArray;
-    res_desc.res.array.array  = xf.colorMapArray;
+    res_desc.res.array.array  = xf[fieldID].colorMapArray;
     
     cudaTextureDesc tex_desc     = {};
     tex_desc.addressMode[0]      = cudaAddressModeBorder;
@@ -719,28 +727,62 @@ namespace exa {
     tex_desc.borderColor[2]      = 0.0f;
     tex_desc.borderColor[3]      = 0.0f;
     tex_desc.sRGB                = 0;
-    cudaCreateTextureObject(&xf.colorMapTexture, &res_desc, &tex_desc,
+    cudaCreateTextureObject(&xf[fieldID].colorMapTexture, &res_desc, &tex_desc,
                             nullptr);
 
-    owlParamsSetRaw(lp,"transferFunc0.texture",&xf.colorMapTexture);
+    if (fieldID == 0)
+      owlParamsSetRaw(lp,"transferFunc0.texture",&xf[fieldID].colorMapTexture);
+    else if (fieldID == 1)
+      owlParamsSetRaw(lp,"transferFunc1.texture",&xf[fieldID].colorMapTexture);
+    else if (fieldID == 2)
+      owlParamsSetRaw(lp,"transferFunc2.texture",&xf[fieldID].colorMapTexture);
+    else if (fieldID == 3)
+      owlParamsSetRaw(lp,"transferFunc3.texture",&xf[fieldID].colorMapTexture);
 #else
-    owlParamsSetBuffer(lp,"transferFunc0.values",xf.colorMapBuffer);
-    owlParamsSet1i(lp,"transferFunc0.numValues",(int)newCM.size());
+    if (fieldID == 0) {
+      owlParamsSetBuffer(lp, "transferFunc0.values", xf[fieldID].colorMapBuffer);
+      owlParamsSet1i(lp, "transferFunc0.numValues", (int)newCM.size());
+    }
+    else if (fieldID == 1) {
+      owlParamsSetBuffer(lp, "transferFunc1.values", xf[fieldID].colorMapBuffer);
+      owlParamsSet1i(lp, "transferFunc1.numValues", (int)newCM.size());
+    }
+    else if (fieldID == 2) {
+      owlParamsSetBuffer(lp, "transferFunc2.values", xf[fieldID].colorMapBuffer);
+      owlParamsSet1i(lp, "transferFunc2.numValues", (int)newCM.size());
+    }
+    else if (fieldID == 3) {
+      owlParamsSetBuffer(lp, "transferFunc3.values", xf[fieldID].colorMapBuffer);
+      owlParamsSet1i(lp, "transferFunc3.numValues", (int)newCM.size());
+    }
 #endif
 
     accumID = 0;
   }
 
-  void OWLRenderer::setRange(interval<float> xfDomain)
+  void OWLRenderer::setRange(interval<float> xfDomain, int fieldID)
   {
-    xf.absDomain = xfDomain;
-    range1f r{
-     xf.absDomain.lower + (xf.relDomain.lower/100.f) * (xf.absDomain.upper-xf.absDomain.lower),
-     xf.absDomain.lower + (xf.relDomain.upper/100.f) * (xf.absDomain.upper-xf.absDomain.lower)
-    };
-    owlParamsSet2f(lp,"transferFunc0.domain",r.lower,r.upper);
+    if (fieldID >= getNumFields()){
+      std::cout << "Field " << fieldID << " not valid";
+      return;
+    }
 
-    sampler->computeMaxOpacities(owl,xf.colorMapBuffer,r);
+    xf[fieldID].absDomain = xfDomain;
+    range1f r{
+     xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
+     xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
+    };
+
+    if (fieldID == 0)
+      owlParamsSet2f(lp,"transferFunc0.domain",r.lower,r.upper);
+    else if (fieldID == 1)
+      owlParamsSet2f(lp,"transferFunc1.domain",r.lower,r.upper);
+    else if (fieldID == 2)
+      owlParamsSet2f(lp,"transferFunc2.domain",r.lower,r.upper);
+    else if (fieldID == 3)
+      owlParamsSet2f(lp,"transferFunc3.domain",r.lower,r.upper);
+
+    sampler->computeMaxOpacities(owl,xf[fieldID].colorMapBuffer,r);
 
     if (!ownMajorants.maxOpacityBuffer) {
       owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
@@ -749,15 +791,30 @@ namespace exa {
     }
   }
 
-  void OWLRenderer::setRelDomain(interval<float> relDomain)
+  void OWLRenderer::setRelDomain(interval<float> relDomain, int fieldID)
   {
-    xf.relDomain = relDomain;
-    setRange(xf.absDomain);
+    xf[fieldID].relDomain = relDomain;
+    setRange(xf[fieldID].absDomain, fieldID);
   }
 
-  void OWLRenderer::setOpacityScale(float scale)
+  void OWLRenderer::setOpacityScale(float scale, int fieldID)
   {
-    owlParamsSet1f(lp,"transferFunc0.opacityScale",powf(1.1f,scale-100));
+    if (fieldID >= getNumFields()){
+      std::cout << "Field " << fieldID << " not valid";
+      return;
+    }
+
+    const auto val = powf(1.1f,scale-100);
+    if (fieldID==0)
+      owlParamsSet1f(lp,"transferFunc0.opacityScale",val);
+    else if (fieldID==1)
+      owlParamsSet1f(lp,"transferFunc1.opacityScale",val);
+    else if (fieldID==2)
+      owlParamsSet1f(lp,"transferFunc2.opacityScale",val);
+    else if (fieldID==3)
+      owlParamsSet1f(lp,"transferFunc3.opacityScale",val);
+    else
+      std::cout << "Field " << fieldID << " not valid";
   }
 
   void OWLRenderer::setClipPlane(int id, bool enabled, vec3f N, float d)
@@ -862,10 +919,9 @@ namespace exa {
   }
 
   void OWLRenderer::enableROI(
-      bool enabled, const box3f& cellBounds, float outsideOpacityScale, float outsideSaturationScale){
+      bool enabled, const box3f& cellBounds, float outsideOpacityScale){
     owlParamsSet1i(lp, "roi.enabled", (int)enabled);
-    owlParamsSet1f(lp, "roi.outsideOpacityScale", outsideOpacityScale);
-    owlParamsSet1f(lp, "roi.outsideSaturationScale", outsideSaturationScale);
+    owlParamsSet1f(lp, "roi.outsideOpacityScale", powf(1.1f,outsideOpacityScale-100));
     owlParamsSet3f(lp, "roi.cellBounds.lower", cellBounds.lower.x, cellBounds.lower.y, cellBounds.lower.z);
     owlParamsSet3f(lp, "roi.cellBounds.upper", cellBounds.upper.x, cellBounds.upper.y, cellBounds.upper.z);
   }
@@ -879,6 +935,20 @@ namespace exa {
 
     if (oldFieldID != fieldID){
       sampler->setActiveField(fieldID);
+
+      range1f r{
+       xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
+       xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
+      };
+      sampler->computeMaxOpacities(owl,xf[fieldID].colorMapBuffer,r);
+      if (!ownMajorants.maxOpacityBuffer) {
+        owlParamsSetBuffer(lp,"maxOpacities",sampler->maxOpacities);
+      } else {
+        owlParamsSetBuffer(lp,"maxOpacities",ownMajorants.maxOpacityBuffer);
+      }
+
+
+      owlParamsSet1ui(lp, "activeFieldID", fieldID);
       sampler->setLPs(lp);
       resetAccum();
     }

@@ -253,6 +253,25 @@ inline void world_to_hilbert_3D(const float *world_coord, const float *bounds_lo
   *out = hilbert_c2i(3, bits, c);
 }
 
+__host__ __device__
+inline void hilbert_to_world_3D(const uint64_t hilbertID, const float *bounds_lower,
+                                const float *bounds_upper, float *world_coord)
+{
+  bitmask_t c[3];
+  hilbert_i2c(3, 16, hilbertID, c);
+
+  const unsigned bits = 16;
+  float v01[3] = {
+    c[0] / float(1<<bits),
+    c[1] / float(1<<bits),
+    c[2] / float(1<<bits)
+  };
+
+  world_coord[0] = v01[0]*(bounds_upper[0]-bounds_lower[0])+bounds_lower[0];
+  world_coord[1] = v01[1]*(bounds_upper[1]-bounds_lower[1])+bounds_lower[1];
+  world_coord[2] = v01[2]*(bounds_upper[2]-bounds_lower[2])+bounds_lower[2];
+}
+
 #ifdef __cplusplus
 }
 #endif
