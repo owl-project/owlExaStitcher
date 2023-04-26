@@ -249,7 +249,6 @@ namespace exa {
       case '!':
         std::cout << "saving screenshot to '" << cmdline.outFileName << ".png'\n";
         screenShot(cmdline.outFileName+".png");
-        exit(0);
         break;
       case 'H':
         renderer->heatMapEnabled = !renderer->heatMapEnabled;
