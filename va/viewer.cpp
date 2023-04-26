@@ -509,19 +509,26 @@ namespace exa {
     ImGui::NewFrame();
 
     ImGui::Begin("TFE");
+
     // !!!Temporary!!!
     static int fieldID = 0;
     const int numFields = renderer->getNumFields();
-    int fid = fieldID;
 
-    ImGui::SliderInt("FieldID", &fid, 0, numFields - 1);
+    if (ImGui::BeginTabBar("Fields")){
+      for (int fid=0; fid<numFields; ++fid){
+        if (ImGui::BeginTabItem(("Field " + std::to_string(fid)).c_str())) {
+          tfe[fid].drawImmediate();
+          ImGui::EndTabItem();
 
-    if (fid != fieldID){
-      fieldID = fid;
-      renderer->setActiveField(fieldID);
+          if (fieldID != fid){
+            fieldID = fid;
+            renderer->setActiveField(fieldID);
+          }
+        }
+      }
     }
 
-    tfe[fieldID].drawImmediate();
+    //tfe[fieldID].drawImmediate();
     ImGui::End();
 
     // volume line widget
