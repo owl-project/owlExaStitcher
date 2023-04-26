@@ -58,6 +58,7 @@ namespace exa {
     std::string majorantsFileName = "";
     std::string meshFileName = "";
     std::string xfFileName[FIELDS_MAX];
+    std::string scalarName[FIELDS_MAX];
     std::string outFileName = "Witcher3.png";
     std::string fpsFileName = "fps.log";
     range1f valueRange = {1e30f,-1e30f};
@@ -510,13 +511,15 @@ namespace exa {
 
     ImGui::Begin("TFE");
 
-    // !!!Temporary!!!
     static int fieldID = 0;
     const int numFields = renderer->getNumFields();
 
+
     if (ImGui::BeginTabBar("Fields")){
       for (int fid=0; fid<numFields; ++fid){
-        if (ImGui::BeginTabItem(("Field " + std::to_string(fid)).c_str())) {
+
+        ImGui::PushID(fid);
+        if (ImGui::BeginTabItem(cmdline.scalarName[fid].c_str())) {
           tfe[fid].drawImmediate();
           ImGui::EndTabItem();
 
@@ -525,8 +528,10 @@ namespace exa {
             renderer->setActiveField(fieldID);
           }
         }
+        ImGui::PopID();
       }
     }
+
 
     //tfe[fieldID].drawImmediate();
     ImGui::End();
@@ -760,6 +765,10 @@ namespace exa {
         static int xf = 0;
         cmdline.xfFileName[xf++] = argv[++i];
       }
+      else if (arg == "-sname"){
+        static int sn = 0;
+        cmdline.scalarName[sn++] = argv[++i];
+      }
       else if (arg == "--range") {
         cmdline.valueRange.lower = std::atof(argv[++i]);
         cmdline.valueRange.upper = std::atof(argv[++i]);
@@ -921,6 +930,9 @@ namespace exa {
 
     for (int i=0; i<FIELDS_MAX; ++i){
       viewer.tfe[i].saveFilename = "owlDVR_" + std::to_string(i) + ".xf";
+
+      if (cmdline.scalarName[i].empty())
+        cmdline.scalarName[i] = "Field " + std::to_string(i);
     }
 
     // Set up the volkit TFE
