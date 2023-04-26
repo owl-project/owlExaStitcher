@@ -627,13 +627,15 @@ namespace exa {
   };
 
   inline __device__
-  float getOpacityScale(const Ray &ray, float t) {
+  float getOpacityScale(const Ray &ray, float t, vec3f cellCentroid) {
     auto& lp = optixLaunchParams;
     if (lp.roi.enabled) {
-      const vec3f samplePos = ray.origin+t*ray.direction;
-      const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
+      //const vec3f samplePos = ray.origin+t*ray.direction;
+      //const auto pt = xfmPoint(rcp(lp.voxelSpaceTransform), samplePos);
+
+
       uint64_t index;
-      world_to_hilbert_3D(&pt.x, &lp.roi.cellBounds.lower.x,
+      world_to_hilbert_3D(&cellCentroid.x, &lp.roi.cellBounds.lower.x,
                           &lp.roi.cellBounds.upper.x,  &index);
       bool insideROI = false;
 
@@ -761,13 +763,14 @@ namespace exa {
 #ifdef CACHING
       int primID = -1;
 #endif
+      vec3f cellCentroid;
 
       while (1) { // Delta tracking loop
 
         if (majorant <= 0.f)
           break;
-        
-        float opacityScale = getOpacityScale(ray,t);
+
+        float opacityScale =lp.transferFunc[lp.activeFieldID].opacityScale;
         t -= logf(1.f-random())/(majorant*opacityScale);
 
         if (t >= t1) {
@@ -779,7 +782,10 @@ namespace exa {
         Sample s = testSample(sampler,pos,primID);
         if (s.primID < 0) {
           SpatialDomain dom{t0,t1,leafID};
-          s = sample(sampler,dom,pos);
+          if (lp.roi.enabled)
+            s = sample(sampler,dom,pos, cellCentroid);
+          else
+            s = sample(sampler,dom,pos);
         }
 
         if (s.primID < 0)
@@ -791,7 +797,11 @@ namespace exa {
 #else
         SpatialDomain dom{t0,t1,leafID};
         pos = ray.origin+ray.direction*t;
-        Sample s = sample(sampler,dom,pos);
+        if (lp.roi.enabled)
+          s = sample(sampler,dom,pos, cellCentroid);
+        else
+          s = sample(sampler,dom,pos);
+
         if (s.primID < 0)
           continue;
 #endif
@@ -799,7 +809,7 @@ namespace exa {
         classifySample<SM>(sampler,s, pos,xf);
         // xf = vec4f(randomColor(leafID), majorant);
 
-
+        opacityScale =  getOpacityScale(ray, t, cellCentroid);
 
         float u = random();
         float sigmaT = xf.w;

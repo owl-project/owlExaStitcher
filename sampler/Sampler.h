@@ -100,6 +100,14 @@ namespace exa {
     return {-1,-1,0.f};
   }
 
+  template <typename Sampler>
+  inline __device__
+      Sample sample(const Sampler &lp,
+             const SpatialDomain &domain,
+             vec3f pos, vec3f &cellCentroid) {
+    return sample(lp, domain, pos);
+  }
+
   /* call it PRD when used as taht */
   typedef SpatialDomain DomainPRD;
 
@@ -107,6 +115,8 @@ namespace exa {
   struct BasisPRD {
     float sumWeightedValues = 0.f;
     float sumWeights = 0.f;
+    vec3f cellCentroid;
+    bool  recordCellCentroid;
   };
 
   template <int RT=0, int NRT=1>

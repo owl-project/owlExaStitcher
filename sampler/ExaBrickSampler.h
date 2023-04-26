@@ -259,8 +259,68 @@ namespace exa {
     return {0,-1,sample.sumWeightedValues/sample.sumWeights};
 #endif
   }
-#endif
 
+  template <>
+  inline __device__
+      Sample sample<ExaBrickSampler::LP>(const ExaBrickSampler::LP &lp,
+                                  const SpatialDomain &domain,
+                                  vec3f pos, vec3f &cellCentroid)
+  {
+#if EXA_STITCH_EXA_BRICK_TRAVERSAL_MODE == EXABRICK_ABR_TRAVERSAL && \
+    EXA_STITCH_EXA_BRICK_SAMPLER_MODE == EXA_BRICK_SAMPLER_ABR_BVH
+    const ABR &abr = lp.abrBuffer[domain.domainID];
+
+#ifdef EXA_STITCH_MIRROR_EXAJET
+    if (!abr.domain.contains(pos)) {
+      pos = xfmPoint(lp.mirrorInvTransform,pos);
+    }
+#endif
+    const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+    const int  childCount = abr.leafListSize;
+    float sumWeightedValues = 0.f;
+    float sumWeights = 0.f;
+    for (int childID=0;childID<childCount;childID++) {
+      const int brickID = childList[childID];
+      addBasisFunctions(lp, sumWeightedValues, sumWeights, brickID, pos);
+
+      const auto &brick = lp.brickBuffer[brickID];
+      const auto bounds = brick.getBounds();
+      if (bounds.contains(pos)) {
+        const float cellWidth = (1 << brick.level);
+
+        const vec3f localPos = (pos - bounds.lower) / vec3f(cellWidth);
+        vec3f cellCoord =
+            vec3f(floorf(localPos.x), floorf(localPos.y), floorf(localPos.z));
+
+        cellCoord = cellCoord + 0.5f;
+
+        // Clamp
+        cellCoord = max(vec3f(0.5f, 0.5f, 0.5f), cellCoord);
+        cellCoord = min(vec3f(brick.size) - 0.5f, cellCoord);
+        cellCentroid = cellCoord * cellWidth + bounds.lower;
+      }
+    }
+
+    return {0,-1,sumWeightedValues/sumWeights};
+#else
+    SamplingRay ray;
+    ray.origin = pos;
+    ray.direction = vec3f(1.f);
+    ray.tmin = 0.f;
+    ray.tmax = 0.f;
+
+    BasisPRD sample;
+    sample.recordCellCentroid = true;
+    owl::traceRay(lp.sampleBVH, ray, sample,
+                  OPTIX_RAY_FLAG_DISABLE_ANYHIT);
+
+    cellCentroid = sample.cellCentroid;
+    if (sample.sumWeights <= 0) return {0,0,0.f};
+
+    return {0,-1,sample.sumWeightedValues/sample.sumWeights};
+#endif
+  }
+#endif
 } // ::exa
 
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0

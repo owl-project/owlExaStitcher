@@ -90,6 +90,24 @@ namespace exa {
       for (int childID=0;childID<childCount;childID++) {
         const int brickID = childList[childID];
         addBasisFunctions(optixLaunchParams.sampler.ebs,sumWeightedValues,sumWeights,brickID,ray.origin);
+
+        const auto &brick = optixLaunchParams.sampler.ebs.brickBuffer[brickID];
+
+        if (sample.recordCellCentroid && brick.getBounds().contains(ray.origin)) {
+          const float cellWidth = (1<<brick.level);
+
+          const vec3f localPos = (ray.origin - vec3f(brick.lower)) / vec3f(cellWidth);
+          vec3f cellCoord = vec3f(
+              floorf(localPos.x),
+              floorf(localPos.y),
+              floorf(localPos.z)
+          );
+
+          // Clamp
+          cellCoord = max(vec3f(0), cellCoord);
+          cellCoord = min(vec3f(brick.size) - 1.f, cellCoord);
+          sample.cellCentroid = (cellCoord + 0.5f) * cellWidth + vec3f(brick.lower);
+        }
       }
       sample.sumWeightedValues = sumWeightedValues;
       sample.sumWeights = sumWeights;
