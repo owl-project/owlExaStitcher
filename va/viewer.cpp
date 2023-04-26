@@ -912,6 +912,10 @@ namespace exa {
       }
     }
 
+    for (int i=0; i<FIELDS_MAX; ++i){
+      viewer.tfe[i].saveFilename = "owlDVR_" + std::to_string(i) + ".xf";
+    }
+
     // Set up the volkit TFE
 //    float rgba[] = {
 //            1.f, 1.f, 1.f, .005f,

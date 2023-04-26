@@ -26,7 +26,9 @@ namespace exa{
     void setRange(owl::interval<float> r) { range = r; }
 
     void loadFromFile(const char* fname);
+    void saveToFile(const char* fname);
 
+    std::string saveFilename = "owlDVR.xf";
   private:
     vkt::LookupTable vktLUT;
     vkt::TransfuncEditor vktTFE;

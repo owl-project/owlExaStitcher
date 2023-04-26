@@ -77,6 +77,9 @@ namespace exa{
 
       selectCMap(curCMapID, true);
     }
+
+    if (ImGui::Button("Save"))
+      saveToFile(saveFilename.c_str());
   }
 
   std::vector<vec4f> TFEditor::getColorMap(){
@@ -92,40 +95,6 @@ namespace exa{
     }
 
     return {};
-  }
-
-
-  void TFEditor::loadFromFile(const char *fname) {
-    std::ifstream xfFile(fname, std::ios::binary);
-
-    if (!xfFile.good())
-      throw std::runtime_error("Could not open TF");
-
-    static const size_t xfFileFormatMagic = 0x1235abc000;
-    size_t magic;
-    xfFile.read((char*)&magic,sizeof(xfFileFormatMagic));
-    if (magic != xfFileFormatMagic) {
-      throw std::runtime_error("Not a valid TF file");
-    }
-
-    xfFile.read((char*)&opacityScale,sizeof(opacityScale));
-
-    xfFile.read((char*)&range.lower,sizeof(range.lower));
-    xfFile.read((char*)&range.upper,sizeof(range.upper));
-
-    xfFile.read((char*)&relDomain,sizeof(relDomain));
-
-    std::vector<float> colorMap;
-    int numColorMapValues;
-    xfFile.read((char*)&numColorMapValues,sizeof(numColorMapValues));
-    colorMap.resize(numColorMapValues*4);
-    xfFile.read((char*)colorMap.data(),colorMap.size()*sizeof(colorMap[0]));
-
-    vktLUT = vkt::LookupTable(numColorMapValues,1,1,vkt::ColorFormat::RGBA32F);
-    vktLUT.setData((uint8_t*)colorMap.data());
-    vktTFE.setLookupTableResource(vktLUT.getResourceHandle());
-
-    firstFrame = true;
   }
 
   void TFEditor::selectCMap(int cmapID, bool keepAlpha){
@@ -158,5 +127,70 @@ namespace exa{
     }
 
     cmapUpdated_ = true;
+  }
+
+  void TFEditor::loadFromFile(const char *fname) {
+    std::ifstream xfFile(fname, std::ios::binary);
+
+    if (!xfFile.good())
+      throw std::runtime_error("Could not open TF");
+
+    static const size_t xfFileFormatMagic = 0x1235abc000;
+    size_t magic;
+    xfFile.read((char*)&magic,sizeof(xfFileFormatMagic));
+    if (magic != xfFileFormatMagic) {
+      throw std::runtime_error("Not a valid TF file");
+    }
+
+    xfFile.read((char*)&opacityScale,sizeof(opacityScale));
+
+    xfFile.read((char*)&range.lower,sizeof(range.lower));
+    xfFile.read((char*)&range.upper,sizeof(range.upper));
+
+    xfFile.read((char*)&relDomain,sizeof(relDomain));
+
+    qtOWL::ColorMap colorMap;
+    int numColorMapValues;
+
+    xfFile.read((char*)&numColorMapValues,sizeof(numColorMapValues));
+    colorMap.resize(numColorMapValues);
+    xfFile.read((char*)colorMap.data(),colorMap.size()*sizeof(colorMap[0]));
+
+    vktLUT = vkt::LookupTable(numColorMapValues,1,1,vkt::ColorFormat::RGBA32F);
+    vktLUT.setData((uint8_t*)colorMap.data());
+    vktTFE.setLookupTableResource(vktLUT.getResourceHandle());
+
+    auto updatedLUT = vktTFE.getUpdatedLookupTable();
+    if (updatedLUT != nullptr) {
+      auto rmap = colorMap.resampledTo(updatedLUT->getDims().x);
+      updatedLUT->setData((uint8_t*)&rmap[0]);
+    }
+
+    firstFrame = true;
+  }
+
+  void TFEditor::saveToFile(const char *fname) {
+    std::ofstream ofs(fname, std::ios::binary);
+
+    if (!ofs.good())
+      std::cerr << "Cannot save tf at " << fname << "\n";
+
+    static const size_t xfFileFormatMagic = 0x1235abc000;
+    ofs.write((char*)&xfFileFormatMagic, sizeof(xfFileFormatMagic));
+
+    ofs.write((char*)&opacityScale,sizeof(opacityScale));
+    ofs.write((char*)&range.lower,sizeof(range.lower));
+    ofs.write((char*)&range.upper,sizeof(range.upper));
+    ofs.write((char*)&relDomain,sizeof(relDomain));
+
+    const auto cmap = getColorMap();
+    const int numColorMapValues = cmap.size();
+
+    ofs.write((char*)&numColorMapValues, sizeof(numColorMapValues));
+    ofs.write((char*)&cmap[0], numColorMapValues * sizeof(vec4f));
+
+    ofs.close();
+
+    std::cout << "TFE saved to " << fname << "\n";
   }
 }
