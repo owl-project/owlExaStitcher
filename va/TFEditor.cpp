@@ -74,9 +74,9 @@ namespace exa{
             ImGui::SetItemDefaultFocus();
       }
       ImGui::EndCombo();
-    }
 
-    selectCMap(curCMapID, true);
+      selectCMap(curCMapID, true);
+    }
   }
 
   std::vector<vec4f> TFEditor::getColorMap(){
