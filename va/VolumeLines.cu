@@ -5,6 +5,8 @@
 #include "hilbert.h"
 
 // #define TIMING 1
+#define PRINT_ATOMIC_OP_DIST 0
+
 
 inline int64_t __host__ __device__ iDivUp(int64_t a, int64_t b)
 {
@@ -522,44 +524,48 @@ namespace exa {
     if (updated_) {
       float maxVh = 0.f;
       std::vector<range1f> xfRanges;
-      for (int fieldID=0;fieldID<numFields;++fieldID) {
+      for (int fieldID = 0; fieldID < numFields; ++fieldID) {
         range1f r{
-         xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.lower/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower),
-         xf[fieldID].absDomain.lower + (xf[fieldID].relDomain.upper/100.f) * (xf[fieldID].absDomain.upper-xf[fieldID].absDomain.lower)
-        };
+            xf[fieldID].absDomain.lower +
+                (xf[fieldID].relDomain.lower / 100.f) *
+                    (xf[fieldID].absDomain.upper - xf[fieldID].absDomain.lower),
+            xf[fieldID].absDomain.lower +
+                (xf[fieldID].relDomain.upper / 100.f) *
+                    (xf[fieldID].absDomain.upper -
+                     xf[fieldID].absDomain.lower)};
         xfRanges.push_back(r);
       }
 
       if (numFields == 1) {
-        for (size_t j=0; j<xf[0].colorMap.size(); ++j) {
+        for (size_t j = 0; j < xf[0].colorMap.size(); ++j) {
           float alpha = xf[0].colorMap[j].w;
           range1f r = xfRanges[0];
           alpha -= r.lower;
-          alpha /= (r.upper-r.lower);
-          maxVh = fmaxf(maxVh,alpha);
+          alpha /= (r.upper - r.lower);
+          maxVh = fmaxf(maxVh, alpha);
         }
       } else {
         std::vector<float> minValues(xf[0].colorMap.size(), 1e30f);
-        std::vector<float> maxValues(xf[0].colorMap.size(),-1e30f);
-        for (int fieldID=0;fieldID<numFields;++fieldID) {
-          for (size_t i=0; i<xf[fieldID].colorMap.size(); ++i) {
+        std::vector<float> maxValues(xf[0].colorMap.size(), -1e30f);
+        for (int fieldID = 0; fieldID < numFields; ++fieldID) {
+          for (size_t i = 0; i < xf[fieldID].colorMap.size(); ++i) {
             float alpha = xf[fieldID].colorMap[i].w;
             range1f r = xfRanges[fieldID];
             alpha -= r.lower;
-            alpha /= (r.upper-r.lower);
-            minValues[i] = fminf(minValues[i],alpha);
-            maxValues[i] = fmaxf(maxValues[i],alpha);
-            //std::cout << fieldID << ',' << i << ',' << alpha << ',' << minValues[i] << ',' << maxValues[i] << '\n';
+            alpha /= (r.upper - r.lower);
+            minValues[i] = fminf(minValues[i], alpha);
+            maxValues[i] = fmaxf(maxValues[i], alpha);
+            // std::cout << fieldID << ',' << i << ',' << alpha << ',' << minValues[i] << ',' << maxValues[i] << '\n';
           }
         }
 
-        for (size_t i=0; i<minValues.size(); ++i) {
-          float diff = maxValues[i]-minValues[i];
-          maxVh = fmaxf(maxVh,diff);
+        for (size_t i = 0; i < minValues.size(); ++i) {
+          float diff = maxValues[i] - minValues[i];
+          maxVh = fmaxf(maxVh, diff);
         }
       }
 
-      //std::cout << "maxVh: " << maxVh << '\n';
+      // std::cout << "maxVh: " << maxVh << '\n';
 
       // Don't divide by 0
       if (maxVh == 0.f)
@@ -568,53 +574,53 @@ namespace exa {
       size_t numThreads = 1024;
 
       if (!importance.perCell) {
-        cudaMalloc(&importance.perCell, sizeof(float)*numCells);
-        cudaMalloc(&importance.cumulative, sizeof(float)*numCells);
-        cub::DeviceScan::InclusiveSum(importance.tempStorage,
-                                      importance.tempStorageSizeInBytes,
-                                      importance.perCell,
-                                      importance.cumulative,
-                                      numCells);
+        cudaMalloc(&importance.perCell, sizeof(float) * numCells);
+        cudaMalloc(&importance.cumulative, sizeof(float) * numCells);
+        cub::DeviceScan::InclusiveSum(
+            importance.tempStorage, importance.tempStorageSizeInBytes,
+            importance.perCell, importance.cumulative, numCells);
         cudaMalloc(&importance.tempStorage, importance.tempStorageSizeInBytes);
       }
 
       std::vector<DeviceXF> hXF(numFields);
-      for (int fieldID=0;fieldID<numFields;++fieldID) {
+      for (int fieldID = 0; fieldID < numFields; ++fieldID) {
         hXF[fieldID].colorMap = xf[fieldID].deviceColorMap;
         hXF[fieldID].numColors = (int)xf[fieldID].colorMap.size();
         hXF[fieldID].xfDomain = xfRanges[fieldID];
       }
 
       DeviceXF *dXF;
-      cudaMalloc(&dXF, hXF.size()*sizeof(hXF[0]));
-      cudaMemcpy(dXF, hXF.data(), hXF.size()*sizeof(hXF[0]), cudaMemcpyHostToDevice);
+      cudaMalloc(&dXF, hXF.size() * sizeof(hXF[0]));
+      cudaMemcpy(dXF, hXF.data(), hXF.size() * sizeof(hXF[0]),
+                 cudaMemcpyHostToDevice);
 
 #if TIMING
       timer.reset();
 #endif
-      assignImportance<<<iDivUp(numCells,numThreads),numThreads>>>(
-        cells, scalars, importance.perCell, numCells, numFields,
-        dXF, maxVh, minImportance, P);
+      assignImportance<<<iDivUp(numCells, numThreads), numThreads>>>(
+          cells, scalars, importance.perCell, numCells, numFields, dXF, maxVh,
+          minImportance, P);
 #if TIMING
-      std::cout << "assignImportance<<<"
-                << iDivUp(numCells,numThreads) << ',' << numThreads
-                << ">>>()\n"
+      std::cout << "assignImportance<<<" << iDivUp(numCells, numThreads) << ','
+                << numThreads << ">>>()\n"
                 << "Elapsed: " << timer.elapsed() << " ms.\n\n";
 #endif
 
       cudaFree(dXF);
 
-      cub::DeviceScan::InclusiveSum(importance.tempStorage,
-                                    importance.tempStorageSizeInBytes,
-                                    importance.perCell,
-                                    importance.cumulative,
-                                    numCells);
+      cub::DeviceScan::InclusiveSum(
+          importance.tempStorage, importance.tempStorageSizeInBytes,
+          importance.perCell, importance.cumulative, numCells);
 
       // raster cells onto 1D grids
-      for (size_t i=0; i<grids1D.size(); ++i) {
+      for (size_t i = 0; i < grids1D.size(); ++i) {
         cudaFree(grids1D[i]);
       }
       grids1D.clear();
+
+#if PRINT_ATOMIC_OP_DIST
+      std::cout << "Atomic OP Stats:\n";
+#endif
 
       for (int fieldID=0; fieldID<numFields; ++fieldID) {
         GridCell *grid;
@@ -637,12 +643,70 @@ namespace exa {
                   << ">>>(fieldID=" << fieldID << ")\n"
                   << "Elapsed: " << timer.elapsed() << " ms.\n\n";
 #endif
-
         grids1D.push_back(grid);
 
 #if TIMING
         timer.reset();
 #endif
+
+
+#if PRINT_ATOMIC_OP_DIST
+        {
+          std::vector<float> h_weights;
+          h_weights.resize(w);
+          cudaMemcpy(&h_weights[0], weights, sizeof(float)*w, cudaMemcpyDeviceToHost);
+
+          std::vector<int> counts;
+          counts.resize(w);
+
+          // Calc statistics
+          int minCount = counts[0];
+          int maxCount = counts[0];
+          float meanCount = 0;
+
+          for (size_t i=0; i<counts.size(); ++i) {
+            counts[i] = int(h_weights[i]);
+
+            meanCount += h_weights[i] / w;
+            minCount = std::min(minCount, counts[i]);
+            maxCount = std::max(maxCount, counts[i]);
+          }
+
+          std::sort(counts.begin(), counts.end());
+
+          float quartiles[3];
+
+          for (int q = 0; q < 3; ++q){
+            float fidx = ((q + 1.f) * float(w + 1)) / 4.f;
+            fidx = std::min(std::max(0.f, fidx), w-1.f);
+            int idx = (int) fidx;
+
+            quartiles[q] = counts[idx];
+
+            if (idx != fidx){
+              const float r = fidx - idx;
+              quartiles[q] = quartiles[q] * r + counts[idx + 1] * (1-r);
+            }
+          }
+
+          std::cout << "For field " << fieldID << ":\n"
+                    << "\tMin: " << minCount << " Max: " << maxCount << "\n"
+                    << "\tQuartiles: " << quartiles[0] << " " << quartiles[1] << " "
+                    << quartiles[2] << " " << "\n";
+
+          const int N = 20;
+          std::cout << "\tFirst " << N << ": ";
+          for (int i=0; i<N; ++i)
+            std::cout << counts[i] << " ";
+          std::cout << "\n";
+
+          std::cout << "\tLast  " << N << ": ";
+          for (int i=0; i<N; ++i)
+            std::cout << counts[w - N + i] << " ";
+          std::cout << "\n";
+        }
+#endif
+
         basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
           grid, weights, w);
 #if TIMING
