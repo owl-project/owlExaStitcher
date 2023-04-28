@@ -930,10 +930,10 @@ namespace exa {
     return sampler->numFields();
   }
 
-  void OWLRenderer::setActiveField(int fieldID){
+  void OWLRenderer::setActiveField(int fieldID, bool force){
     auto oldFieldID = sampler->getActiveField();
 
-    if (oldFieldID != fieldID){
+    if (oldFieldID != fieldID || force){
       sampler->setActiveField(fieldID);
 
       range1f r{

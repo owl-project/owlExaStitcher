@@ -79,7 +79,7 @@ namespace exa {
     void enableROI(bool enabled, const box3f &cellBounds,float outsideOpacityScale);
 
     int getNumFields() const;
-    void setActiveField(int fieldID);
+    void setActiveField(int fieldID, bool force=false);
 
     OWLContext owl;
     OWLModule  module;

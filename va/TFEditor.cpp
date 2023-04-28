@@ -19,6 +19,10 @@ namespace exa{
     opacityScale = 100.f;
 
     firstFrame = true;
+
+    cmapUpdated_ = true;
+    opacityUpdated_ = true;
+    rangeUpdated_ = true;
   }
 
   void TFEditor::drawImmediate() {

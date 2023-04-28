@@ -522,15 +522,11 @@ namespace exa {
           tfe[fid].drawImmediate();
           ImGui::EndTabItem();
 
-          if (fieldID != fid){
-            fieldID = fid;
-            renderer->setActiveField(fieldID);
-          }
+          fieldID = fid;
         }
         ImGui::PopID();
       }
     }
-
 
     //tfe[fieldID].drawImmediate();
     ImGui::End();
@@ -641,6 +637,10 @@ namespace exa {
 
       tfe[f].downdate();
     }
+
+    static bool firstFrame = true;
+    renderer->setActiveField(fieldID, firstFrame);
+    firstFrame = false;
 
     // Set ROIs
     const bool roiEnabled = !vl.roisToHilbertIDs.empty();
