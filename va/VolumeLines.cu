@@ -645,11 +645,6 @@ namespace exa {
 #endif
         grids1D.push_back(grid);
 
-#if TIMING
-        timer.reset();
-#endif
-
-
 #if PRINT_ATOMIC_OP_DIST
         {
           std::vector<float> h_weights;
@@ -707,6 +702,9 @@ namespace exa {
         }
 #endif
 
+#if TIMING
+        timer.reset();
+#endif
         basisAverageGridCells<<<iDivUp(w,numThreads),numThreads>>>(
           grid, weights, w);
 #if TIMING
