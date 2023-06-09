@@ -1,0 +1,12 @@
+[submodule "submodules/owl"]
+	path = submodules/owl
+	url = https://github.com/owl-project/owl
+[submodule "submodules/umesh"]
+	path = submodules/umesh
+	url = https://gitlab.com/ingowald/umesh
+[submodule "submodules/cuteeOwl"]
+	path = submodules/cuteeOwl
+	url = https://github.com/owl-project/cuteeOwl
+[submodule "submodules/visionaray"]
+	path = submodules/visionaray
+	url = https://github.com/szellmann/visionaray
