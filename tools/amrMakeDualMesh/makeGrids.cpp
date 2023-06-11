@@ -18,7 +18,11 @@
 #include "umesh/io/IO.h"
 #include "umesh/check.h"
 // #include "tetty/UMesh.h"
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/time.h>
+#endif
 #include <set>
 #include <map>
 #include <fstream>
