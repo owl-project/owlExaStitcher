@@ -13,9 +13,24 @@ Stefan Zellmann, Qi Wu, Kwan-Liu Ma, Ingo Wald:\
 "_Memory-Efficient GPU Volume Path Tracing of AMR Data Using the Dual Mesh_" \
 Computer Graphics Forum, Vol. 42, Issue 3, 2023 (Proceedings of EuroVis 2023)
 
+Citation:
+```
+@article {10.1111:cgf.14811,
+journal = {Computer Graphics Forum},
+title = {{Memory-Efficient GPU Volume Path Tracing of AMR Data Using the Dual Mesh}},
+author = {Zellmann, Stefan and Wu, Qi and Ma, Kwan-Liu and Wald, Ingo},
+year = {2023},
+publisher = {The Eurographics Association and John Wiley & Sons Ltd.},
+ISSN = {1467-8659},
+DOI = {10.1111/cgf.14811}
+}
+```
+
 Author version: https://pds.uni-koeln.de/sites/pds/szellma1/eurovis23-stitcher-author-version-compressed.pdf
 
 High-res author version: https://pds.uni-koeln.de/sites/pds/szellma1/eurovis23-stitcher-author-version.pdf
+
+Official version: https://diglib.eg.org/handle/10.1111/cgf14811
 
 Usage
 =====
