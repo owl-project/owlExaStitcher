@@ -55,7 +55,7 @@ The project includes an interactive renderer:
 ./exaStitchViewer boundaryCells.umesh -grids gridlets.grids -scalars scalars.bin
 ```
 
-- Usage on Windows
+### Usage on Windows
 
 Example:
 ```
