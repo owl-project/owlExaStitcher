@@ -55,6 +55,17 @@ The project includes an interactive renderer:
 ./exaStitchViewer boundaryCells.umesh -grids gridlets.grids -scalars scalars.bin
 ```
 
+# Usage on Windows
+
+Example:
+```
+mkdir build
+cd build
+cmake .. -DOptiX_INSTALL_DIR="C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.4.0" -DQt5Widgets_DIR="C:/Users/wilso/Documents/Softwares/win/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5Widgets" -DBUILD_SHARED_LIBS=OFF
+cmake --build . --config Release
+```
+i.e., don't build shared libs; otherwise similar to Linux.
+
 General Notes
 =============
 
