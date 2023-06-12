@@ -1,6 +1,11 @@
 Exa Stitching Renderer
 ======================
 
+![teaser](/img/teaser.jpg "Teaser")
+
+Overview
+========
+
 Prototype renderer that can handle volumetric bricks ("gridlets") plus umeshes,
 such as they occur if one generates a dual AMR grid, stitches the boundary
 regions with unstructured elements, but clusters and then represents the
