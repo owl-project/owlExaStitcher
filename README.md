@@ -34,3 +34,10 @@ The `umesh` file is allowed to either include per-vertex scalar values
 `-scalars`). `grids` files are however always store scalar IDs, i.e., passing a
 `grids` file without scalars will result in rendering being broken because the
 scalars are missing
+
+Volume Lines Extension
+======================
+
+This branch contains extension for the paper
+"Visual Analysis of Large Multi-Field AMR Data on GPUs Using Interactive Volume Lines"
+Code for that can be found in the folder `va`.
