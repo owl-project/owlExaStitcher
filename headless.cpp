@@ -105,7 +105,7 @@ namespace exa {
     log << "==================\n\n";
 
     int frameID=0;
-    int screenshotID=10;//-1
+    int screenshotID=210;//-1
     int stopID=510;
     std::string screenshotFileName = outFileName.empty() ? "" : outFileName+".png";
 

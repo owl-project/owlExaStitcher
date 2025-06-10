@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <cstring>
 #include <fstream>
 #include <owl/common/parallel/parallel_for.h>
 #include "ExaBrickModel.h"
@@ -76,15 +77,17 @@ namespace exa {
     // flatten cellIDs
     // -------------------------------------------------------
 
-    scalars.resize(orderedScalars.size());
+    scalars.resize(indices.size());//orderedScalars.size());
     parallel_for_blocked(0ull,indices.size(),1024*1024,[&](size_t begin,size_t end){
         for (size_t i=begin;i<end;i++) {
+          if (i >= scalars.size()) continue;
           if (indices[i] < 0) {
-            throw std::runtime_error("overflow in index vector...");
+            //throw std::runtime_error("overflow in index vector...");
+            scalars[i] = NAN;
           } else {
             int cellID = indices[i];
-            if (cellID < 0)
-              throw std::runtime_error("negative cell ID");
+            //if (cellID < 0)
+            //  throw std::runtime_error("negative cell ID");
             if (cellID >= orderedScalars.size())
               throw std::runtime_error("invalid cell ID");
             scalars[i] = orderedScalars[cellID];

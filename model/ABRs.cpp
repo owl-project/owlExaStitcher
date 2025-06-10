@@ -249,7 +249,8 @@ namespace exa {
               + brick.size.x*iy
               + brick.size.x*brick.size.y*iz;
             const float scalar = scalarBuffers[scalarIndex];
-            region.valueRange.extend(scalar);
+            if (std::isfinite(scalar))
+              region.valueRange.extend(scalar);
           }
         }
       }

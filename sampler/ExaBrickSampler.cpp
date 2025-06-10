@@ -208,6 +208,8 @@ namespace exa {
               int idx = brick.getIndexIndex(index3);
               const float value = scalars[idx];
 
+              if (!isfinite(value)) continue;
+
               hValueRanges[i].lower = std::min(hValueRanges[i].lower,value);
               hValueRanges[i].upper = std::max(hValueRanges[i].upper,value);
 

@@ -137,29 +137,37 @@ namespace exa {
       if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
         if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_lo.x,idx_lo.y,idx_lo.z);
+          if (isfinite(scalar)) {
           const float weight = (neg_frac.z)*(neg_frac.y)*(neg_frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
         if (idx_hi.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_hi.x,idx_lo.y,idx_lo.z);
+          if (isfinite(scalar)) {
           const float weight = (neg_frac.z)*(neg_frac.y)*(frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
       }
       if (idx_hi.y < brick.size.y) {
         if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_lo.x,idx_hi.y,idx_lo.z);
+          if (isfinite(scalar)) {
           const float weight = (neg_frac.z)*(frac.y)*(neg_frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
         if (idx_hi.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_hi.x,idx_hi.y,idx_lo.z);
+          if (isfinite(scalar)) {
           const float weight = (neg_frac.z)*(frac.y)*(frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
       }
     }
@@ -168,29 +176,37 @@ namespace exa {
       if (idx_lo.y >= 0 && idx_lo.y < brick.size.y) {
         if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_lo.x,idx_lo.y,idx_hi.z);
+          if (isfinite(scalar)) {
           const float weight = (frac.z)*(neg_frac.y)*(neg_frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
         if (idx_hi.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_hi.x,idx_lo.y,idx_hi.z);
+          if (isfinite(scalar)) {
           const float weight = (frac.z)*(neg_frac.y)*(frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
       }
       if (idx_hi.y < brick.size.y) {
         if (idx_lo.x >= 0 && idx_lo.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_lo.x,idx_hi.y,idx_hi.z);
+          if (isfinite(scalar)) {
           const float weight = (frac.z)*(frac.y)*(neg_frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
         if (idx_hi.x < brick.size.x) {
           const float scalar = getScalar(self,brickID,idx_hi.x,idx_hi.y,idx_hi.z);
+          if (isfinite(scalar)) {
           const float weight = (frac.z)*(frac.y)*(frac.x);
           sumWeights += weight;
           sumWeightedValues += weight*scalar;
+          }
         }
       }
     }

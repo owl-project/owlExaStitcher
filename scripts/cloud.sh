@@ -1,9 +1,14 @@
-BUILD_DIR="/home/ampere/stefan/exastitch/build"
+BUILD_DIR="/home/zellmann/owlExaStitcher/build"
 UMESH="/slow/stitcher/cloud.umesh"
 GRIDLETS="-grids /slow/stitcher/cloud.grids.8"
-BRICKS="-bricks /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.bricks"
-SCALARS="-scalars /fast/data/exa/MC1_L11/SILCC_hdf5_plt_cnt_0300_dens.scalars"
-KDTREE="-kdtree /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.kd"
+#BRICKS="-bricks /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.bricks"
+#BRICKS="-bricks /home/zellmann/exabuilder/build/SILCC_hdf5_plt_cnt_0300_dens.projection.bricks"
+BRICKS="-bricks /mnt/raid/zellmann/exa/MC1_L11/SILCC_hdf5_plt_cnt_0300-vah.bricks"
+#BRICKS="-bricks /home/zellmann/exabuilder/build/SILCC_hdf5_plt_cnt_0300_dens.morton.bricks"
+#SCALARS="-scalars /fast/data/exa/MC1_L11/SILCC_hdf5_plt_cnt_0300_dens.scalars"
+SCALARS="-scalars /mnt/raid/zellmann/exa/MC1_L11/SILCC_hdf5_plt_cnt_0300_dens.scalars"
+#KDTREE="-kdtree /slow/qiwu/SILCC_hdf5_plt_cnt_0300_dens.kd"
+KDTREE=""
 
 CAMERA="--camera 5346.1 1520.14 82012.8 6671.5 2211.75 81920.5 -0.430131 0.759096 -0.488631 -fovy 70"
 XF="-xf cloud.xf"
@@ -18,19 +23,19 @@ cmake ${BUILD_DIR} \
     -DEXA_STITCH_MIRROR_EXAJET=OFF
 cmake --build ${BUILD_DIR} -j
 
-echo "Benchmark: Stitcher"
-
-outfile="-o cloud_stitcher"
-${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee cloud.out
+#echo "Benchmark: Stitcher"
+#
+#outfile="-o cloud_stitcher"
+#${BUILD_DIR}/exaStitchHeadlessViewer ${UMESH} ${GRIDLETS} ${SCALARS} ${MESH} ${CAMERA} ${XF} ${NUM_MCS} ${LIGHT} ${CLIP_PLANE} ${IMG_SIZE} ${outfile} ${fpsfile} -rt 0 2>&1 | tee cloud.out
 
 
 #--- ExaBricks benchmark ----------------------------------
 samplers=("ABRs" "Extended bricks")
 iterators=("ABRs" "DDA" "MC-BVH" "KDTree" "Brick-BVH", "Extended bricks BVH")
 
-for sampler_mode in {0..1}
+for sampler_mode in {1..1}
 do
-  for traversal_mode in {0..5}
+  for traversal_mode in {5..5}
   do
     cmake ${BUILD_DIR} \
         -DEXA_STITCH_MIRROR_EXAJET=OFF \

@@ -410,6 +410,7 @@ namespace exa {
               vec3i index3(x,y,z);
               int idx = brick.getIndexIndex(index3);
               const float value = sampler->model->scalars[idx];
+              if (!isfinite(value)) continue;
 
               vec3i lower = brick.lower + index3*(1<<brick.level);
               vec3i upper = lower + (1<<brick.level);

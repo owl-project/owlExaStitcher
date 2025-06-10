@@ -15,6 +15,7 @@
 // ======================================================================== //
 
 #include <float.h>
+#include <math.h>
 #include "LaunchParams.h"
 #include "Grid.cuh"
 #include "KDTree.cuh"
@@ -64,9 +65,13 @@ namespace exa {
     unsigned int r = (unsigned int)(idx*13*17 + 0x234235);
     unsigned int g = (unsigned int)(idx*7*3*5 + 0x773477);
     unsigned int b = (unsigned int)(idx*11*19 + 0x223766);
-    return vec3f((r&255)/255.f,
+    auto rgb = vec3f((r&255)/255.f,
                  (g&255)/255.f,
                  (b&255)/255.f);
+    rgb.x = powf(rgb.x,1.f/2.2f);
+    rgb.y = powf(rgb.y,1.f/2.2f);
+    rgb.z = powf(rgb.z,1.f/2.2f);
+    return rgb;
   }
 
   inline __device__ int getNumLights()
@@ -345,7 +350,7 @@ namespace exa {
   // Generic integration sampler for DVR and ISOs
   // ------------------------------------------------------------------
 
-  template <typename Sampler, bool Shading=true>
+  template <bool Shading, typename Sampler>
   inline __device__
   vec4f integrateDVR(const Sampler &sampler, Ray ray, float t0, float t1, float ils_t0 = 0.f, const int numLights =0)
   {
@@ -410,6 +415,8 @@ namespace exa {
   {
     vec4f pixelColor(0.f);
 
+    auto& lp = optixLaunchParams;
+
     // first, since we now traverse bricks and sample cells: convert ray to voxel space...
     ray.origin = xfmPoint(lp.voxelSpaceTransform,ray.origin);
     ray.direction = xfmVector(lp.voxelSpaceTransform,ray.direction);
@@ -422,7 +429,7 @@ namespace exa {
     auto integrate = [=,&pixelColor](const int leafID, float t0, float t1) {
       const float global_dt = lp.render.dt;
 
-      const ABR &abr = lp.abrBuffer[leafID];
+      const ABR &abr = sampler.abrBuffer[leafID];
       const float dt = global_dt * abr.finestLevelCellWidth;
 
       int i0 = int(ceilf((t0-dt*ils_t0) / dt));
@@ -440,7 +447,7 @@ namespace exa {
 
         const vec3f pos = ray.origin + t_sample * ray.direction;
 
-        const int *childList  = &lp.abrLeafListBuffer[abr.leafListBegin];
+        const int *childList  = &sampler.abrLeafListBuffer[abr.leafListBegin];
         const int  childCount = abr.leafListSize;
         float sumWeightedValues = 0.f;
         float sumWeights = 0.f;
@@ -1253,7 +1260,7 @@ namespace exa {
       ray.tmin = t0;
       ray.tmax = t1;
 
-      color = over(integrateDVR(sampler,ray,t0,t1,random(),numLights),color);
+      color = over(integrateDVR<0>(sampler,ray,t0,t1,random(),numLights),color);
     }
 
     return color;
@@ -1316,7 +1323,6 @@ namespace exa {
                                                bgColor,
                                                numLights);
       }
-
     }
 
 
@@ -1339,7 +1345,7 @@ namespace exa {
           && (((pixelIndex.x==si.lower.x || pixelIndex.x==si.upper.x) && (pixelIndex.y >= si.lower.y && pixelIndex.y <= si.upper.y))
            || ((pixelIndex.y==si.lower.y || pixelIndex.y==si.upper.y) && (pixelIndex.x >= si.lower.x && pixelIndex.x <= si.upper.x)));
 
-    if (crossHairs || subImageSel) accumColor = vec4f(1.f) - accumColor;
+    //if (crossHairs || subImageSel) accumColor = vec4f(1.f) - accumColor;
 
     lp.fbPointer[pixelID] = make_rgba(accumColor*(1.f/spp));
   }
@@ -1349,12 +1355,12 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
     
-    if (lp.integrator==PATH_TRACING_INTEGRATOR)
+    //if (lp.integrator==PATH_TRACING_INTEGRATOR)
       renderFrame_Impl<PathTracer,SM>(traversable,sampler);
-    else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR)
-      renderFrame_Impl<DirectLighting,SM>(traversable,sampler);
-    else if (lp.integrator==RAY_MARCHING_INTEGRATOR)
-      renderFrame_Impl<RayMarcher,SM>(traversable,sampler);
+    //else if (lp.integrator==DIRECT_LIGHT_INTEGRATOR)
+    //  renderFrame_Impl<DirectLighting,SM>(traversable,sampler);
+    //else if (lp.integrator==RAY_MARCHING_INTEGRATOR)
+    //  renderFrame_Impl<RayMarcher,SM>(traversable,sampler);
   }
 
   OPTIX_RAYGEN_PROGRAM(renderFrame_AMRCellSampler)()
@@ -1391,12 +1397,12 @@ namespace exa {
   {
     auto& lp = optixLaunchParams;
 
-    if (lp.shadeMode == SHADE_MODE_DEFAULT)
+    //if (lp.shadeMode == SHADE_MODE_DEFAULT)
       return renderFrame_SelectIntegrator<Default>(lp.majorantGrid,lp.sampler.ess);
-    else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
-      return renderFrame_SelectIntegrator<Gridlets>(lp.majorantGrid,lp.sampler.ess);
-    else if (lp.shadeMode == SHADE_MODE_TEASER)
-      return renderFrame_SelectIntegrator<Teaser>(lp.majorantGrid,lp.sampler.ess);
+    //else if (lp.shadeMode == SHADE_MODE_GRIDLETS)
+    //  return renderFrame_SelectIntegrator<Gridlets>(lp.majorantGrid,lp.sampler.ess);
+    //else if (lp.shadeMode == SHADE_MODE_TEASER)
+    //  return renderFrame_SelectIntegrator<Teaser>(lp.majorantGrid,lp.sampler.ess);
   }
 } // ::exa
 
