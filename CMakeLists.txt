@@ -256,6 +256,7 @@ add_executable(exaBrickKdtreeBuilder tools/kdtreeBuilder.cpp)
 target_link_libraries(exaBrickKdtreeBuilder witcher)
 
 add_executable(testDataGenerator tools/makeTestData.cpp)
+add_executable(computeVectorMagnitude tools/computeVectorMagnitude.cpp)
 target_link_libraries(testDataGenerator witcher)
 option(EXASTITCH_ANARI_DEVICE "Build the exastitch anari device" OFF)
 if(EXASTITCH_ANARI_DEVICE)
