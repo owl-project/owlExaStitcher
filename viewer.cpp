@@ -16,6 +16,7 @@
 
 #include <iomanip>
 #include <fstream>
+#ifndef HEADLESS
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
@@ -26,14 +27,86 @@
 #include "qtOWL/OWLViewer.h"
 #include "qtOWL/XFEditor.h"
 #include "LightInteractor.h"
+#endif
 #include "OWLRenderer.h"
 #ifdef HEADLESS
 #include "headless.h"
+#include "submodules/cuteeOwl/qtOWL/Camera.h"
 #endif
 
 // #include "SAHBuilder.h"
 // #include "SAHVolumeWrapper.h"
 
+#ifdef HEADLESS
+namespace qtOWL {
+  
+  /*! base abstraction for a camera that can generate rays. For this
+    viewer, we assume we're dealine with a camera that has a
+    rectangular viewing plane that's in focus, and a circular (and
+    possible single-point) lens for depth of field. At some later
+    point this should also capture time.{t0,t1} for motion blur, but
+    let's leave this out for now. */
+  struct SimpleCamera
+  {
+    inline SimpleCamera() {}
+    SimpleCamera(const Camera &camera);
+
+    struct {
+      vec3f lower_left;
+      vec3f horizontal;
+      vec3f vertical;
+    } screen;
+    struct {
+      vec3f center;
+      vec3f du;
+      vec3f dv;
+      float radius { 0.f };
+    } lens;
+  };
+
+  float computeStableEpsilon(float f)
+  {
+    return abs(f) * float(1./(1<<21));
+  }
+
+  float computeStableEpsilon(const vec3f v)
+  {
+    return max(max(computeStableEpsilon(v.x),
+                   computeStableEpsilon(v.y)),
+               computeStableEpsilon(v.z));
+  }
+
+  SimpleCamera::SimpleCamera(const Camera &camera)
+  {
+    auto &easy = *this;
+    easy.lens.center = camera.position;
+    easy.lens.radius = 0.f;
+    easy.lens.du     = camera.frame.vx;
+    easy.lens.dv     = camera.frame.vy;
+
+    const float minFocalDistance
+      = max(computeStableEpsilon(camera.position),
+            computeStableEpsilon(camera.frame.vx));
+
+    /*
+      tan(fov/2) = (height/2) / dist
+      -> height = 2*tan(fov/2)*dist
+    */
+    float screen_height
+      = 2.f*tanf(camera.fovyInDegrees/2.f * (float)M_PI/180.f)
+      * max(minFocalDistance,camera.focalDistance);
+    easy.screen.vertical   = screen_height * camera.frame.vy;
+    easy.screen.horizontal = screen_height * camera.aspect * camera.frame.vx;
+    easy.screen.lower_left
+      = //easy.lens.center
+        /* NEGATIVE z axis! */
+      - max(minFocalDistance,camera.focalDistance) * camera.frame.vz
+      - 0.5f * easy.screen.vertical
+      - 0.5f * easy.screen.horizontal;
+    // easy.lastModified = getCurrentTime();
+  }
+} // ::qtOWL
+#endif
 
 #define DUMP_FRAMES 0
 
@@ -183,9 +256,9 @@ namespace exa {
 #else
   struct Viewer : public qtOWL::OWLViewer {
     typedef qtOWL::OWLViewer inherited;
-#endif
 
     Q_OBJECT
+#endif
 
   public:
     Viewer(OWLRenderer *renderer)
@@ -193,6 +266,8 @@ namespace exa {
       , renderer(renderer)
     {
     }
+
+    ~Viewer() {}
 
     /*! this function gets called whenever the viewer widget changes
       camera settings */
@@ -204,6 +279,7 @@ namespace exa {
     /*! draw framebuffer using OpenGL */
     void draw();
 
+    #ifndef HEADLESS
     /*! this gets called when the user presses a key on the keyboard ... */
     void key(char key, const vec2i &where) override
     {
@@ -390,12 +466,16 @@ namespace exa {
         inherited::mouseDragLeft(where,delta);
       }
     }
+    #endif
 
+#ifndef HEADLESS
   signals:
+#endif
     void subImageChanged(box2f subImageUV);
     void subImageSelectionChanged(box2f subImageUV);
     void lightEdittingToggled();
 
+#ifndef HEADLESS
   public slots:
     void colorMapChanged(qtOWL::XFEditor *xf);
     void rangeChanged(range1f r);
@@ -403,18 +483,23 @@ namespace exa {
     void lightPosChanged(owl::vec3f pos);
     void scheduleScreenShot(double seconds);
     void scheduleScreenShot(int frames);
+#endif
 
   public:
 
     OWLRenderer *const renderer;
+#ifndef HEADLESS
     qtOWL::XFEditor *xfEditor = nullptr;
+#endif
 
     vec2i downPos { 0, 0 };
     box2f lastSubImageWin;
     bool subImageSelecting = false;
     std::vector<box2f> subImageUndoStack;
     int subImageUndoStackTop = 0;
+#ifndef HEADLESS
     LightInteractor lightInteractor;
+#endif
     double screenShotAfterSec = -1.0;
     double seconds = 0.0;
     int screenShotAfterFrames = -1;
@@ -459,7 +544,7 @@ namespace exa {
     renderer->resize(newSize);
     renderer->resetAccum();
   }
-    
+
   /*! this function gets called whenever the viewer widget changes
     camera settings */
   void Viewer::cameraChanged() 
@@ -544,6 +629,7 @@ namespace exa {
   /*! draw framebuffer using OpenGL */
   void Viewer::draw()
   {
+#ifndef HEADLESS
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
     inherited::draw();
@@ -615,8 +701,10 @@ namespace exa {
 
     if (lightInteractor.active())
       lightInteractor.draw();
+#endif
   }
 
+#ifndef HEADLESS
   void Viewer::colorMapChanged(qtOWL::XFEditor *xfEditor)
   {
     renderer->setColorMap(xfEditor->getColorMap());
@@ -662,6 +750,7 @@ namespace exa {
     screenShotAfterFrames = frames;
     this->frames = 0;
   }
+#endif
 
 
   extern "C" int main(int argc, char** argv)
@@ -1405,8 +1494,8 @@ namespace exa {
                                   /*fovy(deg)*/70.f);
     }
     viewer.setWorldScale(1.1f*length(modelBounds.span()));
-    viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
-    viewer.lightInteractor.setPos(cmdline.lights[0].pos);
+    //viewer.lightInteractor.setWorldScale(length(modelBounds.span()));
+    //viewer.lightInteractor.setPos(cmdline.lights[0].pos);
 
     if (cmdline.xfFileName != "") {
       viewer.loadTransferFunction(cmdline.xfFileName);
@@ -1431,6 +1520,8 @@ namespace exa {
   }
 } // ::exa
 
+#ifndef HEADLESS
 #include "viewer.moc"
+#endif
 // vim: sw=2:expandtab:softtabstop=2:ts=2:cino=\:0g0t0
 

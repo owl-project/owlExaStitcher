@@ -17,18 +17,17 @@
 #pragma once
 
 #include <string>
-#include <QObject>
 #include "owl/common/math/vec.h"
-#include "qtOWL/Camera.h"
+#include "submodules/cuteeOwl/qtOWL/Camera.h"
 
 namespace exa {
 
-  struct Headless : QObject {
+  struct Headless {
 
     Headless(const std::string &title = "OWL Sample Viewer",
              const owl::vec2i &initWindowSize=owl::vec2i(1024,1024));
 
-    ~Headless();
+    virtual ~Headless();
 
     void setOutFileName(std::string fileName);
     void setOutFileNameFPS(std::string fileName);

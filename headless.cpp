@@ -16,15 +16,14 @@
 
 #include <fstream>
 #include <iomanip>
-#include <QApplication>
-#include <QDesktopWidget>
 #include <cuda_runtime.h>
 #include "headless.h"
 
-// #define STB_IMAGE_WRITE_IMPLEMENTATION 1
+#define STB_IMAGE_WRITE_IMPLEMENTATION 1
 #include "stb/stb_image_write.h"
 
 #include <cstdio>
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -58,10 +57,10 @@ namespace exa {
   {
     owl::vec2i ws = initWindowSize;
     if (ws == vec2i(0,0)) {
-      QRect rec = QApplication::desktop()->screenGeometry();
-      int height = rec.height();
-      int width = rec.width();
-      ws = vec2i{width,height};
+      //QRect rec = QApplication::desktop()->screenGeometry();
+      //int height = rec.height();
+      //int width = rec.width();
+      //ws = vec2i{width,height};
     }
 
     cudaMalloc(&fbPointer,sizeof(uint32_t)*ws.x*ws.y);

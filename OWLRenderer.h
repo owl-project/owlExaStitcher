@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include "qtOWL/ColorMaps.h"
+#include "submodules/cuteeOwl/qtOWL/ColorMaps.h"
 #include "model/Model.h"
 #include "sampler/Sampler.h"
 #include "TriangleMesh.h"

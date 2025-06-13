@@ -91,13 +91,6 @@ embed_ptx( # TODO: move to samplers
     sampler/programs/QuickClustersSampler.cu
 )
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/submodules/cuteeOwl)
-include_directories(${PROJECT_SOURCE_DIR}/submodules/cuteeOwl)
-include_directories(${QT_OWL_INCLUDES})
-find_package(Qt5Widgets REQUIRED)
-find_package(OpenGL REQUIRED)
-set(CMAKE_AUTOMOC ON)
-
 # ------------------------------------------------------------------
 # umesh
 # ------------------------------------------------------------------
@@ -137,8 +130,11 @@ include_directories(${vsnray_dir}/include)
 # witcher lib
 # ------------------------------------------------------------------
 
+option(EXASTITCH_BUILD_INTERACTIVE_VIEWER "Build the interactive exastitch QT viewer" ON)
+
 include_directories(${PROJECT_SOURCE_DIR})
-add_library(witcher STATIC
+add_library(witcher STATIC)
+target_sources(witcher PRIVATE
   model/ABRs.cpp
   model/AMRCellModel.cpp
   model/BigMeshModel.cpp
@@ -157,10 +153,12 @@ add_library(witcher STATIC
   sampler/Sampler.cpp
   Grid.cu
   KDTree.cpp
-  LightInteractor.cpp
   OWLRenderer.cpp
   TriangleMesh.cpp
   )
+if(EXASTITCH_BUILD_QT_VIEWER)
+  target_sources(witcher PRIVATE LightInteractor.cpp)
+endif()
 if(BIGMESH_FOUND)
  target_compile_definitions(witcher PUBLIC -DHAVE_BIGMESH=1)
  target_compile_definitions(embedded_deviceCode_ptx PUBLIC -DHAVE_BIGMESH=1)
@@ -206,30 +204,39 @@ endif()
 
 #--- options ----------------------------------------------
 
-target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/cuteeOwl/qtOWL)
+if(EXASTITCH_BUILD_INTERACTIVE_VIEWER)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/submodules/cuteeOwl)
+  include_directories(${PROJECT_SOURCE_DIR}/submodules/cuteeOwl)
+  include_directories(${QT_OWL_INCLUDES})
+  find_package(Qt5Widgets REQUIRED)
+  find_package(OpenGL REQUIRED)
+  set(CMAKE_AUTOMOC ON)
+  target_link_directories(witcher PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/submodules/cuteeOwl/qtOWL)
+endif()
 target_link_libraries(witcher embedded_deviceCode)
 target_link_libraries(witcher embedded_AMRCellSampler)
 target_link_libraries(witcher embedded_ExaBrickSampler)
 target_link_libraries(witcher embedded_ExaStitchSampler)
 target_link_libraries(witcher embedded_QuickClustersSampler)
-target_link_libraries(witcher
-      owl::owl
-      qtOWL
-      umesh
-      ${OPENGL_LIBRARIES})
+target_link_libraries(witcher owl::owl umesh)
 if(BIGMESH_FOUND)
-    target_link_libraries(witcher ${bigmesh_libraries})
+  target_link_libraries(witcher ${bigmesh_libraries})
+endif()
+if(EXASTITCH_BUILD_INTERACTIVE_VIEWER)
+  target_link_libraries(witcher qtOWL ${OPENGL_LIBRARIES})
 endif()
 
 # ------------------------------------------------------------------
 # viewer
 # ------------------------------------------------------------------
 
-add_executable(exaStitchViewer viewer.cpp)
-qt5_use_modules(exaStitchViewer Widgets)
-target_link_libraries(exaStitchViewer witcher)
-set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
-# QT_OWL_LINK(exaStitchViewer)
+if(EXASTITCH_BUILD_INTERACTIVE_VIEWER)
+  add_executable(exaStitchViewer viewer.cpp)
+  qt5_use_modules(exaStitchViewer Widgets)
+  target_link_libraries(exaStitchViewer witcher)
+  set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
+  # QT_OWL_LINK(exaStitchViewer)
+endif()
 
 
 
@@ -237,13 +244,14 @@ set_target_properties(exaStitchViewer PROPERTIES MACOSX_BUNDLE YES)
 # headless viewer
 # ------------------------------------------------------------------
 
-add_executable(exaStitchHeadlessViewer viewer.cpp headless.cpp)
-#link with QT5 only because that's more convenient than ifdef'ing
-#all the relevant parts in the cpp
-qt5_use_modules(exaStitchHeadlessViewer Core)
+add_executable(exaStitchHeadlessViewer
+  viewer.cpp
+  headless.cpp
+  submodules/cuteeOwl/qtOWL/Camera.cpp
+  submodules/cuteeOwl/qtOWL/ColorMaps.cpp)
+target_include_directories(exaStitchHeadlessViewer PRIVATE ${PROJECT_SOURCE_DIR}/submodules/cuteeOwl)
 target_link_libraries(exaStitchHeadlessViewer witcher)
 target_compile_definitions(exaStitchHeadlessViewer PUBLIC HEADLESS)
-# QT_OWL_LINK(exaStitchViewer)
 
 
 # ------------------------------------------------------------------
