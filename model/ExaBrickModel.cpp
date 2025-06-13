@@ -14,6 +14,7 @@
 // limitations under the License.                                           //
 // ======================================================================== //
 
+#include <cstring>
 #include <fstream>
 #include <owl/common/parallel/parallel_for.h>
 #include "ExaBrickModel.h"
