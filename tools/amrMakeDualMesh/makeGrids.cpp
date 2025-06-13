@@ -28,6 +28,7 @@
 #include <fstream>
 #include <atomic>
 #include <array>
+#include <cstring>
 
 
 #ifndef PRINT
